@@ -1,0 +1,144 @@
+{
+    "key": "group_customer_details",
+    "title": "Customer Details",
+    "fields": [
+        {
+            "key": "field_customer_email",
+            "label": "Email",
+            "name": "customer_email",
+            "type": "email",
+            "instructions": "Customer email address",
+            "required": 1,
+            "wrapper": {
+                "width": "50"
+            }
+        },
+        {
+            "key": "field_customer_phone",
+            "label": "Phone",
+            "name": "customer_phone",
+            "type": "text",
+            "instructions": "Customer phone number",
+            "wrapper": {
+                "width": "50"
+            }
+        },
+        {
+            "key": "field_customer_first_name",
+            "label": "First Name",
+            "name": "customer_first_name",
+            "type": "text",
+            "instructions": "",
+            "wrapper": {
+                "width": "50"
+            }
+        },
+        {
+            "key": "field_customer_last_name",
+            "label": "Last Name",
+            "name": "customer_last_name",
+            "type": "text",
+            "instructions": "",
+            "wrapper": {
+                "width": "50"
+            }
+        },
+        {
+            "key": "field_customer_pronoun",
+            "label": "Pronoun",
+            "name": "customer_pronoun",
+            "type": "select",
+            "instructions": "Preferred pronoun",
+            "choices": {
+                "she/her": "She/Her",
+                "he/him": "He/Him",
+                "they/them": "They/Them",
+                "other": "Other"
+            },
+            "allow_null": 1,
+            "wrapper": {
+                "width": "50"
+            }
+        },
+        {
+            "key": "field_customer_address",
+            "label": "Address",
+            "name": "customer_address",
+            "type": "text",
+            "instructions": "Street address",
+            "wrapper": {
+                "width": "100"
+            }
+        },
+        {
+            "key": "field_customer_suburb",
+            "label": "Suburb/City",
+            "name": "customer_suburb",
+            "type": "text",
+            "instructions": "",
+            "wrapper": {
+                "width": "40"
+            }
+        },
+        {
+            "key": "field_customer_state",
+            "label": "State",
+            "name": "customer_state",
+            "type": "select",
+            "instructions": "",
+            "choices": {
+                "NSW": "NSW",
+                "VIC": "VIC",
+                "QLD": "QLD",
+                "SA": "SA",
+                "WA": "WA",
+                "TAS": "TAS",
+                "NT": "NT",
+                "ACT": "ACT"
+            },
+            "allow_null": 1,
+            "wrapper": {
+                "width": "30"
+            }
+        },
+        {
+            "key": "field_customer_postcode",
+            "label": "Postcode",
+            "name": "customer_postcode",
+            "type": "text",
+            "instructions": "",
+            "wrapper": {
+                "width": "30"
+            }
+        },
+        {
+            "key": "field_customer_stripe_id",
+            "label": "Stripe Customer ID",
+            "name": "stripe_customer_id",
+            "type": "text",
+            "instructions": "Internal use only - Stripe customer identifier",
+            "readonly": 1,
+            "wrapper": {
+                "width": "100",
+                "class": "acf-admin-only"
+            }
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "edu_customer"
+            }
+        ]
+    ],
+    "modified": 1764813563,
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "active": true,
+    "description": "Customer contact and address information"
+}

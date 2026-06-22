@@ -1,0 +1,186 @@
+/* Default styles for Voucher Code element */
+.hmwevents-voucher-wrapper {
+    width: 100%;
+    max-width: 600px;
+}
+
+.hmwevents-voucher-input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.hmwevents-voucher-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 16px;
+    font-family: inherit;
+}
+
+.hmwevents-voucher-input:focus {
+    border-color: #3b82f6;
+    outline: none;
+}
+
+.hmwevents-voucher-button {
+    padding: 10px 20px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.3s ease;
+}
+
+.hmwevents-voucher-button:hover {
+    background: #2563eb;
+}
+
+.hmwevents-voucher-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.hmwevents-voucher-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    color: #6b7280;
+}
+
+.hmwevents-voucher-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: hmwevents-spin 0.6s linear infinite;
+}
+
+@keyframes hmwevents-spin {
+    to { transform: rotate(360deg); }
+}
+
+.hmwevents-voucher-success {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.hmwevents-voucher-success .hmwevents-voucher-message-icon {
+    width: 24px;
+    height: 24px;
+    background: #10b981;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.hmwevents-voucher-message-content {
+    flex: 1;
+}
+
+.hmwevents-voucher-message-title {
+    font-weight: 600;
+    color: #065f46;
+    margin: 0 0 8px 0;
+}
+
+.hmwevents-voucher-discount-details {
+    color: #047857;
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+.hmwevents-voucher-discount-details p {
+    margin: 4px 0;
+}
+
+.hmwevents-voucher-discount-details strong {
+    font-weight: 600;
+}
+
+.hmwevents-voucher-savings {
+    color: #10b981;
+    font-weight: 600;
+    margin-top: 8px !important;
+}
+
+.hmwevents-voucher-remove {
+    margin-top: 12px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.hmwevents-voucher-remove:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.hmwevents-voucher-error {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.hmwevents-voucher-error .hmwevents-voucher-message-icon {
+    width: 24px;
+    height: 24px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.hmwevents-voucher-error .hmwevents-voucher-message-title {
+    font-weight: 600;
+    color: #991b1b;
+    margin: 0 0 4px 0;
+}
+
+.hmwevents-voucher-error .hmwevents-voucher-message-content {
+    color: #dc2626;
+    font-size: 14px;
+}
+
+@media (max-width: 768px) {
+    .hmwevents-voucher-input-group {
+        flex-direction: column;
+    }
+    
+    .hmwevents-voucher-button {
+        width: 100%;
+    }
+}

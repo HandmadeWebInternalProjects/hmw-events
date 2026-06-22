@@ -1,0 +1,50 @@
+.hmwevents-educators-by-state {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  .state-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1.5rem;
+    flex: 1 0 50%;
+    .state-box {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: space-between;
+      width: 100%;
+      padding: 2rem;
+      border-radius: 10px;
+      color: #333;
+    }
+  }
+   .educators-by-state-map {
+    svg {
+      width: 100%;
+    }
+    .educators-by-state-map__state {
+      flex: 1 0 50%;
+      fill: #464440;
+      transition: fill 0.3s;
+      cursor: pointer;
+
+      &.highlighted, &:hover {
+        fill: var(--bde-palette-color-1-64fa163a-9501-4506-956e-d968c3feeb96);
+      }
+    }
+  }
+
+  
+
+  @media (min-width: 800px) {
+    gap: 6rem;
+  }
+
+  @media (min-width: 1000px) {
+    flex-direction: row;  
+  }
+
+}

@@ -1,0 +1,368 @@
+/**
+ * Payment Resume Styles
+ *
+ * Styles for the payment recovery shortcode.
+ *
+ * @package HMWEvents
+ * @since 1.0.0
+ */
+
+.hmwevents-payment-resume-container {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.hmwevents-payment-resume-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.hmwevents-payment-resume-header h2 {
+    margin: 0 0 10px 0;
+    font-size: 28px;
+    color: #333;
+}
+
+/* Payment Sections */
+.hmwevents-payment-section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 30px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+/* Loading State */
+#hmwevents-payment-loading {
+    text-align: center;
+}
+
+.hmwevents-loading-spinner {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 20px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error State */
+.hmwevents-payment-section.hmwevents-error {
+    border-left: 4px solid #e74c3c;
+    text-align: center;
+}
+
+.hmwevents-error-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.hmwevents-payment-section.hmwevents-error h3 {
+    color: #e74c3c;
+    margin: 0 0 15px 0;
+}
+
+.hmwevents-payment-section.hmwevents-error p {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+/* Warning State (Expired) */
+.hmwevents-payment-section.hmwevents-warning {
+    border-left: 4px solid #f39c12;
+    text-align: center;
+}
+
+.hmwevents-warning-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.hmwevents-payment-section.hmwevents-warning h3 {
+    color: #f39c12;
+    margin: 0 0 15px 0;
+}
+
+.hmwevents-payment-section.hmwevents-warning p {
+    color: #666;
+    margin-bottom: 15px;
+}
+
+/* Success State */
+.hmwevents-payment-section.hmwevents-success {
+    border-left: 4px solid #27ae60;
+    text-align: center;
+}
+
+.hmwevents-success-icon {
+    font-size: 64px;
+    color: #27ae60;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.hmwevents-payment-section.hmwevents-success h3 {
+    color: #27ae60;
+    margin: 0 0 15px 0;
+}
+
+.hmwevents-success-details {
+    background: #f8f9fa;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.hmwevents-success-details p {
+    margin: 5px 0;
+    color: #333;
+}
+
+/* Booking Summary */
+.hmwevents-booking-summary {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.hmwevents-booking-summary h3 {
+    margin: 0 0 20px 0;
+    font-size: 20px;
+    color: #333;
+}
+
+.hmwevents-summary-grid {
+    display: grid;
+    gap: 15px;
+}
+
+.hmwevents-summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.hmwevents-summary-item:last-child {
+    border-bottom: none;
+}
+
+.hmwevents-summary-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 14px;
+}
+
+.hmwevents-summary-value {
+    font-weight: 500;
+    color: #333;
+    font-size: 16px;
+}
+
+.hmwevents-summary-value.hmwevents-amount {
+    color: #27ae60;
+    font-weight: 700;
+    font-size: 20px;
+}
+
+.hmwevents-summary-item.hmwevents-expiry-warning {
+    background: #fff3cd;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #ffc107;
+}
+
+.hmwevents-expiry-warning .hmwevents-summary-label {
+    color: #856404;
+}
+
+.hmwevents-expiry-warning .hmwevents-summary-value {
+    color: #856404;
+    font-weight: 600;
+}
+
+/* Payment Form */
+.hmwevents-payment-form h3 {
+    margin: 0 0 10px 0;
+    font-size: 20px;
+    color: #333;
+}
+
+.hmwevents-form-description {
+    color: #666;
+    margin-bottom: 25px;
+    font-size: 14px;
+}
+
+.hmwevents-form-group {
+    margin-bottom: 20px;
+}
+
+.hmwevents-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+/* Stripe Element */
+.hmwevents-stripe-element {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px;
+    transition: border-color 0.3s ease;
+}
+
+.hmwevents-stripe-element:hover {
+    border-color: #3498db;
+}
+
+.hmwevents-stripe-element.StripeElement--focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.hmwevents-stripe-element.StripeElement--invalid {
+    border-color: #e74c3c;
+}
+
+.hmwevents-field-error {
+    color: #e74c3c;
+    font-size: 13px;
+    margin-top: 8px;
+    display: none;
+}
+
+/* Form Actions */
+.hmwevents-form-actions {
+    margin-top: 25px;
+}
+
+/* Buttons */
+.hmwevents-button {
+    display: inline-block;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.hmwevents-button-primary {
+    background: #3498db;
+    color: #fff;
+    width: 100%;
+}
+
+.hmwevents-button-primary:hover {
+    background: #2980b9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+}
+
+.hmwevents-button-primary:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.hmwevents-button-secondary {
+    background: #95a5a6;
+    color: #fff;
+}
+
+.hmwevents-button-secondary:hover {
+    background: #7f8c8d;
+}
+
+.hmwevents-button-spinner {
+    display: inline-block;
+}
+
+/* Payment Result */
+.hmwevents-payment-result {
+    margin-top: 20px;
+}
+
+.hmwevents-alert {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.hmwevents-alert-error {
+    background: #fee;
+    border-left: 4px solid #e74c3c;
+    color: #c0392b;
+}
+
+.hmwevents-alert-success {
+    background: #efe;
+    border-left: 4px solid #27ae60;
+    color: #1e8449;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hmwevents-payment-resume-container {
+        padding: 15px;
+    }
+
+    .hmwevents-payment-section {
+        padding: 20px;
+    }
+
+    .hmwevents-summary-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    .hmwevents-payment-resume-header h2 {
+        font-size: 24px;
+    }
+
+    .hmwevents-button {
+        padding: 14px 20px;
+        font-size: 15px;
+    }
+}
+
+/* Accessibility */
+.hmwevents-button:focus,
+.hmwevents-stripe-element:focus {
+    outline: 2px solid #3498db;
+    outline-offset: 2px;
+}
+
+/* Loading animation for button */
+@keyframes button-loading {
+    0%, 80%, 100% {
+        opacity: 0.4;
+    }
+    40% {
+        opacity: 1;
+    }
+}
+
+.hmwevents-button-spinner::after {
+    content: '...';
+    display: inline-block;
+    animation: button-loading 1.4s infinite;
+}

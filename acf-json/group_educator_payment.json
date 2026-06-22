@@ -1,0 +1,184 @@
+{
+    "key": "group_educator_payment",
+    "title": "Payment Settings",
+    "fields": [
+        {
+            "key": "field_educator_payment_type",
+            "label": "Payment Gateway",
+            "name": "educator_payment_type",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "Select your payment gateway",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "stripe": "Stripe",
+                "paypal": "PayPal",
+                "manual": "Manual\/Bank Transfer"
+            },
+            "default_value": false,
+            "allow_null": 1,
+            "ui": 1,
+            "ajax": 0,
+            "multiple": 0,
+            "placeholder": "",
+            "return_format": "value",
+            "create_options": 0,
+            "save_options": 0
+        },
+        {
+            "key": "field_educator_stripe_key",
+            "label": "Stripe Publishable Key",
+            "name": "educator_stripe_key",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Your Stripe publishable key (pk_live_... or pk_test_...). This is stored encrypted.",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_educator_payment_type",
+                        "operator": "==",
+                        "value": "stripe"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "placeholder": "pk_live_...",
+            "default_value": "",
+            "maxlength": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_educator_stripe_secret",
+            "label": "Stripe Secret Key",
+            "name": "educator_stripe_secret",
+            "aria-label": "",
+            "type": "password",
+            "instructions": "Your Stripe secret key (sk_live_... or sk_test_...). This is stored encrypted. Leave blank to keep existing.",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_educator_payment_type",
+                        "operator": "==",
+                        "value": "stripe"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "placeholder": "sk_live_...",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_educator_paypal_client_id",
+            "label": "PayPal Client ID",
+            "name": "educator_paypal_client_id",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Your PayPal client ID. This is stored encrypted.",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_educator_payment_type",
+                        "operator": "==",
+                        "value": "paypal"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_educator_paypal_secret",
+            "label": "PayPal Secret",
+            "name": "educator_paypal_secret",
+            "aria-label": "",
+            "type": "password",
+            "instructions": "Your PayPal secret. This is stored encrypted. Leave blank to keep existing.",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_educator_payment_type",
+                        "operator": "==",
+                        "value": "paypal"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_educator_payment_key",
+            "label": "Statement Name",
+            "name": "educator_payment_key",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "The business name or short description that appears on your customer’s credit card statement. Max 22 characters",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": 22,
+            "allow_in_bindings": 1,
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "user_role",
+                "operator": "==",
+                "value": "educator"
+            }
+        ]
+    ],
+    "menu_order": 1,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": "",
+    "show_in_rest": 0,
+    "display_title": "",
+    "modified": 1779086156
+}

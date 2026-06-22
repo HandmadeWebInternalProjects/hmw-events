@@ -1,0 +1,45 @@
+{
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "require": {
+    "php": "^8.0",
+    "defuse/php-encryption": "^2.4",
+    "dompdf/dompdf": "^3.0",
+    "league/commonmark": "^2.3",
+    "nesbot/carbon": "^2.73",
+    "stripe/stripe-php": "^19.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.0",
+    "brain/monkey": "^2.6",
+    "mockery/mockery": "^1.4"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "platform": {
+      "php": "8.0"
+    }
+  },
+  "autoload": {
+    "psr-4": {
+      "HMWEvents\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "HMWEvents\\Tests\\": "tests"
+    }
+  },
+  "acorn": {
+    "providers": []
+  },
+  "scripts": {
+    "dev": "composer install",
+    "build": "composer install --no-dev",
+    "post-autoload-dump": [
+      "Roots\\Acorn\\ComposerScripts::postAutoloadDump"
+    ]
+  }
+}

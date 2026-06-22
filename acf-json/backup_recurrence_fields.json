@@ -1,0 +1,262 @@
+        {
+          "key": "field_course_template_id",
+          "label": "Template ID",
+          "name": "course_template_id",
+          "aria-label": "",
+          "type": "number",
+          "instructions": "Template ID for recurring courses (internal use)",
+          "required": 0,
+          "conditional_logic": false,
+          "wrapper": {
+            "width": "33.33",
+            "class": "acf-admin-only",
+            "id": ""
+          },
+          "readonly": 1,
+          "default_value": "",
+          "min": "",
+          "max": "",
+          "step": "",
+          "placeholder": "",
+          "prepend": "",
+          "append": ""
+        },
+        {
+          "key": "field_course_recurrence_id",
+          "label": "Recurrence ID",
+          "name": "course_recurrence_id",
+          "aria-label": "",
+          "type": "number",
+          "instructions": "Recurrence rule ID (internal use)",
+          "required": 0,
+          "conditional_logic": false,
+          "wrapper": {
+            "width": "33.33",
+            "class": "acf-admin-only",
+            "id": ""
+          },
+          "readonly": 1,
+          "default_value": "",
+          "min": "",
+          "max": "",
+          "step": "",
+          "placeholder": "",
+          "prepend": "",
+          "append": ""
+        },
+        {
+          "key": "field_course_recurrence_type",
+          "label": "Recurrence Type",
+          "name": "course_recurrence_type",
+          "aria-label": "",
+          "type": "select",
+          "instructions": "How often should this course repeat?",
+          "required": 0,
+          "conditional_logic": [
+            [
+              {
+                "field": "field_course_is_recurring",
+                "operator": "==",
+                "value": "0"
+              }
+            ]
+          ],
+          "wrapper": {
+            "width": "50",
+            "class": "acf-hidden",
+            "id": ""
+          },
+          "choices": {
+            "daily": "Daily",
+            "weekly": "Weekly",
+            "fortnightly": "Fortnightly (Every 2 Weeks)",
+            "monthly": "Monthly",
+            "bimonthly": "Bi-monthly (Every 2 Months)",
+            "custom": "Custom Dates"
+          },
+          "default_value": "custom",
+          "multiple": 0,
+          "allow_null": 0,
+          "ui": 0,
+          "ajax": 0,
+          "placeholder": "",
+          "return_format": "value",
+          "create_options": 0,
+          "save_options": 0
+        },
+        {
+          "key": "field_course_recurrence_days",
+          "label": "Repeat On Days",
+          "name": "course_recurrence_days",
+          "aria-label": "",
+          "type": "checkbox",
+          "instructions": "Select which days of the week (for weekly\/fortnightly recurrence). <strong>For multi-day courses:<\/strong> Select only the START day. The course duration will be automatically applied to all instances.",
+          "required": 0,
+          "conditional_logic": [
+            [
+              {
+                "field": "field_course_is_recurring",
+                "operator": "==",
+                "value": "0"
+              }
+            ]
+          ],
+          "wrapper": {
+            "width": "50",
+            "class": "acf-hidden",
+            "id": ""
+          },
+          "choices": {
+            "1": "Monday",
+            "2": "Tuesday",
+            "3": "Wednesday",
+            "4": "Thursday",
+            "5": "Friday",
+            "6": "Saturday",
+            "7": "Sunday"
+          },
+          "layout": "vertical",
+          "default_value": [],
+          "allow_custom": 0,
+          "save_custom": 0,
+          "toggle": 0,
+          "return_format": "value",
+          "custom_choice_button_text": "Add new choice"
+        },
+        {
+          "key": "field_course_custom_dates",
+          "label": "Clone Dates",
+          "name": "course_custom_dates",
+          "aria-label": "",
+          "type": "repeater",
+          "instructions": "Add specific dates for your cloned courses. Each date will create an independent course with the same details as this one.",
+          "required": 0,
+          "conditional_logic": [
+            [
+              {
+                "field": "field_course_is_recurring",
+                "operator": "==",
+                "value": "1"
+              }
+            ]
+          ],
+          "wrapper": {
+            "width": "",
+            "class": "",
+            "id": ""
+          },
+          "layout": "table",
+          "button_label": "Add Date",
+          "min": 1,
+          "max": 0,
+          "rows_per_page": 20,
+          "collapsed": "",
+          "sub_fields": [
+            {
+              "key": "field_custom_date",
+              "label": "Date",
+              "name": "date",
+              "aria-label": "",
+              "type": "date_picker",
+              "instructions": "",
+              "required": 1,
+              "conditional_logic": false,
+              "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+              },
+              "display_format": "d\/m\/Y",
+              "return_format": "Y-m-d",
+              "first_day": 1,
+              "parent_repeater": "field_course_custom_dates",
+              "default_to_current_date": 0
+            }
+          ]
+        },
+        {
+          "key": "field_course_recurrence_end_date",
+          "label": "End Recurrence On",
+          "name": "course_recurrence_end_date",
+          "aria-label": "",
+          "type": "date_picker",
+          "instructions": "Leave blank for ongoing series",
+          "required": 0,
+          "conditional_logic": [
+            [
+              {
+                "field": "field_course_is_recurring",
+                "operator": "==",
+                "value": "0"
+              }
+            ]
+          ],
+          "wrapper": {
+            "width": "50",
+            "class": "acf-hidden",
+            "id": ""
+          },
+          "display_format": "d\/m\/Y",
+          "return_format": "Y-m-d",
+          "first_day": 1,
+          "default_to_current_date": 0
+        },
+        {
+          "key": "field_course_max_occurrences",
+          "label": "Maximum Occurrences",
+          "name": "course_max_occurrences",
+          "aria-label": "",
+          "type": "number",
+          "instructions": "Or limit by number of classes (default: 52)",
+          "required": 0,
+          "conditional_logic": [
+            [
+              {
+                "field": "field_course_is_recurring",
+                "operator": "==",
+                "value": "0"
+              }
+            ]
+          ],
+          "wrapper": {
+            "width": "50",
+            "class": "acf-hidden",
+            "id": ""
+          },
+          "default_value": 52,
+          "min": 1,
+          "max": "",
+          "step": "",
+          "placeholder": "",
+          "prepend": "",
+          "append": ""
+        },
+        {
+          "key": "field_course_update_future_instances",
+          "label": "Update All Future Instances",
+          "name": "course_update_future_instances",
+          "aria-label": "",
+          "type": "true_false",
+          "instructions": "Check this box to apply changes to all future classes in this recurring series. This will update class details (cost, location, capacity) for all upcoming classes that haven't started yet.",
+          "required": 0,
+          "conditional_logic": [
+            [
+              {
+                "field": "field_course_is_recurring",
+                "operator": "==",
+                "value": "0"
+              }
+            ]
+          ],
+          "wrapper": {
+            "width": "",
+            "class": "acf-hidden",
+            "id": ""
+          },
+          "message": "Yes, update all future instances with these changes",
+          "default_value": 0,
+          "allow_in_bindings": 1,
+          "ui_on_text": "",
+          "ui_off_text": "",
+          "ui": 1
+        }

@@ -1,0 +1,7 @@
+{
+  "resources/js/frontend.js": {
+    "file": "js/frontend.js",
+    "isEntry": true,
+    "src": "resources/js/frontend.js"
+  }
+}

@@ -1,0 +1,35 @@
+%%SELECTOR%% .upcoming-course-card {
+  display: flex;
+
+  {% if design.card.direction == 'row' %}
+    flex-direction: row;
+  {% elseif design.card.direction == 'column' %}
+    flex-direction: column;
+  {% endif %}
+
+  gap: {{ design.card.space_between.style }};
+
+  {{ macros.borders(design.card.borders) }}
+  {{ macros.spacing_padding_all(design.card.spacing_padding_all) }}
+}
+
+%%SELECTOR%% .course-accordion-icon {
+    color: #ff0000;
+    font-size: 30px;
+}
+
+%%SELECTOR%% :where(.course-accordion-icon, .course-date-icon, .course-location-icon) {
+  {% if design.accordion_icon.corners == 'round' %}
+    border-radius: 9999em;
+  {% endif %}
+}
+
+{{ macros.atomV1IconCss(design.accordion_icon, 'course-accordion-icon', '%%SELECTOR%%', true) }}
+
+{{ macros.atomV1IconCss(design.date_icon, 'course-date-icon', '%%SELECTOR%%', true) }}
+
+{{ macros.atomV1IconCss(design.location_icon, 'course-location-icon', '%%SELECTOR%%', true) }}
+
+{{ macros.atomV1IconCss(design.notes_icon, 'course-notes-icon', '%%SELECTOR%%', true) }}
+
+{{ macros.atomV1IconCss(design.course_availability_icon, 'course-availability-icon', '%%SELECTOR%%', true) }}

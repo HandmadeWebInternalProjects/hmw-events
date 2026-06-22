@@ -1,0 +1,9 @@
+{
+    "redefinable-internals": [
+        "error_log",
+        "file_put_contents",
+        "move_uploaded_file",
+        "strtotime",
+        "gmdate"
+    ]
+}

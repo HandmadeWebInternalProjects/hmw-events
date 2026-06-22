@@ -1,0 +1,477 @@
+/**
+ * Course Bookings Meta Box Styles
+ *
+ * @package HMWEvents
+ * @since 1.0.0
+ */
+
+.badge {
+	display: inline-block;
+	text-transform: uppercase;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+}
+
+/* .table-wrapper {
+  overflow-y: scroll;
+  max-height: 400px;
+} */
+
+ .hmwevents-bookings-table {
+    border: 0 !important;
+  }
+
+.hmwevents-bookings-table .row-actions {
+	font-size: 12px;
+	left: unset;
+}
+
+.hmwevents-bookings-table .row-actions a {
+	text-decoration: none;
+}
+
+.hmwevents-bookings-table .row-actions a:hover {
+	text-decoration: underline;
+}
+
+.hmwevents-transfer-message {
+	margin-top: 15px;
+	display: none;
+	padding: 10px;
+	border-left: 4px solid;
+}
+
+.hmwevents-transfer-message.notice-success {
+	border-color: #4caf50;
+	background: #f0f9f0;
+	color: #2e7d32;
+}
+
+.hmwevents-transfer-message.notice-error {
+	border-color: #f44336;
+	background: #fef0f0;
+	color: #c62828;
+}
+
+/* Pagination Styles */
+.tablenav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 15px 0;
+	margin-top: 20px;
+	border-top: 1px solid #e0e0e0;
+}
+
+.tablenav-pages {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+}
+
+.tablenav-pages .displaying-num {
+	font-size: 13px;
+	color: #666;
+	margin-right: 15px;
+}
+
+.tablenav-pages .pagination-links {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.tablenav-pages a,
+.tablenav-pages .current {
+	min-width: 36px;
+	height: 36px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 10px;
+	text-decoration: none;
+	font-size: 13px;
+	font-weight: 500;
+	border-radius: 4px;
+	transition: all 0.2s ease;
+	border: 1px solid #ddd;
+	background: #fff;
+	color: #2271b1;
+}
+
+.tablenav-pages a:hover {
+	background: #f6f7f7;
+	border-color: #2271b1;
+	color: #135e96;
+}
+
+.tablenav-pages a:active {
+	background: #e5e5e5;
+}
+
+.tablenav-pages .current {
+	background: #2271b1;
+	color: #fff;
+	border-color: #2271b1;
+	cursor: default;
+	font-weight: 600;
+}
+
+.tablenav-pages .prev-page,
+.tablenav-pages .next-page {
+	font-weight: 600;
+	padding: 0 12px;
+}
+
+.tablenav-pages .disabled,
+.tablenav-pages .disabled:hover {
+	color: #a7aaad;
+	background: #f6f7f7;
+	border-color: #ddd;
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+/* Page numbers list style (if using 'list' type) */
+.tablenav-pages .page-numbers {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.tablenav-pages .page-numbers li {
+	margin: 0;
+}
+
+.tablenav-pages .dots {
+	color: #666;
+	padding: 0 8px;
+	border: none;
+	background: transparent;
+}
+
+.tablenav-pages .dots:hover {
+	background: transparent;
+	border: none;
+	cursor: default;
+}
+
+.tablenav-pages .next,
+.tablenav-pages .prev {
+	font-weight: 600;
+	padding: 0 12px;
+	border: 1px solid #ddd;
+}
+
+/* Responsive Mobile Styles */
+@media screen and (max-width: 782px) {
+	/* Make table horizontally scrollable */
+	.table-wrapper {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+		margin: 0 -15px;
+		padding: 0 15px;
+	}
+
+	/* Hide table and show card-based layout */
+	.hmwevents-bookings-table thead {
+		display: none;
+	}
+
+	.hmwevents-bookings-table,
+	.hmwevents-bookings-table tbody,
+	.hmwevents-bookings-table tr,
+	.hmwevents-bookings-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.hmwevents-bookings-table tr {
+		margin-bottom: 20px;
+		border: 1px solid #e0e0e0;
+		border-radius: 8px;
+		padding: 15px;
+		background: #fff;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+		box-sizing: border-box;
+	}
+
+	.hmwevents-bookings-table td {
+		border: none;
+		padding: 8px 0;
+		text-align: left;
+		position: relative;
+		padding-left: 45%;
+		min-height: 30px;
+	}
+
+	.hmwevents-bookings-table td:before {
+		content: attr(data-label);
+		position: absolute;
+		left: 0;
+		width: 40%;
+		padding-right: 10px;
+		font-weight: 600;
+		color: #666;
+		font-size: 12px;
+		text-transform: uppercase;
+	}
+
+	/* First cell (customer) - make prominent */
+	.hmwevents-bookings-table td:first-child {
+		padding-left: 0;
+		padding-bottom: 12px;
+		margin-bottom: 12px;
+		border-bottom: 1px solid #e0e0e0;
+	}
+
+	.hmwevents-bookings-table td:first-child:before {
+		display: none;
+	}
+
+	.hmwevents-bookings-table td:first-child a {
+		font-size: 16px;
+		font-weight: 600;
+		color: #2271b1;
+	}
+
+	/* Actions cell */
+	.hmwevents-bookings-table td:last-child {
+		padding-left: 0;
+		padding-top: 12px;
+		margin-top: 12px;
+		border-top: 1px solid #e0e0e0;
+	}
+
+	.hmwevents-bookings-table td:last-child:before {
+		display: none;
+	}
+
+	.hmwevents-bookings-table .row-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.hmwevents-bookings-table .row-actions span {
+		display: block;
+	}
+
+	.hmwevents-bookings-table .row-actions a {
+		display: inline-block;
+		padding: 8px 12px;
+		background: #f0f0f1;
+		border-radius: 4px;
+		color: #2271b1;
+		font-weight: 500;
+	}
+
+	.hmwevents-bookings-table .row-actions a:hover {
+		background: #e0e0e0;
+	}
+
+	/* Statistics grid - stack on mobile */
+	div[style*="grid-template-columns"] {
+		grid-template-columns: repeat(2, 1fr) !important;
+	}
+
+	/* Pagination adjustments */
+	.tablenav {
+		flex-direction: column;
+		gap: 15px;
+		align-items: stretch;
+	}
+
+	.tablenav-pages {
+		flex-wrap: wrap;
+		justify-content: center;
+	}
+
+	.tablenav-pages .displaying-num {
+		width: 100%;
+		text-align: center;
+		margin-bottom: 10px;
+	}
+
+	.tablenav-pages a,
+	.tablenav-pages .current {
+		min-width: 40px;
+		height: 40px;
+		font-size: 14px;
+	}
+}
+
+/* Medium screens with sidebar - card layout for better usability */
+@media screen and (min-width: 783px) and (max-width: 1280px) {
+	/* Switch to card layout similar to mobile */
+	.hmwevents-bookings-table thead {
+		display: none;
+	}
+
+	.hmwevents-bookings-table,
+	.hmwevents-bookings-table tbody,
+	.hmwevents-bookings-table tr,
+	.hmwevents-bookings-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.hmwevents-bookings-table tr {
+		margin-bottom: 15px;
+		border: 1px solid #e0e0e0;
+		border-radius: 6px;
+		padding: 10px;
+		background: #fff;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+		box-sizing: border-box;
+	}
+
+	.hmwevents-bookings-table td {
+		border: none;
+		padding: 6px 0;
+		text-align: left;
+		position: relative;
+		padding-left: 40%;
+		min-height: 28px;
+		font-size: 13px;
+	}
+
+	.hmwevents-bookings-table td:before {
+		content: attr(data-label);
+		position: absolute;
+		left: 0;
+		width: 38%;
+		padding-right: 8px;
+		font-weight: 600;
+		color: #666;
+		font-size: 11px;
+		text-transform: uppercase;
+	}
+
+	/* First cell (customer) - make prominent */
+	.hmwevents-bookings-table td:first-child {
+		padding-left: 0;
+		padding-bottom: 10px;
+		margin-bottom: 10px;
+		border-bottom: 1px solid #e0e0e0;
+	}
+
+	.hmwevents-bookings-table td:first-child:before {
+		display: none;
+	}
+
+	.hmwevents-bookings-table td:first-child a {
+		font-size: 15px;
+		font-weight: 600;
+		color: #2271b1;
+	}
+
+	/* Actions cell */
+	.hmwevents-bookings-table td:last-child {
+		padding-left: 0;
+		padding-top: 10px;
+		margin-top: 10px;
+		border-top: 1px solid #e0e0e0;
+	}
+
+	.hmwevents-bookings-table td:last-child:before {
+		display: none;
+	}
+
+	.hmwevents-bookings-table .row-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.hmwevents-bookings-table .row-actions span {
+		display: inline-block;
+	}
+
+	.hmwevents-bookings-table .row-actions a {
+		display: inline-block;
+		padding: 6px 10px;
+		background: #f0f0f1;
+		border-radius: 3px;
+		color: #2271b1;
+		font-weight: 500;
+		font-size: 12px;
+		text-decoration: none;
+	}
+
+	.hmwevents-bookings-table .row-actions a:hover {
+		background: #dcdcde;
+		text-decoration: none;
+	}
+
+	/* Statistics grid - 3 columns on medium screens */
+	.booking-stats-summary {
+		grid-template-columns: repeat(3, 1fr) !important;
+	}
+
+	/* Compact pagination */
+	.tablenav-pages a,
+	.tablenav-pages .current {
+		min-width: 32px;
+		height: 32px;
+		padding: 0 8px;
+		font-size: 12px;
+	}
+}
+
+/* Large tablet - keep table layout but make it tighter */
+@media screen and (min-width: 1281px) and (max-width: 1440px) {
+	.hmwevents-bookings-table {
+		font-size: 13px;
+	}
+
+	.hmwevents-bookings-table th,
+	.hmwevents-bookings-table td {
+		padding: 8px 6px;
+	}
+
+	.hmwevents-bookings-table .row-actions {
+		font-size: 11px;
+	}
+}
+
+.booking-stats-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 15px;
+	margin-bottom: 20px;
+	padding: 15px;
+	background: #f9f9f9;
+	border-radius: 4px;
+}
+
+.booking-stats-summary .stat-value {
+	font-size: 24px;
+	font-weight: bold;
+}
+
+.booking-stats-summary .stat-label {
+	font-size: 12px;
+	color: #666;
+	text-transform: uppercase;
+}
+
+.booking-stats-summary .stat-value.color-blue {
+	color: #2196f3;
+}
+
+.booking-stats-summary .stat-value.color-green {
+	color: #4caf50;
+}
+
+.booking-stats-summary .stat-value.color-orange {
+	color: #ff9800;
+}
+
+.booking-stats-summary .stat-value.color-purple {
+	color: #9c27b0;
+}

@@ -1,0 +1,378 @@
+/* Email Queue Styles */
+.hmwevents-email-queue-wrap {
+  max-width: 100%;
+}
+
+.hmwevents-email-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 20px 0 24px;
+}
+
+.hmwevents-email-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.hmwevents-email-card:hover {
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+.hmwevents-email-card.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+}
+
+.hmwevents-email-card.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #2563eb;
+  border-radius: 8px 8px 0 0;
+}
+
+.hmwevents-email-card h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.hmwevents-email-card .stat {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+}
+
+.hmwevents-email-card.status-pending .stat { color: #d97706; }
+.hmwevents-email-card.status-processing .stat { color: #2563eb; }
+.hmwevents-email-card.status-sent .stat { color: #059669; }
+.hmwevents-email-card.status-dead_letter .stat { color: #dc2626; }
+.hmwevents-email-card.status-cancelled .stat { color: #64748b; }
+
+/* Filters */
+.hmwevents-email-filters {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.hmwevents-filter-form {
+  flex: 1;
+  min-width: 300px;
+}
+
+.hmwevents-filter-form .filter-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: fit-content;
+}
+
+.hmwevents-filter-form label {
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.hmwevents-filter-form input[type="text"] {
+  min-width: 250px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+.hmwevents-filter-form input[type="text"]:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.results-info {
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Email Table */
+.hmwevents-email-table {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hmwevents-email-table thead th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.hmwevents-email-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.hmwevents-email-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.hmwevents-email-table tbody td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+.hmwevents-email-table .column-id {
+  width: 60px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.hmwevents-email-table .column-status {
+  width: 120px;
+}
+
+.hmwevents-email-table .column-type {
+  width: 150px;
+}
+
+.hmwevents-email-table .column-recipient {
+  width: auto;
+  min-width: 200px;
+}
+
+.hmwevents-email-table .column-recipient a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.hmwevents-email-table .column-recipient a:hover {
+  text-decoration: underline;
+}
+
+.hmwevents-email-table .column-subject {
+  width: auto;
+  min-width: 200px;
+}
+
+.hmwevents-email-table .column-scheduled {
+  width: 180px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.hmwevents-email-table .column-attempts {
+  width: 100px;
+  text-align: center;
+}
+
+.hmwevents-email-table .column-actions {
+  width: 180px;
+}
+
+.hmwevents-email-table .no-items {
+  text-align: center;
+  padding: 40px 20px !important;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Status Badges */
+.hmwevents-email-table .badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.hmwevents-email-table .badge-pending { 
+  background: #fef3c7; 
+  color: #92400e; 
+}
+
+.hmwevents-email-table .badge-processing { 
+  background: #dbeafe; 
+  color: #1e40af; 
+}
+
+.hmwevents-email-table .badge-sent { 
+  background: #dcfce7; 
+  color: #166534; 
+}
+
+.hmwevents-email-table .badge-dead_letter { 
+  background: #fee2e2; 
+  color: #991b1b; 
+}
+
+.hmwevents-email-table .badge-cancelled { 
+  background: #f1f5f9; 
+  color: #475569; 
+}
+
+/* Attempts Info */
+.hmwevents-email-table .attempts-info {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Action Buttons */
+.hmwevents-email-table .row-actions-wrapper {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.hmwevents-email-table .inline-form {
+  display: inline-block;
+  margin: 0;
+}
+
+.hmwevents-email-table .button-small {
+  padding: 4px 10px;
+  height: auto;
+  line-height: 1.4;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hmwevents-email-table .button-small .dashicons {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/* Pagination */
+.tablenav-pages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tablenav-pages .displaying-num {
+  margin-right: 16px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.tablenav-pages .pagination-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tablenav-pages .button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tablenav-pages .current-page {
+  width: 50px;
+  text-align: center;
+  padding: 4px 8px;
+  margin: 0 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+.tablenav-pages .paging-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Email Template Styles */
+.hmwevents-email-template-form {
+  max-width: 900px;
+}
+
+.hmwevents-email-template-form textarea {
+  width: 100%;
+  min-height: 220px;
+}
+
+.hmwevents-email-template-form input[type="text"] {
+  width: 100%;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .hmwevents-email-dashboard {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 782px) {
+  .hmwevents-email-dashboard {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .hmwevents-email-filters {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .hmwevents-filter-form {
+    width: 100%;
+  }
+  
+  .hmwevents-email-table .row-actions-wrapper {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .hmwevents-email-table .button-small {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .hmwevents-email-dashboard {
+    grid-template-columns: 1fr;
+  }
+}

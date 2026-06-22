@@ -1,0 +1,186 @@
+{% set uid = propertiesData.id %}
+
+{{ macros.atomV1ButtonCss(design.button_style.button, 'hmwevents-voucher-button', '%%SELECTOR%%', breakpoint, globalSettings) }}
+
+/* Voucher Code Container */
+%%SELECTOR%% {
+    {{ macros.spacing_padding_all(design.container_padding) }}
+    {{ macros.spacing_margin_y(design.container_margin) }}
+}
+
+/* Input Group */
+%%SELECTOR%% .hmwevents-voucher-input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+/* Input Field */
+%%SELECTOR%% .hmwevents-voucher-input {
+    {% if propertiesData.styling.input_style.width %}
+    width: {{ propertiesData.styling.input_style.width.style }};
+    {% endif %}
+    flex: 1;
+    {{ macros.typography(design.input_style.typography, globalSettings) }}
+    {{ macros.borders(design.input_style.borders) }}
+    {{ macros.spacing_padding_all(design.input_style.padding) }}
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+%%SELECTOR%% .hmwevents-voucher-input:focus {
+    {% if propertiesData.styling.input_style.borders.custom.color %}
+    border-color: {{ propertiesData.styling.input_style.borders.custom.color }};
+    {% else %}
+    border-color: #3b82f6;
+    {% endif %}
+}
+
+/* Apply Button */
+%%SELECTOR%% .hmwevents-voucher-button {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+%%SELECTOR%% .hmwevents-voucher-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Loading State */
+%%SELECTOR%% .hmwevents-voucher-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    color: #6b7280;
+    {{ macros.typography(propertiesData.styling.message_style.typography) }}
+}
+
+%%SELECTOR%% .hmwevents-voucher-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: hmwevents-spin 0.6s linear infinite;
+}
+
+@keyframes hmwevents-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Success Message */
+%%SELECTOR%% .hmwevents-voucher-success {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+%%SELECTOR%% .hmwevents-voucher-success .hmwevents-voucher-message-icon {
+    width: 24px;
+    height: 24px;
+    background: {% if propertiesData.styling.message_style.success_color %}{{ propertiesData.styling.message_style.success_color }}{% else %}#10b981{% endif %};
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+%%SELECTOR%% .hmwevents-voucher-message-content {
+    flex: 1;
+    {{ macros.typography(propertiesData.styling.message_style.typography) }}
+}
+
+%%SELECTOR%% .hmwevents-voucher-message-title {
+    font-weight: 600;
+    color: #065f46;
+    margin: 0 0 8px 0;
+}
+
+%%SELECTOR%% .hmwevents-voucher-discount-details {
+    color: #047857;
+    line-height: 1.6;
+}
+
+%%SELECTOR%% .hmwevents-voucher-discount-details p {
+    margin: 4px 0;
+}
+
+%%SELECTOR%% .hmwevents-voucher-savings {
+    color: {% if propertiesData.styling.message_style.success_color %}{{ propertiesData.styling.message_style.success_color }}{% else %}#10b981{% endif %};
+    font-weight: 600;
+    margin-top: 8px !important;
+}
+
+%%SELECTOR%% .hmwevents-voucher-remove {
+    margin-top: 12px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+%%SELECTOR%% .hmwevents-voucher-remove:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+/* Error Message */
+%%SELECTOR%% .hmwevents-voucher-error {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+%%SELECTOR%% .hmwevents-voucher-error .hmwevents-voucher-message-icon {
+    width: 24px;
+    height: 24px;
+    background: {% if propertiesData.styling.message_style.error_color %}{{ propertiesData.styling.message_style.error_color }}{% else %}#ef4444{% endif %};
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+%%SELECTOR%% .hmwevents-voucher-error .hmwevents-voucher-message-title {
+    font-weight: 600;
+    color: #991b1b;
+    margin: 0 0 4px 0;
+}
+
+%%SELECTOR%% .hmwevents-voucher-error .hmwevents-voucher-message-content {
+    color: #dc2626;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    %%SELECTOR%% .hmwevents-voucher-input-group {
+        flex-direction: column;
+    }
+    
+    %%SELECTOR%% .hmwevents-voucher-button {
+        width: 100%;
+    }
+}

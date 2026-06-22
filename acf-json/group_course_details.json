@@ -1,0 +1,417 @@
+{
+    "key": "group_course_details",
+    "title": "Course Details",
+    "fields": [
+        {
+            "key": "field_course_educator_id",
+            "label": "Educator ID",
+            "name": "course_educator_id",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "Educator user ID (internal use - also stored as post author)",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "33.33",
+                "class": "acf-admin-only",
+                "id": ""
+            },
+            "readonly": 1,
+            "default_value": "",
+            "min": "",
+            "max": "",
+            "step": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_course_start_date",
+            "label": "Start Date",
+            "name": "course_start_date",
+            "aria-label": "",
+            "type": "date_time_picker",
+            "instructions": "Course start date and time",
+            "required": 1,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "display_format": "d\/m\/Y g:i a",
+            "return_format": "Y-m-d H:i:s",
+            "first_day": 1,
+            "default_to_current_date": 0
+        },
+        {
+            "key": "field_course_end_date",
+            "label": "End Date",
+            "name": "course_end_date",
+            "aria-label": "",
+            "type": "date_time_picker",
+            "instructions": "Course end date and time",
+            "required": 1,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "display_format": "d\/m\/Y g:i a",
+            "return_format": "Y-m-d H:i:s",
+            "first_day": 1,
+            "default_to_current_date": 0
+        },
+        {
+            "key": "field_69a0fa24d0b2c",
+            "label": "Cut off date",
+            "name": "course_cutoff_date",
+            "aria-label": "",
+            "type": "date_time_picker",
+            "instructions": "Course end date and time",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "display_format": "d\/m\/Y g:i a",
+            "return_format": "Y-m-d H:i:s",
+            "first_day": 1,
+            "default_to_current_date": 0,
+            "allow_in_bindings": 1
+        },
+        {
+            "key": "field_course_cost",
+            "label": "Course Cost",
+            "name": "course_full_cost",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "Full price for the course",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "50",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "min": 0,
+            "max": "",
+            "allow_in_bindings": 1,
+            "placeholder": "",
+            "step": "0.01",
+            "prepend": "$",
+            "append": ""
+        },
+        {
+            "key": "field_course_deposit_cost",
+            "label": "Deposit Cost",
+            "name": "course_deposit_cost",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "Deposit amount (if accepting deposits)",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "50",
+                "class": "",
+                "id": ""
+            },
+            "min": 0,
+            "step": 0.01,
+            "prepend": "$",
+            "default_value": "",
+            "max": "",
+            "placeholder": "",
+            "append": ""
+        },
+        {
+            "key": "field_course_capacity",
+            "label": "Capacity",
+            "name": "course_capacity",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "Maximum number of attendees",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": 20,
+            "min": 1,
+            "step": 1,
+            "max": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_course_location_address",
+            "label": "Address",
+            "name": "course_location_address",
+            "aria-label": "",
+            "type": "google_map",
+            "instructions": "Type in the venue address and click on the most accurate and detailed Google Maps address. If you are not providing the full address or the course is online, you must still enter your suburb and state in the 'Search for address' field below for the course to be displayed on the website. If the Google Maps address does not include the street or unit number, room\/building name or level, add this extra detail into the Booking Notes field below.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "center_lat": "",
+            "center_lng": "",
+            "zoom": "",
+            "height": "",
+            "allow_in_bindings": 1
+        },
+        {
+            "key": "field_course_location_suburb",
+            "label": "Suburb",
+            "name": "course_location_suburb",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "33.33",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_course_location_state",
+            "label": "State",
+            "name": "course_location_state",
+            "aria-label": "",
+            "type": "taxonomy",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "33.33",
+                "class": "",
+                "id": ""
+            },
+            "taxonomy": "course_state",
+            "add_term": 1,
+            "save_terms": 1,
+            "load_terms": 0,
+            "return_format": "id",
+            "field_type": "multi_select",
+            "allow_null": 0,
+            "allow_in_bindings": 1,
+            "bidirectional": 0,
+            "multiple": 0,
+            "bidirectional_target": []
+        },
+        {
+            "key": "field_course_location_postcode",
+            "label": "Postcode",
+            "name": "course_location_postcode",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "33.33",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_69649b8f6352d",
+            "label": "Booking Notes",
+            "name": "booking_notes",
+            "aria-label": "",
+            "type": "wysiwyg",
+            "instructions": "Any extra location details that are not in the Google Maps address above, or any other important booking details e.g. 'Full venue address provided after booking' or 'The course is in the Education Room on Level 3, South Building'",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "allow_in_bindings": 0,
+            "tabs": "all",
+            "toolbar": "basic",
+            "media_upload": 0,
+            "delay": 0
+        },
+        {
+            "key": "field_course_is_external",
+            "label": "External Booking",
+            "name": "course_is_external",
+            "aria-label": "",
+            "type": "true_false",
+            "instructions": "Is this course booked through an external system?",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_course_external_url",
+                        "operator": "==",
+                        "value": "'custom'"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "message": "",
+            "default_value": 0,
+            "allow_in_bindings": 1,
+            "ui_on_text": "",
+            "ui_off_text": "",
+            "ui": 1
+        },
+        {
+            "key": "field_course_external_url",
+            "label": "External Booking URL",
+            "name": "course_external_url",
+            "aria-label": "",
+            "type": "url",
+            "instructions": "URL for external booking system",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_course_is_external",
+                        "operator": "==",
+                        "value": "1"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "placeholder": ""
+        },
+        {
+            "key": "field_course_is_recurring",
+            "label": "Clone Course",
+            "name": "course_is_recurring",
+            "aria-label": "",
+            "type": "true_false",
+            "instructions": "Enable to clone this course for multiple dates. <strong>How it works:<\/strong> The duration from start date to end date will be preserved for all clones. <em>Example:<\/em> If this course runs Sat 21st - Sun 28th (7 days), each clone will also span 7 days. Each clone will be an independent course.",
+            "required": 0,
+            "conditional_logic": false,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "message": "Clone this course for multiple dates",
+            "ui": 1,
+            "default_value": 0,
+            "ui_on_text": "",
+            "ui_off_text": ""
+        },
+        {
+            "key": "field_course_custom_dates",
+            "label": "Custom Dates",
+            "name": "course_custom_dates",
+            "aria-label": "",
+            "type": "repeater",
+            "instructions": "Add specific dates for your recurring courses",
+            "required": 0,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_course_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_course_recurrence_type",
+                        "operator": "==",
+                        "value": "custom"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "layout": "table",
+            "button_label": "Add Date",
+            "min": 1,
+            "max": 0,
+            "rows_per_page": 20,
+            "collapsed": "",
+            "sub_fields": [
+                {
+                    "key": "field_custom_date",
+                    "label": "Date",
+                    "name": "date",
+                    "aria-label": "",
+                    "type": "date_picker",
+                    "instructions": "",
+                    "required": 1,
+                    "conditional_logic": false,
+                    "wrapper": {
+                        "width": "",
+                        "class": "",
+                        "id": ""
+                    },
+                    "display_format": "d\/m\/Y",
+                    "return_format": "Y-m-d",
+                    "first_day": 1,
+                    "parent_repeater": "field_course_custom_dates",
+                    "default_to_current_date": 0
+                }
+            ]
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "educator_course"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": [
+        "the_content",
+        "discussion",
+        "comments",
+        "page_attributes",
+        "tags"
+    ],
+    "active": true,
+    "description": "",
+    "show_in_rest": 0,
+    "display_title": "",
+    "modified": 1781850120
+}

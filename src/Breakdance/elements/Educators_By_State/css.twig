@@ -1,0 +1,26 @@
+%%SELECTOR%% .state-box {
+  background-color: {{ design.box.background_color }};
+  {{ macros.spacing_complex(design.box.padding, 'padding') }};
+  {{ macros.borders(design.box.borders) }};
+  transition: background-color {{ design.state_box_hover.transition.style }};
+  &:hover {
+  	background-color: {{ design.state_box_hover.background_color }}
+  }
+}
+
+%%SELECTOR%% .state-name {
+  {{ macros.typography(design.state_text, globalSettings) }}
+}
+
+%%SELECTOR%% .state-count {
+  {{ macros.typography(design.state_count) }}
+}
+
+%%SELECTOR%% .hmwevents-icon-arrow-wrapper {
+  {{ macros.borders(design.icon.borders) }}
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+{{ macros.atomV1IconCss(design.icon, 'hmwevents-icon-arrow', '%%SELECTOR%%', true, isBaseBreakpoint) }}

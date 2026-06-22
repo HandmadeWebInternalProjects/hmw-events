@@ -1,0 +1,42 @@
+{
+    "key": "group_course_type_meta",
+    "title": "Course Type Settings",
+    "fields": [
+        {
+            "key": "field_course_type_color",
+            "label": "Color",
+            "name": "course_type_color",
+            "aria-label": "",
+            "type": "color_picker",
+            "instructions": "Select a color for this course type. This color will be used in course cards and other displays.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "#3b82f6",
+            "enable_opacity": 0,
+            "return_format": "string"
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "taxonomy",
+                "operator": "==",
+                "value": "course_type"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": "Custom fields for course type taxonomy terms",
+    "show_in_rest": 0
+}

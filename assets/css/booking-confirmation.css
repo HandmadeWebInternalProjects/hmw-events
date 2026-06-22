@@ -1,0 +1,684 @@
+/**
+ * Booking Confirmation Styles
+ *
+ * @package HMWEvents
+ * @since 1.0.0
+ */
+
+.hmwevents-confirmation-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* Header */
+.hmwevents-confirmation-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.hmwevents-confirmation-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, #34d399 0%, var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white)) 100%);
+    color: white;
+    font-size: 3rem;
+    line-height: 80px;
+    border-radius: 50%;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+}
+
+.hmwevents-confirmation-header h1 {
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem;
+    color: #1f2937;
+}
+
+.hmwevents-confirmation-subtitle {
+    font-size: 1.125rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Content */
+.hmwevents-confirmation-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.hmwevents-confirmation-section {
+    padding: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.hmwevents-confirmation-section:last-child {
+    border-bottom: none;
+}
+
+.hmwevents-confirmation-section h2 {
+    font-size: 1.5rem;
+    margin: 0 0 1.5rem;
+    color: #1f2937;
+}
+
+/* Highlight Section */
+.hmwevents-confirmation-highlight {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.hmwevents-booking-reference {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 8px;
+    border: 2px dashed #10b981;
+    margin-bottom: 1rem;
+}
+
+.hmwevents-reference-label {
+    font-size: 1rem;
+    color: #6b7280;
+}
+
+.hmwevents-reference-number {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #10b981;
+    font-family: monospace;
+    letter-spacing: 0.05em;
+}
+
+.hmwevents-reference-note {
+    text-align: center;
+    font-size: 0.875rem;
+    color: #059669;
+    margin: 0;
+}
+
+/* Detail Grid */
+.hmwevents-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+.hmwevents-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.hmwevents-detail-item-full {
+    grid-column: 1 / -1;
+}
+
+.hmwevents-detail-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.hmwevents-detail-value {
+    font-size: 1rem;
+    color: #1f2937;
+}
+
+/* Payment Summary */
+.hmwevents-payment-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.hmwevents-payment-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+}
+
+.hmwevents-payment-label {
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.hmwevents-payment-value {
+    color: #1f2937;
+}
+
+.hmwevents-payment-status {
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.hmwevents-status-paid {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.hmwevents-status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.hmwevents-status-failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.hmwevents-voucher-row {
+    background: #f0fdf4;
+    margin: 0 -1rem;
+    padding: 0.75rem 1rem;
+}
+
+.hmwevents-payment-total {
+    border-top: 2px solid #e5e7eb;
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+}
+
+.hmwevents-payment-total .hmwevents-payment-label {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.hmwevents-payment-total .hmwevents-payment-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #10b981;
+}
+
+.hmwevents-payment-notice {
+    background: #fef3c7;
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #f59e0b;
+    margin-top: 1rem;
+}
+
+.hmwevents-payment-notice strong {
+    color: #92400e;
+}
+
+.hmwevents-payment-reference {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+}
+
+.hmwevents-payment-reference .hmwevents-payment-value {
+    font-family: monospace;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* Next Steps */
+.hmwevents-next-steps {
+    background: #f9fafb;
+}
+
+.hmwevents-steps-list {
+    list-style: none;
+    counter-reset: step-counter;
+    padding: 0;
+    margin: 0;
+}
+
+.hmwevents-steps-list li {
+    counter-increment: step-counter;
+    position: relative;
+    padding-left: 3.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.hmwevents-steps-list li:last-child {
+    margin-bottom: 0;
+}
+
+.hmwevents-steps-list li::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white));
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.125rem;
+}
+
+.hmwevents-steps-list strong {
+    display: block;
+    font-size: 1.125rem;
+    color: #1f2937;
+    margin-bottom: 0.25rem;
+}
+
+.hmwevents-steps-list p {
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Actions */
+.hmwevents-confirmation-actions {
+    display: flex;
+    gap: 1rem;
+    padding: 2rem;
+    background: #f9fafb;
+}
+
+.hmwevents-btn {
+    flex: 1;
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hmwevents-btn-primary {
+    background: var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white));
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+    color: white !important;
+}
+
+.hmwevents-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+    color: white;
+}
+
+.hmwevents-btn-secondary {
+    background: white;
+    color: #6b7280;
+    border: 2px solid #e5e7eb;
+}
+
+.hmwevents-btn-secondary:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+
+/* Error State */
+.hmwevents-confirmation-error {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.hmwevents-error-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    color: white;
+    font-size: 3rem;
+    line-height: 80px;
+    border-radius: 50%;
+}
+
+.hmwevents-confirmation-error h2 {
+    font-size: 2rem;
+    margin: 0 0 1rem;
+    color: #1f2937;
+}
+
+.hmwevents-confirmation-error p {
+    font-size: 1.125rem;
+    color: #6b7280;
+    margin: 0 0 2rem;
+}
+
+.hmwevents-confirmation-error .hmwevents-btn {
+    display: inline-flex;
+    flex: none;
+}
+
+/* Print Styles */
+@media print {
+    @page {
+        margin: 0.4in;
+    }
+
+    html {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    /* Reset Breakdance ancestor containers that add padding/spacing */
+    .breakdance,
+    .bde-section,
+    .section-container,
+    .bde-columns,
+    .bde-column,
+    .breakdance > *,
+    .bde-section > *,
+    .section-container > * {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        --bde-section-vertical-padding: 0 !important;
+        --bde-section-horizontal-padding: 0 !important;
+        --bde-column-gap: 0 !important;
+    }
+
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .hmwevents-confirmation-wrapper {
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        max-width: 100% !important;
+        font-size: 9px;
+        line-height: 1.25;
+    }
+
+    /* Strip decorative chrome */
+    .hmwevents-confirmation-icon,
+    .hmwevents-confirmation-actions,
+    .hmwevents-next-steps,
+    .hmwevents-reference-note {
+        display: none !important;
+    }
+
+    .hmwevents-confirmation-header {
+        margin-bottom: 0.4rem;
+        text-align: left;
+        padding: 0.25rem 0.5rem 0;
+    }
+
+    .hmwevents-confirmation-header h1 {
+        font-size: 0.95rem;
+        margin: 0;
+        color: #000;
+    }
+
+    .hmwevents-confirmation-subtitle {
+        font-size: 0.6rem;
+        color: #555;
+        margin: 0;
+        display: block !important;
+    }
+
+    .hmwevents-confirmation-content {
+        box-shadow: none;
+        border: 1px solid #999;
+        border-radius: 0;
+        background: #fff !important;
+    }
+
+    .hmwevents-confirmation-section {
+        padding: 0.35rem 0.5rem;
+        page-break-inside: avoid;
+        border-bottom: 1px solid #ccc;
+    }
+
+    .hmwevents-confirmation-section:last-child {
+        border-bottom: none;
+    }
+
+    .hmwevents-confirmation-section h2 {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #000;
+        margin: 0 0 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    /* Booking reference */
+    .hmwevents-confirmation-highlight {
+        background: #f5f5f5 !important;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .hmwevents-booking-reference {
+        border: 1px dashed #333;
+        background: #fff;
+        padding: 0.25rem 0.5rem;
+        margin-bottom: 0;
+        gap: 0.3rem;
+    }
+
+    .hmwevents-reference-label {
+        font-size: 0.6rem;
+        color: #555;
+    }
+
+    .hmwevents-reference-number {
+        font-size: 0.85rem;
+        color: #000;
+    }
+
+    /* Detail grid - tighter */
+    .hmwevents-detail-grid {
+        display: grid !important;
+        gap: 0.15rem 0.6rem;
+    }
+
+    .hmwevents-detail-item {
+        display: flex !important;
+        gap: 0;
+    }
+
+    .hmwevents-detail-label {
+        font-size: 0.55rem;
+        color: #555;
+    }
+
+    .hmwevents-detail-value {
+        font-size: 0.7rem;
+        color: #000;
+    }
+
+    /* Payment summary - tighter */
+    .hmwevents-payment-summary {
+        display: flex !important;
+        gap: 0;
+        flex-direction: column !important;
+    }
+
+    .hmwevents-payment-row {
+        display: flex !important;
+        padding: 0.1rem 0;
+        justify-content: space-between !important;
+        align-items: center !important;
+    }
+
+    .hmwevents-payment-label {
+        font-size: 0.65rem;
+        color: #555;
+    }
+
+    .hmwevents-payment-value {
+        font-size: 0.7rem;
+        color: #000;
+    }
+
+    .hmwevents-payment-status {
+        font-size: 0.55rem;
+        border: 1px solid #333;
+        background: #fff !important;
+        color: #000 !important;
+        padding: 0.05rem 0.25rem;
+        display: inline !important;
+    }
+
+    .hmwevents-payment-total {
+        border-top: 1.5px solid #999;
+        padding-top: 0.2rem;
+        margin-top: 0.1rem;
+    }
+
+    .hmwevents-payment-total .hmwevents-payment-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #000;
+    }
+
+    .hmwevents-payment-total .hmwevents-payment-value {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #000;
+    }
+
+    .hmwevents-payment-notice {
+        font-size: 0.6rem;
+        border-left: 2px solid #333;
+        background: #f5f5f5 !important;
+        padding: 0.2rem 0.4rem;
+        margin-top: 0.15rem;
+        display: block !important;
+    }
+
+    .hmwevents-payment-notice strong {
+        font-size: 0.6rem;
+    }
+
+    .hmwevents-voucher-row {
+        background: #f5f5f5 !important;
+        margin: 0;
+        padding: 0.1rem 0;
+    }
+
+    .hmwevents-payment-reference {
+        border-top: 1px solid #ddd;
+        padding-top: 0.1rem;
+        margin-top: 0.1rem;
+    }
+
+    .hmwevents-payment-reference .hmwevents-payment-value {
+        font-size: 0.6rem;
+    }
+
+    /* Ensure links print with URL */
+    a[href]::after {
+        content: none;
+    }
+
+    /* General print resets */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hmwevents-confirmation-header h1 {
+        font-size: 2rem;
+    }
+
+    .hmwevents-confirmation-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 2rem;
+        line-height: 60px;
+    }
+
+    .hmwevents-confirmation-section {
+        padding: 1.5rem;
+    }
+
+    .hmwevents-detail-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .hmwevents-booking-reference {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .hmwevents-reference-number {
+        font-size: 1.5rem;
+    }
+
+    .hmwevents-confirmation-actions {
+        flex-direction: column;
+        padding: 1.5rem;
+    }
+
+    .hmwevents-steps-list li {
+        padding-left: 3rem;
+    }
+
+    .hmwevents-steps-list li::before {
+        width: 2rem;
+        height: 2rem;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .hmwevents-confirmation-wrapper {
+        padding: 1rem 0.5rem;
+    }
+
+    .hmwevents-confirmation-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .hmwevents-confirmation-section {
+        padding: 1rem;
+    }
+
+    .hmwevents-payment-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .hmwevents-reference-number {
+        font-size: 1.25rem;
+    }
+}
