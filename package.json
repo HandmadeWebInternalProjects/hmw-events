@@ -28,7 +28,7 @@
     "fast-glob": "^3.3.1",
     "sass": "^1.66.0",
     "typescript": "~5.1.6",
-    "vite": "^4.4.9"
+    "vite": "^6.4.3"
   },
   "dependencies": {
     "alpinejs": "^3.13.1",
