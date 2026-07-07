@@ -12,6 +12,8 @@
 
 namespace HMWEvents\Shortcodes;
 
+use HMWEvents\Registry\RegistrationFieldRegistry;
+
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class BookingForm
@@ -37,50 +39,51 @@ class BookingForm
   {
     $atts = shortcode_atts([
       'course_id' => get_the_ID(),
+      'event_id'  => 0,
     ], $atts);
 
-    $course_id = intval($atts['course_id']);
+    $course_id = (int) ($atts['event_id'] ?: $atts['course_id']);
 
     if (!$course_id) {
-      return '<p class="hmwevents-error">Course ID is required.</p>';
+      return '<p class="hmwevents-error">Event ID is required.</p>';
     }
 
-    $course_cutoff_date = \HMWEvents\Meta\CourseMeta::get_course_cutoff_date($course_id);
+    $course = get_post($course_id);
+    if (!$course || $course->post_type !== 'hmw_event') {
+      return '<p class="hmwevents-error">Invalid event.</p>';
+    }
 
-    if ($course_cutoff_date) {
-      $sydney_timezone = new \DateTimeZone('Australia/Sydney');
-      $cutoff_datetime = new \DateTime($course_cutoff_date, $sydney_timezone);
-      $current_datetime = new \DateTime('now', $sydney_timezone);
-
-      if ($current_datetime >= $cutoff_datetime) {
-        return '<p class="hmwevents-error">Sorry, bookings for this course have closed.</p>';
+    // Check cutoff date
+    if (class_exists('\\HMWEvents\\Meta\\CourseMeta')) {
+      $course_cutoff_date = \HMWEvents\Meta\CourseMeta::get_course_cutoff_date($course_id);
+      if ($course_cutoff_date) {
+        $sydney_timezone = new \DateTimeZone('Australia/Sydney');
+        $cutoff_datetime = new \DateTime($course_cutoff_date, $sydney_timezone);
+        $current_datetime = new \DateTime('now', $sydney_timezone);
+        if ($current_datetime >= $cutoff_datetime) {
+          return '<p class="hmwevents-error">Sorry, bookings for this event have closed.</p>';
+        }
       }
     }
 
-    // Get course details
-    $course = get_post($course_id);
-    if (!$course || $course->post_type !== 'educator_course') {
-      return '<p class="hmwevents-error">Invalid course.</p>';
-    }
-
     // if external booking link exists, show that instead
-    $is_external = get_field('course_is_external', $course_id);
-    $external_link = get_field('course_external_url', $course_id);
+    $is_external = function_exists('get_field') ? get_field('_event_is_external', $course_id) : false;
+    $external_link = get_field('_event_external_url', $course_id);
     if ($is_external && $external_link) {
       return '<p class="hmwevents-info">To book this course, please click the button below to visit this Educator\'s external booking website</p><p><a href="' . esc_url($external_link) . '" target="_blank" class="button-atom button-atom--primary bde-button__button"><span class="button-atom__text">Book Now</span></a></p>';
     }
 
     // Hide the form if the course is fully booked
-    if (!\HMWEvents\Helpers\Course::check_course_availability($course_id)) {
+    if (!\HMWEvents\Helpers\EventHelper::check_course_availability($course_id)) {
       return '<p class="hmwevents-error">Sorry, this course is fully booked.</p>';
     }
 
     // Get pricing
-    $full_cost = get_field('course_full_cost', $course_id);
-    $deposit_cost = get_field('course_deposit_cost', $course_id);
+    $full_cost = get_field('_event_price', $course_id);
+    $deposit_cost = get_field('_event_deposit', $course_id);
     $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
-    $educator_id = $course->post_author;
+    $organizer_id = $course->post_author;
 
     // Enqueue Stripe
     wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
@@ -120,22 +123,21 @@ class BookingForm
       file_exists($booking_form_css_path) ? filemtime($booking_form_css_path) : '1.0.0'
     );
 
+    // Get effective fields for this event (template snapshot aware)
+    $fields = $this->get_effective_fields_for_event($course_id);
+
     // Localize script with data
     wp_localize_script('hmwevents-booking-form', 'cmsBookingData', [
       'courseId' => $course_id,
-      'educatorId' => $educator_id,
-      'restUrl' => rest_url('cms/v1'),
+      'organizerId' => $organizer_id,
+      'restUrl' => rest_url('hmwevents/v1'),
       'nonce' => wp_create_nonce('wp_rest'),
       'fullCost' => floatval($full_cost),
       'depositCost' => floatval($deposit_cost),
       'currency' => $currency,
       'currencySymbol' => $currency_symbol,
       'recaptchaSiteKey' => $recaptcha_site_key,
-      'bookingFields' => array_values(array_map(
-        fn($key, $f) => ['key' => $key, 'type' => $f['type']],
-        array_keys(\HMWEvents\Config\BookingFields::for_frontend()),
-        \HMWEvents\Config\BookingFields::for_frontend()
-      )),
+      'bookingFields' => $this->build_js_field_list($fields),
     ]);
 
     ob_start();
@@ -143,8 +145,8 @@ class BookingForm
     <div class="hmwevents-booking-form-wrapper" data-course-id="<?php echo esc_attr($course_id); ?>">
       <form id="hmwevents-booking-form" class="hmwevents-booking-form">
 
-        <!-- Registry-driven booking fields (Your Information / Address / Extra Details / Agreements) -->
-        <?php $this->render_booking_field_sections(); ?>
+        <!-- Registry-driven booking fields -->
+        <?php $this->render_booking_field_sections($fields); ?>
 
         <!-- Voucher Code Section -->
         <div class="hmwevents-form-section hmwevents-voucher-section">
@@ -242,39 +244,39 @@ class BookingForm
   }
 
   /**
-   * Renders the registry-driven booking field sections (Your Information / Address /
-   * Extra Details / Agreements). Half-width fields are paired two-per-row; full-width
-   * fields each get their own row.
+   * Renders registry-driven booking field sections, filtered by template config.
    */
-  private function render_booking_field_sections(): void
+  private function render_booking_field_sections(array $fields): void
   {
-    foreach (\HMWEvents\Config\BookingFields::frontend_sections() as $section_key => $section_heading) {
-      $fields = \HMWEvents\Config\BookingFields::for_frontend_section($section_key);
-      if (empty($fields)) {
+    $sections = RegistrationFieldRegistry::get_sections();
+    $grouped = $this->group_fields_by_section($fields);
+
+    foreach ($sections as $section_key => $section_heading) {
+      if (empty($grouped[$section_key])) {
         continue;
       }
 
-      // Build a flat indexed list of [key, field] pairs for look-ahead pairing.
-      $entries = [];
-      foreach ($fields as $key => $field) {
-        $entries[] = [$key, $field];
-      }
-      $count = count($entries);
+      $section_fields = $grouped[$section_key];
 
       echo '<div class="hmwevents-form-section">';
       echo '<h3>' . esc_html($section_heading) . '</h3>';
 
+      $entries = [];
+      foreach ($section_fields as $key => $field) {
+        $entries[] = [$key, $field];
+      }
+      $count = count($entries);
+
       for ($i = 0; $i < $count;) {
         [$key, $field] = $entries[$i];
-        $width = $field['frontend_width'] ?? 'half';
+        $width = $field['width'] ?? 'half';
 
         echo '<div class="hmwevents-form-row">';
         $this->render_booking_field($key, $field);
         $i++;
 
-        // Pair two consecutive half-width fields into the same row.
         if ($width === 'half' && $i < $count
-          && ($entries[$i][1]['frontend_width'] ?? 'half') === 'half'
+          && ($entries[$i][1]['width'] ?? 'half') === 'half'
         ) {
           $this->render_booking_field($entries[$i][0], $entries[$i][1]);
           $i++;
@@ -288,16 +290,15 @@ class BookingForm
   }
 
   /**
-   * Renders a single booking field (label + input) inside a hmwevents-form-field div.
-   * Handles text / email / tel / date inputs, textareas, radio groups, and checkboxes.
+   * Renders a single booking field using RegistrationFieldRegistry structure.
    */
   private function render_booking_field(string $key, array $field): void
   {
-    $input_type  = $field['frontend_input'] ?? $field['type'];
-    $required    = !empty($field['frontend_required']);
-    $placeholder = $field['frontend_placeholder'] ?? '';
-    $label_html  = $this->get_field_label_html($key, $field);
-    $css_class   = ($field['frontend_width'] ?? 'half') === 'full'
+    $input_type  = $field['type'];
+    $required    = !empty($field['required']);
+    $placeholder = $field['placeholder'] ?? '';
+    $label       = $field['label'] ?? $key;
+    $css_class   = ($field['width'] ?? 'half') === 'full'
                    ? 'hmwevents-form-field hmwevents-form-field-full'
                    : 'hmwevents-form-field';
     $req_attr    = $required ? ' required' : '';
@@ -306,45 +307,49 @@ class BookingForm
     echo '<div class="' . $css_class . '">';
 
     if ($input_type === 'checkbox') {
+      if ($key === 'terms_accepted') {
+        $url = apply_filters('hmwevents_booking_terms_conditions_url', '/terms-conditions/');
+        $label = __('I have read and agree to the', 'hmw-events')
+          . ' <a href="' . esc_url($url) . '" target="_blank">'
+          . __('Terms &amp; Conditions', 'hmw-events') . '</a>';
+      }
+
       echo '<label>';
       echo '<input type="checkbox" id="' . esc_attr($key) . '" name="' . esc_attr($key) . '" value="1"' . $req_attr . '>';
       if ($required) {
         echo '<span class="required">*</span> ';
       }
-      echo $label_html;
+      // terms_accepted contains an anchor tag — allow the HTML
+      if ($key === 'terms_accepted') {
+        echo $label;
+      } else {
+        echo esc_html($label);
+      }
       echo '</label>';
 
-    } elseif ($input_type === 'radio') {
-      echo '<label>' . $label_html . '</label>';
-      echo '<div class="hmwevents-radio-group">';
-      foreach (($field['options'] ?? []) as $opt_val => $opt_label) {
-        if ($opt_val === '') {
-          continue;
-        }
-        echo '<label class="hmwevents-radio-option">';
-        echo '<input type="radio" name="' . esc_attr($key) . '" value="' . esc_attr($opt_val) . '"' . $req_attr . '>';
-        echo esc_html($opt_label);
-        echo '</label>';
-      }
-      echo '</div>';
-
     } elseif ($input_type === 'select') {
-      echo '<label for="' . esc_attr($key) . '">' . $label_html . $req_star . '</label>';
+      echo '<label for="' . esc_attr($key) . '">' . esc_html($label) . $req_star . '</label>';
       echo '<select id="' . esc_attr($key) . '" name="' . esc_attr($key) . '"' . $req_attr . '>';
       foreach (($field['options'] ?? []) as $opt_val => $opt_label) {
-        echo '<option value="' . esc_attr($opt_val) . '">' . esc_html($opt_label) . '</option>';
+        echo '<option value="' . esc_attr((string) $opt_val) . '">' . esc_html($opt_label) . '</option>';
       }
       echo '</select>';
 
     } elseif ($input_type === 'textarea') {
-      $rows = (int) ($field['frontend_rows'] ?? 3);
-      echo '<label for="' . esc_attr($key) . '">' . $label_html . $req_star . '</label>';
+      $rows = (int) ($field['rows'] ?? 3);
+      echo '<label for="' . esc_attr($key) . '">' . esc_html($label) . $req_star . '</label>';
       echo '<textarea id="' . esc_attr($key) . '" name="' . esc_attr($key) . '" rows="' . $rows . '"'
            . ($placeholder ? ' placeholder="' . esc_attr($placeholder) . '"' : '')
            . $req_attr . '></textarea>';
 
+    } elseif ($input_type === 'file') {
+      echo '<label for="' . esc_attr($key) . '">' . esc_html($label) . $req_star . '</label>';
+      echo '<input type="file" id="' . esc_attr($key) . '" name="' . esc_attr($key) . '"'
+           . (!empty($field['allowed_types']) ? ' accept="' . esc_attr(implode(',', array_map(fn($t) => '.' . $t, $field['allowed_types']))) . '"' : '')
+           . $req_attr . '>';
+
     } else {
-      echo '<label for="' . esc_attr($key) . '">' . $label_html . $req_star . '</label>';
+      echo '<label for="' . esc_attr($key) . '">' . esc_html($label) . $req_star . '</label>';
       echo '<input type="' . esc_attr($input_type) . '" id="' . esc_attr($key) . '" name="' . esc_attr($key) . '"'
            . ($placeholder ? ' placeholder="' . esc_attr($placeholder) . '"' : '')
            . $req_attr . '>';
@@ -354,18 +359,120 @@ class BookingForm
   }
 
   /**
-   * Returns safe HTML for a field's label in the frontend form.
+   * Get effective fields for a given event, applying template registration_fields config.
    *
-   * Most fields: escaped plain text (using frontend_label override or canonical label).
-   * terms_accepted: inline hyperlink generated from the hmwevents_booking_terms_conditions_url filter.
+   * @return array<string, array>
    */
-  private function get_field_label_html(string $key, array $field): string
+  private function get_effective_fields_for_event(int $event_id): array
   {
-    if ($key === 'terms_accepted') {
-      $url = apply_filters('hmwevents_booking_terms_conditions_url', '/terms-conditions/');
-      return 'I have read and agree to the <a href="' . esc_url($url) . '" target="_blank">Terms &amp; Conditions</a>';
+    $all = RegistrationFieldRegistry::all();
+
+    // Remove file upload fields from frontend Stripe form (handled differently)
+    foreach ($all as $key => $field) {
+      if (($field['type'] ?? '') === 'file') {
+        unset($all[$key]);
+      }
     }
 
-    return esc_html($field['frontend_label'] ?? $field['label']);
+    // Try to read template snapshot registration_field config
+    $snapshot = get_post_meta($event_id, '_event_field_config', true);
+    $registration_config = null;
+    if (is_array($snapshot) && isset($snapshot['registration_fields']) && is_array($snapshot['registration_fields'])) {
+      $registration_config = $snapshot['registration_fields'];
+    }
+
+    $snapshot_defaults = get_post_meta($event_id, '_event_default_values', true);
+    $field_overrides = [];
+    if (is_array($snapshot_defaults) && isset($snapshot_defaults['registration']['field_overrides'])) {
+      $field_overrides = $snapshot_defaults['registration']['field_overrides'];
+    }
+
+    if (!$registration_config) {
+      return $all;
+    }
+
+    $hidden   = (array) ($registration_config['hidden'] ?? []);
+    $required = (array) ($registration_config['required'] ?? []);
+    $optional = (array) ($registration_config['optional'] ?? []);
+
+    // If no fields are configured at all, treat as unconfigured — show all
+    $has_config = !empty($hidden) || !empty($required) || !empty($optional);
+    if (!$has_config) {
+      return $all;
+    }
+
+    $hidden_set   = array_flip($hidden);
+    $required_set = array_flip($required);
+    $optional_set = array_flip($optional);
+
+    // Remove hidden fields
+    foreach (array_keys($all) as $key) {
+      if (isset($hidden_set[$key])) {
+        unset($all[$key]);
+      }
+    }
+
+    // Templated mode: only show fields that are in required OR optional buckets.
+    // Fields not in either bucket are silently removed (not configured).
+    foreach (array_keys($all) as $key) {
+      if (!isset($required_set[$key]) && !isset($optional_set[$key])) {
+        unset($all[$key]);
+      }
+    }
+
+    foreach ($all as $key => &$field) {
+      if (isset($required_set[$key])) {
+        $field['required'] = true;
+      } elseif (isset($optional_set[$key])) {
+        $field['required'] = false;
+      }
+
+      if (isset($field_overrides[$key]) && is_array($field_overrides[$key])) {
+        if (!empty($field_overrides[$key]['label'])) {
+          $field['label'] = $field_overrides[$key]['label'];
+        }
+        if (array_key_exists('placeholder', $field_overrides[$key])) {
+          $field['placeholder'] = $field_overrides[$key]['placeholder'];
+        }
+      }
+    }
+    unset($field);
+
+    return $all;
+  }
+
+  /**
+   * Group fields by their section key.
+   *
+   * @return array<string, array<string, array>>
+   */
+  private function group_fields_by_section(array $fields): array
+  {
+    $grouped = [];
+    foreach ($fields as $key => $field) {
+      $section = $field['section'] ?? 'additional';
+      if (!isset($grouped[$section])) {
+        $grouped[$section] = [];
+      }
+      $grouped[$section][$key] = $field;
+    }
+
+    return $grouped;
+  }
+
+  /**
+   * Build a flat field list for the JS booking handler.
+   *
+   * @param array<string, array> $fields
+   * @return array<int, array{key: string, type: string}>
+   */
+  private function build_js_field_list(array $fields): array
+  {
+    $list = [];
+    foreach ($fields as $key => $field) {
+      $list[] = ['key' => $key, 'type' => $field['type'] ?? 'text'];
+    }
+
+    return $list;
   }
 }

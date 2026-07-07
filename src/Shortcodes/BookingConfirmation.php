@@ -53,17 +53,17 @@ class BookingConfirmation
         bg.total_amount,
         bg.payment_type as group_payment_type,
         bg.payment_status,
-        c.post_title as course_name,
-        c.ID as course_id,
-        cust.post_title as customer_name,
+        c.post_title as event_name,
+        c.ID as event_id,
+        cust.post_title as registrant_name,
         pt.amount as paid_amount,
         pt.gateway_transaction_id,
         pt.created_at as payment_date
-      FROM {$wpdb->prefix}educator_bookings b
-      LEFT JOIN {$wpdb->prefix}educator_booking_groups bg ON b.booking_group_id = bg.id
-      LEFT JOIN {$wpdb->prefix}posts c ON b.course_post_id = c.ID
-      LEFT JOIN {$wpdb->prefix}posts cust ON b.customer_post_id = cust.ID
-      LEFT JOIN {$wpdb->prefix}educator_payment_transactions pt ON bg.id = pt.booking_group_id
+      FROM {$wpdb->prefix}hmwevents_bookings b
+      LEFT JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+      LEFT JOIN {$wpdb->prefix}posts c ON b.event_post_id = c.ID
+      LEFT JOIN {$wpdb->prefix}posts cust ON b.registrant_post_id = cust.ID
+      LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
       WHERE b.booking_number = %s
       AND b.deleted_at IS NULL
       ORDER BY pt.created_at DESC
@@ -74,32 +74,32 @@ class BookingConfirmation
       wp_die('Booking not found.');
     }
 
-    $customer_email = get_post_meta($booking->customer_post_id, 'customer_email', true);
-    $customer_phone = get_post_meta($booking->customer_post_id, 'customer_phone', true);
-    $course_date = get_field('course_date', $booking->course_id);
-    $course_time = get_field('course_time', $booking->course_id);
-    $course_location = get_field('course_location', $booking->course_id);
-    $course_educator = get_the_author_meta('display_name', get_post_field('post_author', $booking->course_id));
+    $registrant_email = get_post_meta($booking->registrant_post_id, 'registrant_email', true);
+    $registrant_phone = get_post_meta($booking->registrant_post_id, 'registrant_phone', true);
+    $event_date = get_field('_event_start_date', $booking->event_id);
+    $event_time = get_field('_event_end_date', $booking->event_id);
+    $event_location = get_field('_event_venue_name', $booking->event_id);
+    $event_organizer = get_the_author_meta('display_name', get_post_field('post_author', $booking->event_id));
 
-    $currency = !empty($booking->currency) ? $booking->currency : \HMWEvents\Meta\CourseMeta::get_course_currency($booking->course_id);
+    $currency = !empty($booking->currency) ? $booking->currency : \HMWEvents\Meta\CourseMeta::get_course_currency($booking->event_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
 
     $voucher_usage = $wpdb->get_row($wpdb->prepare("
-      SELECT * FROM {$wpdb->prefix}educator_voucher_usage
+      SELECT * FROM {$wpdb->prefix}hmwevents_voucher_usage
       WHERE booking_id = %d
     ", $booking->id));
 
     $generator = new \HMWEvents\Services\BookingPdfGenerator();
     $generator->set_booking($booking);
     $generator->set_meta([
-      'customer_email'   => $customer_email,
-      'customer_phone'   => $customer_phone,
-      'course_date'      => $course_date,
-      'course_time'      => $course_time,
-      'course_location'  => $course_location,
-      'course_educator'  => $course_educator,
-      'currency_symbol'  => $currency_symbol,
-      'voucher'          => $voucher_usage,
+      'registrant_email'   => $registrant_email,
+      'registrant_phone'   => $registrant_phone,
+      'event_date'         => $event_date,
+      'event_time'         => $event_time,
+      'event_location'     => $event_location,
+      'event_organizer'    => $event_organizer,
+      'currency_symbol'    => $currency_symbol,
+      'voucher'            => $voucher_usage,
     ]);
     $generator->stream();
   }
@@ -156,17 +156,17 @@ class BookingConfirmation
                 bg.total_amount,
                 bg.payment_type as group_payment_type,
                 bg.payment_status,
-                c.post_title as course_name,
-                c.ID as course_id,
-                cust.post_title as customer_name,
+                c.post_title as event_name,
+                c.ID as event_id,
+                cust.post_title as registrant_name,
                 pt.amount as paid_amount,
                 pt.gateway_transaction_id,
                 pt.created_at as payment_date
-            FROM {$wpdb->prefix}educator_bookings b
-            LEFT JOIN {$wpdb->prefix}educator_booking_groups bg ON b.booking_group_id = bg.id
-            LEFT JOIN {$wpdb->prefix}posts c ON b.course_post_id = c.ID
-            LEFT JOIN {$wpdb->prefix}posts cust ON b.customer_post_id = cust.ID
-            LEFT JOIN {$wpdb->prefix}educator_payment_transactions pt ON bg.id = pt.booking_group_id
+            FROM {$wpdb->prefix}hmwevents_bookings b
+            LEFT JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            LEFT JOIN {$wpdb->prefix}posts c ON b.event_post_id = c.ID
+            LEFT JOIN {$wpdb->prefix}posts cust ON b.registrant_post_id = cust.ID
+            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
             WHERE b.booking_number = %s
             AND b.deleted_at IS NULL
             ORDER BY pt.created_at DESC
@@ -178,22 +178,21 @@ class BookingConfirmation
     }
 
     // Get customer details
-    $customer_email = get_post_meta($booking->customer_post_id, 'customer_email', true);
-    $customer_phone = get_post_meta($booking->customer_post_id, 'customer_phone', true);
+    $registrant_email = get_post_meta($booking->registrant_post_id, 'registrant_email', true);
+    $registrant_phone = get_post_meta($booking->registrant_post_id, 'registrant_phone', true);
 
-    // Get course details
-    $course_date = get_field('course_date', $booking->course_id);
-    $course_time = get_field('course_time', $booking->course_id);
-    $course_location = get_field('course_location', $booking->course_id);
-    $course_educator = get_the_author_meta('display_name', get_post_field('post_author', $booking->course_id));
+    $event_date = get_field('_event_start_date', $booking->event_id);
+    $event_time = get_field('_event_end_date', $booking->event_id);
+    $event_location = get_field('_event_venue_name', $booking->event_id);
+    $event_organizer = get_the_author_meta('display_name', get_post_field('post_author', $booking->event_id));
 
     // Get currency for display
-    $currency = !empty($booking->currency) ? $booking->currency : \HMWEvents\Meta\CourseMeta::get_course_currency($booking->course_id);
+    $currency = !empty($booking->currency) ? $booking->currency : \HMWEvents\Meta\CourseMeta::get_course_currency($booking->event_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
 
     // Get voucher usage if any
     $voucher_usage = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}educator_voucher_usage
+            SELECT * FROM {$wpdb->prefix}hmwevents_voucher_usage
             WHERE booking_id = %d
         ", $booking->id));
 
@@ -217,40 +216,40 @@ class BookingConfirmation
           <p class="hmwevents-reference-note">Please save this reference number for your records.</p>
         </div>
 
-        <!-- Course Details -->
+        <!-- Event Details -->
         <div class="hmwevents-confirmation-section">
-          <h2>Course Details</h2>
+          <h2>Event Details</h2>
           <div class="hmwevents-detail-grid">
             <div class="hmwevents-detail-item">
               <span class="hmwevents-detail-label">Course:</span>
-              <span class="hmwevents-detail-value"><?php echo esc_html($booking->course_name); ?></span>
+              <span class="hmwevents-detail-value"><?php echo esc_html($booking->event_name); ?></span>
             </div>
 
-            <?php if ($course_educator): ?>
+            <?php if ($event_organizer): ?>
               <div class="hmwevents-detail-item">
                 <span class="hmwevents-detail-label">Educator:</span>
-                <span class="hmwevents-detail-value"><?php echo esc_html($course_educator); ?></span>
+                <span class="hmwevents-detail-value"><?php echo esc_html($event_organizer); ?></span>
               </div>
             <?php endif; ?>
 
-            <?php if ($course_date): ?>
+            <?php if ($event_date): ?>
               <div class="hmwevents-detail-item">
                 <span class="hmwevents-detail-label">Date:</span>
-                <span class="hmwevents-detail-value"><?php echo esc_html(date('F j, Y', strtotime($course_date))); ?></span>
+                <span class="hmwevents-detail-value"><?php echo esc_html(date('F j, Y', strtotime($event_date))); ?></span>
               </div>
             <?php endif; ?>
 
-            <?php if ($course_time): ?>
+            <?php if ($event_time): ?>
               <div class="hmwevents-detail-item">
                 <span class="hmwevents-detail-label">Time:</span>
-                <span class="hmwevents-detail-value"><?php echo esc_html($course_time); ?></span>
+                <span class="hmwevents-detail-value"><?php echo esc_html($event_time); ?></span>
               </div>
             <?php endif; ?>
 
-            <?php if ($course_location): ?>
+            <?php if ($event_location): ?>
               <div class="hmwevents-detail-item hmwevents-detail-item-full">
                 <span class="hmwevents-detail-label">Location:</span>
-                <span class="hmwevents-detail-value"><?php echo esc_html($course_location); ?></span>
+                <span class="hmwevents-detail-value"><?php echo esc_html($event_location); ?></span>
               </div>
             <?php endif; ?>
           </div>
@@ -262,18 +261,18 @@ class BookingConfirmation
           <div class="hmwevents-detail-grid">
             <div class="hmwevents-detail-item">
               <span class="hmwevents-detail-label">Name:</span>
-              <span class="hmwevents-detail-value"><?php echo esc_html($booking->customer_name); ?></span>
+              <span class="hmwevents-detail-value"><?php echo esc_html($booking->registrant_name); ?></span>
             </div>
 
             <div class="hmwevents-detail-item">
               <span class="hmwevents-detail-label">Email:</span>
-              <span class="hmwevents-detail-value"><?php echo esc_html($customer_email); ?></span>
+              <span class="hmwevents-detail-value"><?php echo esc_html($registrant_email); ?></span>
             </div>
 
-            <?php if ($customer_phone): ?>
+            <?php if ($registrant_phone): ?>
               <div class="hmwevents-detail-item">
                 <span class="hmwevents-detail-label">Phone:</span>
-                <span class="hmwevents-detail-value"><?php echo esc_html($customer_phone); ?></span>
+                <span class="hmwevents-detail-value"><?php echo esc_html($registrant_phone); ?></span>
               </div>
             <?php endif; ?>
           </div>
@@ -331,7 +330,7 @@ class BookingConfirmation
           <ol class="hmwevents-steps-list">
             <li>
               <strong>Confirmation Email</strong>
-              <p>You will receive a confirmation email at <?php echo esc_html($customer_email); ?> with all your booking details.</p>
+              <p>You will receive a confirmation email at <?php echo esc_html($registrant_email); ?> with all your booking details.</p>
             </li>
             <li>
               <strong>Course Materials</strong>

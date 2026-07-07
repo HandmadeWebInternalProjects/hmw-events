@@ -13,9 +13,9 @@ namespace HMWEvents\Services\Emails;
 
 use HMWEvents\Services\Emails\Handlers\BookingConfirmationHandler;
 use HMWEvents\Services\Emails\Handlers\ReminderHandler;
-use HMWEvents\Services\Emails\Handlers\PostCourseHandler;
+use HMWEvents\Services\Emails\Handlers\PostEventHandler;
 use HMWEvents\Services\Emails\Handlers\StatusChangeHandler;
-use HMWEvents\Services\Emails\Handlers\EducatorNewBookingHandler;
+use HMWEvents\Services\Emails\Handlers\OrganizerNewBookingHandler;
 use HMWEvents\Services\Emails\Handlers\PaymentLinkHandler;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
@@ -58,9 +58,9 @@ class EmailService
         $this->handlers = [
             'booking_confirmation'  => new BookingConfirmationHandler(),
             'reminder'              => new ReminderHandler(),
-            'post_course'           => new PostCourseHandler(),
+            'post_course'           => new PostEventHandler(),
             'status_change'         => new StatusChangeHandler(),
-            'educator_new_booking'  => new EducatorNewBookingHandler(),
+            'educator_new_booking'  => new OrganizerNewBookingHandler(),
             'payment_link'          => new PaymentLinkHandler(),
         ];
     }
@@ -85,7 +85,7 @@ class EmailService
      */
     public function queue_educator_new_booking($booking_id, $booking_data = [])
     {
-        $handler = new EducatorNewBookingHandler();
+        $handler = new OrganizerNewBookingHandler();
         return $handler->queue_for_booking($booking_id, $booking_data);
     }
 
@@ -146,7 +146,7 @@ class EmailService
      */
     public function queue_post_course_email($booking_id, $days_after = 1, $booking_data = [])
     {
-        $handler = new PostCourseHandler();
+        $handler = new PostEventHandler();
         return $handler->queue_for_booking($booking_id, $days_after, $booking_data);
     }
 
@@ -550,7 +550,7 @@ class EmailService
               Payment: {{booking_amount}} ({{payment_type}})</p>
               <p><strong>Customer Details:</strong><br>
               Name: {{customer_name}}<br>
-              Email: {{customer_email}}<br>
+              Email: {{registrant_email}}<br>
               Phone: {{customer_phone}}</p>
               <p>{{customer_link}}</p>',
         ];

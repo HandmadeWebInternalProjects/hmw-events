@@ -12,7 +12,7 @@
 namespace HMWEvents\Services\Gateways;
 
 use HMWEvents\Interfaces\PaymentGatewayInterface;
-use HMWEvents\Helpers\Course;
+use HMWEvents\Helpers\EventHelper;
 use HMWEvents\Helpers\ConfigHelper;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
@@ -84,13 +84,13 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
    */
   public function get_webhook_url()
   {
-    return rest_url('cms/v1/webhook/' . $this->get_gateway_id());
+    return rest_url('hmwevents/v1/webhook/' . $this->get_gateway_id());
   }
 
   /**
    * Get or create customer post in WordPress.
    *
-   * @param array $data Customer data (customer_name, customer_email, customer_phone).
+   * @param array $data Customer data (customer_name, registrant_email, customer_phone).
    * @return int|\WP_Error Customer post ID or error.
    */
   protected function get_or_create_customer_post($data)
@@ -98,8 +98,8 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     // Check if customer exists by email
     $existing = get_posts([
       'post_type' => 'edu_customer',
-      'meta_key' => 'customer_email',
-      'meta_value' => $data['customer_email'],
+      'meta_key' => 'registrant_email',
+      'meta_value' => $data['registrant_email'],
       'posts_per_page' => 1,
       'fields' => 'ids',
     ]);
@@ -122,7 +122,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
       return $customer_id;
     }
 
-    update_post_meta($customer_id, 'customer_email', sanitize_email($data['customer_email']));
+    update_post_meta($customer_id, 'registrant_email', sanitize_email($data['registrant_email']));
     $this->sync_customer_meta($customer_id, $data);
 
     return $customer_id;
@@ -150,24 +150,31 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     //     ('street_address', 'city', 'postcode') and meta keys
     //     ('customer_first_name', 'customer_last_name', 'customer_phone').
     //
-    //  3. Minimal callers (create_or_get_customer): only customer_email /
+    //  3. Minimal callers (create_or_get_customer): only registrant_email /
     //     customer_name / customer_phone — partial sync is intentional.
     //
     // Resolution order: booking_details[canonical] → data[canonical] → data[meta_key].
     $details = $data['booking_details'] ?? [];
 
-    foreach (\HMWEvents\Config\BookingFields::with_meta_fallback() as $key => $field) {
-      $raw = $details[$key]              // frontend flow
-          ?? $data[$key]                 // flat canonical key
-          ?? $data[$field['meta_key']]   // flat meta key (ManualBookingGateway)
+    foreach (\HMWEvents\Registry\RegistrationFieldRegistry::all() as $key => $field) {
+      if (($field['source'] ?? '') !== \HMWEvents\Registry\RegistrationFieldRegistry::SOURCE_REGISTRANT_META) {
+        continue;
+      }
+      $meta_key = $field['meta_key'] ?? '';
+      if ($meta_key === '') {
+        continue;
+      }
+      $raw = $details[$key]
+          ?? $data[$key]
+          ?? $data[$meta_key]
           ?? '';
       if ($raw === '' || $raw === null) {
         continue;
       }
-      $value = $field['type'] === 'email'
+      $value = ($field['type'] ?? '') === 'email'
         ? sanitize_email($raw)
         : sanitize_text_field($raw);
-      update_post_meta($customer_id, $field['meta_key'], $value);
+      update_post_meta($customer_id, $meta_key, $value);
     }
   }
 
@@ -183,7 +190,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->query($wpdb->prepare("
-            UPDATE {$wpdb->prefix}educator_course_availability
+            UPDATE {$wpdb->prefix}hmwevents_course_availability
             SET booked_count = GREATEST(0, booked_count + %d),
                 available_count = GREATEST(0, available_count - %d)
             WHERE course_post_id = %d
@@ -260,7 +267,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $wpdb->insert(
-      $wpdb->prefix . 'educator_bookings',
+      $wpdb->prefix . 'hmwevents_bookings',
       [
         'booking_group_id' => $data['booking_group_id'],
         'booking_number' => $data['booking_number'],
@@ -395,12 +402,12 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $previous = $wpdb->get_row($wpdb->prepare(
-      "SELECT status, payment_status, booking_amount FROM {$wpdb->prefix}educator_bookings WHERE id = %d",
+      "SELECT status, payment_status, booking_amount FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
       $booking_id
     ));
 
     $updated = $wpdb->update(
-      $wpdb->prefix . 'educator_bookings',
+      $wpdb->prefix . 'hmwevents_bookings',
       [
         'status' => $status,
         'payment_status' => $payment_status,
@@ -487,7 +494,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}educator_payment_transactions
+            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
             WHERE gateway_transaction_id = %s
         ", $transaction_id));
 
@@ -507,7 +514,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
    */
   protected function validate_booking_data($booking_data, $required_fields = [])
   {
-    $default_required = ['customer_name', 'customer_email', 'course_id', 'educator_id'];
+    $default_required = ['customer_name', 'registrant_email', 'course_id', 'educator_id'];
     $required = array_merge($default_required, $required_fields);
 
     foreach ($required as $field) {
@@ -529,8 +536,8 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
   protected function calculate_amount($course_id, $is_deposit = false)
   {
     // Use get_field() for ACF fields, not get_post_meta()
-    $course_cost = get_field('course_full_cost', $course_id);
-    $deposit_cost = get_field('course_deposit_cost', $course_id);
+    $course_cost = get_field('_event_price', $course_id);
+    $deposit_cost = get_field('_event_deposit', $course_id);
     $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
 
     error_log('Calculate Amount - Course ID: ' . $course_id);

@@ -661,7 +661,7 @@ class EmailTemplates
       // Educator must own the course
       $booking = $wpdb->get_row($wpdb->prepare(
         "SELECT b.*, c.post_author
-         FROM {$wpdb->prefix}educator_bookings b
+         FROM {$wpdb->prefix}hmwevents_bookings b
          INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
          WHERE b.id = %d AND c.post_author = %d AND b.deleted_at IS NULL",
         $booking_id,
@@ -670,7 +670,7 @@ class EmailTemplates
     } else {
       // Admin sees all
       $booking = $wpdb->get_row($wpdb->prepare(
-        "SELECT b.* FROM {$wpdb->prefix}educator_bookings b
+        "SELECT b.* FROM {$wpdb->prefix}hmwevents_bookings b
          WHERE b.id = %d AND b.deleted_at IS NULL",
         $booking_id
       ));
@@ -1166,7 +1166,7 @@ class EmailTemplates
 
     $query = "SELECT b.id, b.booking_number, c.post_title as course_name, 
                      cu.post_title as customer_name, b.created_at
-              FROM {$wpdb->prefix}educator_bookings b
+              FROM {$wpdb->prefix}hmwevents_bookings b
               INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
               INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
               WHERE b.deleted_at IS NULL";
@@ -1229,7 +1229,7 @@ class EmailTemplates
       'health_fund'        => 'Medibank',
     ];
     $sample_fields = [];
-    foreach (\HMWEvents\Config\BookingFields::for_email() as $key => $field) {
+    foreach (\HMWEvents\Registry\RegistrationFieldRegistry::for_email() as $key => $field) {
       $val = $sample_values[$key] ?? '';
       if ($val !== '') {
         $sample_fields[$field['label']] = $val;
@@ -1246,7 +1246,7 @@ class EmailTemplates
 
     $base = [
       'customer_name'               => 'Jane Smith',
-      'customer_email'              => 'jane.smith@example.com',
+      'registrant_email'              => 'jane.smith@example.com',
       'course_name'                 => 'Calmbirth Weekend Intensive - (Sample Title)',
       'course_date'                 => 'Saturday, June 15, 2026 - (Sample)',
       'booking_number'              => 'CB-2026-00123',

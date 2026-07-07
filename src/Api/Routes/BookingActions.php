@@ -43,7 +43,7 @@ class BookingActions
     public function register_routes()
     {
         // Transfer booking to another course
-        register_rest_route('cms/v1', '/booking/transfer', [
+        register_rest_route('hmwevents/v1', '/booking/transfer', [
             'methods' => 'POST',
             'callback' => [$this, 'transfer_booking'],
             'permission_callback' => [$this, 'check_educator_permission'],
@@ -66,7 +66,7 @@ class BookingActions
         ]);
 
         // Resend booking confirmation email
-        register_rest_route('cms/v1', '/booking/resend-confirmation', [
+        register_rest_route('hmwevents/v1', '/booking/resend-confirmation', [
             'methods' => 'POST',
             'callback' => [$this, 'resend_confirmation'],
             'permission_callback' => [$this, 'check_educator_permission'],
@@ -82,7 +82,7 @@ class BookingActions
         ]);
 
         // Resend payment receipt email
-        register_rest_route('cms/v1', '/booking/resend-receipt', [
+        register_rest_route('hmwevents/v1', '/booking/resend-receipt', [
             'methods' => 'POST',
             'callback' => [$this, 'resend_receipt'],
             'permission_callback' => [$this, 'check_educator_permission'],
@@ -98,7 +98,7 @@ class BookingActions
         ]);
 
         // Create a manual booking (no payment collected)
-        register_rest_route('cms/v1', '/booking/create-manual', [
+        register_rest_route('hmwevents/v1', '/booking/create-manual', [
             'methods' => 'POST',
             'callback' => [$this, 'create_manual_booking'],
             'permission_callback' => [$this, 'check_educator_permission'],
@@ -106,7 +106,7 @@ class BookingActions
                 'course_id'          => ['required' => true, 'type' => 'integer', 'minimum' => 1],
                 'customer_first_name' => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'customer_last_name'  => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
-                'customer_email'      => ['required' => true, 'type' => 'string', 'format' => 'email', 'sanitize_callback' => 'sanitize_email'],
+                'registrant_email'      => ['required' => true, 'type' => 'string', 'format' => 'email', 'sanitize_callback' => 'sanitize_email'],
                 'customer_phone'      => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'partner_name'        => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'street_address'      => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
@@ -121,7 +121,7 @@ class BookingActions
         ]);
 
         // Update an existing booking's customer details and questionnaire responses
-        register_rest_route('cms/v1', '/booking/update', [
+        register_rest_route('hmwevents/v1', '/booking/update', [
             'methods' => 'POST',
             'callback' => [$this, 'update_booking'],
             'permission_callback' => [$this, 'check_educator_permission'],
@@ -132,7 +132,7 @@ class BookingActions
         ]);
 
         // Send a payment link to a customer for a pending booking
-        register_rest_route('cms/v1', '/booking/send-payment-link', [
+        register_rest_route('hmwevents/v1', '/booking/send-payment-link', [
             'methods' => 'POST',
             'callback' => [$this, 'send_payment_link'],
             'permission_callback' => [$this, 'check_educator_permission'],
@@ -193,7 +193,7 @@ class BookingActions
         // Get booking with course info
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
             WHERE b.id = %d
             AND b.deleted_at IS NULL
@@ -237,7 +237,7 @@ class BookingActions
 
         // Update booking
         $updated = $wpdb->update(
-            $wpdb->prefix . 'educator_bookings',
+            $wpdb->prefix . 'hmwevents_bookings',
             ['course_post_id' => $new_course_id],
             ['id' => $booking_id],
             ['%d'],
@@ -282,7 +282,7 @@ class BookingActions
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author, c.post_title as course_name,
                    cust.post_title as customer_name
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
             INNER JOIN {$wpdb->posts} cust ON b.customer_post_id = cust.ID
             WHERE b.id = %d
@@ -316,9 +316,9 @@ class BookingActions
         }
 
         // Get customer email
-        $customer_email = get_post_meta($booking->customer_post_id, 'customer_email', true);
+        $registrant_email = get_post_meta($booking->customer_post_id, 'registrant_email', true);
 
-        if (!$customer_email) {
+        if (!$registrant_email) {
             return new WP_Error(
                 'no_email',
                 __('Customer email not found.', 'hmw-events'),
@@ -341,7 +341,7 @@ class BookingActions
             'success' => true,
             'message' => sprintf(
                 __('Confirmation email sent to %s successfully.', 'hmw-events'),
-                $customer_email
+                $registrant_email
             ),
         ], 200);
     }
@@ -365,11 +365,11 @@ class BookingActions
             SELECT b.*, c.post_author, c.post_title as course_name,
                    cust.post_title as customer_name,
                    pt.gateway_transaction_id, pt.amount as paid_amount
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
             INNER JOIN {$wpdb->posts} cust ON b.customer_post_id = cust.ID
-            INNER JOIN {$wpdb->prefix}educator_booking_groups bg ON b.booking_group_id = bg.id
-            LEFT JOIN {$wpdb->prefix}educator_payment_transactions pt ON bg.id = pt.booking_group_id
+            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
             WHERE b.id = %d
             AND b.deleted_at IS NULL
         ", $booking_id));
@@ -401,9 +401,9 @@ class BookingActions
         }
 
         // Get customer email
-        $customer_email = get_post_meta($booking->customer_post_id, 'customer_email', true);
+        $registrant_email = get_post_meta($booking->customer_post_id, 'registrant_email', true);
 
-        if (!$customer_email) {
+        if (!$registrant_email) {
             return new WP_Error(
                 'no_email',
                 __('Customer email not found.', 'hmw-events'),
@@ -426,7 +426,7 @@ class BookingActions
             'success' => true,
             'message' => sprintf(
                 __('Payment receipt sent to %s successfully.', 'hmw-events'),
-                $customer_email
+                $registrant_email
             ),
         ], 200);
     }
@@ -495,7 +495,7 @@ class BookingActions
     private function build_edit_args(): array
     {
         $args = [];
-        foreach (\HMWEvents\Config\BookingFields::for_edit_modal() as $key => $field) {
+        foreach (\HMWEvents\Registry\RegistrationFieldRegistry::for_admin_display() as $key => $field) {
             $arg = ['required' => false, 'type' => 'string'];
             if ($field['type'] === 'email') {
                 $arg['sanitize_callback'] = 'sanitize_email';
@@ -531,7 +531,7 @@ class BookingActions
         // Fetch booking + course author for permission check
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
             WHERE b.id = %d AND b.deleted_at IS NULL
         ", $booking_id));
@@ -555,7 +555,7 @@ class BookingActions
         $updated_form_data  = $existing_form_data;
         $name_fields_changed = false;
 
-        foreach (\HMWEvents\Config\BookingFields::for_edit_modal() as $key => $field) {
+        foreach (\HMWEvents\Registry\RegistrationFieldRegistry::for_admin_display() as $key => $field) {
             $value = $request->get_param($key);
             if ($value === null) {
                 continue;
@@ -623,8 +623,8 @@ class BookingActions
                    bg.id AS booking_group_id, bg.customer_post_id,
                    bg.payment_type AS group_payment_type, bg.total_amount,
                    c.post_author, c.post_title AS course_name
-            FROM {$wpdb->prefix}educator_bookings b
-            INNER JOIN {$wpdb->prefix}educator_booking_groups bg ON b.booking_group_id = bg.id
+            FROM {$wpdb->prefix}hmwevents_bookings b
+            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
             WHERE b.id = %d AND b.deleted_at IS NULL
         ", $booking_id));
@@ -673,7 +673,7 @@ class BookingActions
             'success' => true,
             'message' => sprintf(
                 __('Payment link sent to %s successfully.', 'hmw-events'),
-                get_post_meta((int) $booking->customer_post_id, 'customer_email', true)
+                get_post_meta((int) $booking->customer_post_id, 'registrant_email', true)
             ),
         ], 200);
     }

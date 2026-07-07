@@ -94,7 +94,7 @@ class ImportEventVenueCommand
             // Look up event_venue in the legacy table.
             $event_venue = $wpdb->get_var(
                 $wpdb->prepare(
-                    "SELECT event_venue FROM {$wpdb->prefix}educator_classes WHERE id = %d",
+                    "SELECT event_venue FROM {$wpdb->prefix}hmwevents_classes WHERE id = %d",
                     $old_course_id
                 )
             );

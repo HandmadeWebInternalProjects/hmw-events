@@ -115,7 +115,7 @@ class FrontEnd
         // Localize scripts.
         $localize_params = [
           'ajax_url' => admin_url('admin-ajax.php'),
-          'hmwevents_rest_base_url' => rest_url('cms/v1'),
+          'hmwevents_rest_base_url' => rest_url('hmwevents/v1'),
         ];
 
         wp_localize_script('hmwevents-frontend-module', 'hmwevents_params', $localize_params);

@@ -53,10 +53,13 @@ class ProcessPayment
   {
     $args = [];
 
-    foreach (\HMWEvents\Config\BookingFields::for_frontend() as $key => $field) {
-      $required = !empty($field['frontend_required']);
+    foreach (\HMWEvents\Registry\RegistrationFieldRegistry::all() as $key => $field) {
+      $required = !empty($field['required']);
 
       switch ($field['type']) {
+        case 'file':
+          continue 2;
+
         case 'email':
           $args[$key] = [
             'required'          => $required,
@@ -117,7 +120,7 @@ class ProcessPayment
   public function register_routes()
   {
     // Single-step payment processing
-    register_rest_route('cms/v1', '/payment/process', [
+    register_rest_route('hmwevents/v1', '/payment/process', [
       'methods' => 'POST',
       'callback' => [$this, 'process_payment'],
       'permission_callback' => '__return_true',
@@ -125,8 +128,17 @@ class ProcessPayment
         $this->build_registry_args(),
         [
           'course_id' => [
-            'required' => true,
+            'required' => false,
             'type' => 'integer',
+          ],
+          'event_id' => [
+            'required' => false,
+            'type' => 'integer',
+          ],
+          'attendance_type' => [
+            'required' => false,
+            'type' => 'string',
+            'default' => 'individual',
           ],
           'educator_id' => [
             'required' => true,
@@ -168,7 +180,7 @@ class ProcessPayment
     ]);
 
     // Validate voucher code
-    register_rest_route('cms/v1', '/voucher/validate', [
+    register_rest_route('hmwevents/v1', '/voucher/validate', [
       'methods' => 'POST',
       'callback' => [$this, 'validate_voucher'],
       'permission_callback' => '__return_true',
@@ -182,7 +194,7 @@ class ProcessPayment
           'required' => true,
           'type' => 'integer',
         ],
-        'customer_email' => [
+        'registrant_email' => [
           'required' => false,
           'type' => 'string',
           'sanitize_callback' => 'sanitize_email',
@@ -191,7 +203,7 @@ class ProcessPayment
     ]);
 
     // Validate coupon code
-    register_rest_route('cms/v1', '/coupon/validate', [
+    register_rest_route('hmwevents/v1', '/coupon/validate', [
       'methods' => 'POST',
       'callback' => [$this, 'validate_coupon'],
       'permission_callback' => '__return_true',
@@ -209,7 +221,7 @@ class ProcessPayment
           'required' => true,
           'type' => 'integer',
         ],
-        'customer_email' => [
+        'registrant_email' => [
           'required' => false,
           'type' => 'string',
           'sanitize_callback' => 'sanitize_email',
@@ -229,7 +241,7 @@ class ProcessPayment
     ]);
 
     // Verify payment amount (security check before creating payment)
-    register_rest_route('cms/v1', '/payment/verify-amount', [
+    register_rest_route('hmwevents/v1', '/payment/verify-amount', [
       'methods' => 'POST',
       'callback' => [$this, 'verify_amount'],
       'permission_callback' => '__return_true',
@@ -252,7 +264,7 @@ class ProcessPayment
     ]);
 
     // Legacy: Create payment intent (deprecated - use /payment/process instead)
-    register_rest_route('cms/v1', '/payment/create', [
+    register_rest_route('hmwevents/v1', '/payment/create', [
       'methods' => 'POST',
       'callback' => [$this, 'create_payment'],
       'permission_callback' => '__return_true', // Public endpoint
@@ -262,7 +274,7 @@ class ProcessPayment
           'type' => 'string',
           'sanitize_callback' => 'sanitize_text_field',
         ],
-        'customer_email' => [
+        'registrant_email' => [
           'required' => true,
           'type' => 'string',
           'sanitize_callback' => 'sanitize_email',
@@ -294,7 +306,7 @@ class ProcessPayment
     ]);
 
     // Confirm payment
-    register_rest_route('cms/v1', '/payment/confirm', [
+    register_rest_route('hmwevents/v1', '/payment/confirm', [
       'methods' => 'POST',
       'callback' => [$this, 'confirm_payment'],
       'permission_callback' => '__return_true',
@@ -308,21 +320,21 @@ class ProcessPayment
     ]);
 
     // Get payment status
-    register_rest_route('cms/v1', '/payment/status/(?P<payment_intent_id>[a-zA-Z0-9_]+)', [
+    register_rest_route('hmwevents/v1', '/payment/status/(?P<payment_intent_id>[a-zA-Z0-9_]+)', [
       'methods' => 'GET',
       'callback' => [$this, 'get_payment_status'],
       'permission_callback' => '__return_true',
     ]);
 
     // Resume payment with recovery token
-    register_rest_route('cms/v1', '/payment/resume/(?P<token>[a-zA-Z0-9]+)', [
+    register_rest_route('hmwevents/v1', '/payment/resume/(?P<token>[a-zA-Z0-9]+)', [
       'methods' => 'GET',
       'callback' => [$this, 'resume_payment'],
       'permission_callback' => '__return_true',
     ]);
 
     // Get gateway configuration (publishable keys, etc.)
-    register_rest_route('cms/v1', '/payment/gateway-config', [
+    register_rest_route('hmwevents/v1', '/payment/gateway-config', [
       'methods' => 'GET',
       'callback' => [$this, 'get_gateway_config'],
       'permission_callback' => '__return_true',
@@ -371,6 +383,30 @@ class ProcessPayment
       }
     }
 
+    // Check if this is a new hmw_event booking — delegate to v2 PaymentService
+    $course_id = (int) $request->get_param('course_id');
+    $event_id  = (int) $request->get_param('event_id');
+    $post_id   = $event_id ?: $course_id;
+    $post      = get_post($post_id);
+
+    if ($post && $post->post_type === 'hmw_event') {
+      $gateway = new PaymentGateway(null, null);
+      $result = $gateway->process_new_booking([
+        'event_id'        => $post_id,
+        'amount'          => (float) get_post_meta($post_id, '_event_price', true) ?: 0,
+        'attendance_type' => $request->get_param('attendance_type') ?: 'individual',
+        'meta'            => $request->get_params(),
+      ]);
+
+      if (is_wp_error($result)) {
+        return $result;
+      }
+
+      return rest_ensure_response($result);
+    }
+
+    // Legacy flow for educator_course
+
     // Get gateway ID from request (defaults to Stripe)
     $gateway_id = $request->get_param('gateway') ?: null;
 
@@ -388,10 +424,10 @@ class ProcessPayment
       );
     }
 
-    // Extract booking details from registry fields — driven by BookingFields::for_frontend()
+    // Extract booking details from registry fields — driven by RegistrationFieldRegistry::all()
     // so adding a field to the registry automatically includes it here with no other changes.
     $booking_details = [];
-    foreach (\HMWEvents\Config\BookingFields::for_frontend() as $key => $field) {
+    foreach (\HMWEvents\Registry\RegistrationFieldRegistry::all() as $key => $field) {
       $value = $request->get_param($key);
       if ($value !== null && $value !== '') {
         $booking_details[$key] = $value;
@@ -406,8 +442,8 @@ class ProcessPayment
 
     // Calculate server-side base amount for selected payment type.
     $course_id = (int) $request->get_param('course_id');
-    $course_cost = floatval(get_field('course_full_cost', $course_id));
-    $deposit_cost = floatval(get_field('course_deposit_cost', $course_id));
+    $course_cost = floatval(get_field('_event_price', $course_id));
+    $deposit_cost = floatval(get_field('_event_deposit', $course_id));
     $base_amount = $is_deposit && $deposit_cost > 0 ? $deposit_cost : $course_cost;
 
     // Validate and apply voucher if provided
@@ -474,7 +510,7 @@ class ProcessPayment
 
     $booking_data = [
       'customer_name' => $customer_name,
-      'customer_email' => $request->get_param('email'),
+      'registrant_email' => $request->get_param('email'),
       'customer_phone' => $request->get_param('phone'),
       'course_id' => $request->get_param('course_id'),
       'educator_id' => $educator_id,
@@ -516,7 +552,7 @@ class ProcessPayment
   {
     $booking_data = [
       'customer_name' => $request->get_param('customer_name'),
-      'customer_email' => $request->get_param('customer_email'),
+      'registrant_email' => $request->get_param('registrant_email'),
       'customer_phone' => $request->get_param('customer_phone'),
       'course_id' => $request->get_param('course_id'),
       'educator_id' => $request->get_param('educator_id'),
@@ -581,9 +617,9 @@ class ProcessPayment
 
     $transaction = $wpdb->get_row($wpdb->prepare("
             SELECT pt.*, b.booking_number, b.status as booking_status
-            FROM {$wpdb->prefix}educator_payment_transactions pt
-            LEFT JOIN {$wpdb->prefix}educator_booking_groups bg ON pt.booking_group_id = bg.id
-            LEFT JOIN {$wpdb->prefix}educator_bookings b ON bg.id = b.booking_group_id
+            FROM {$wpdb->prefix}hmwevents_payment_transactions pt
+            LEFT JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON pt.booking_group_id = bg.id
+            LEFT JOIN {$wpdb->prefix}hmwevents_bookings b ON bg.id = b.booking_group_id
             WHERE pt.gateway_transaction_id = %s
         ", $payment_intent_id));
 
@@ -618,7 +654,7 @@ class ProcessPayment
     // Find booking group by token
     // Include: pending/failed payments OR paid deposits that haven't been upgraded to full
     $booking_groups = $wpdb->get_results(
-      "SELECT * FROM {$wpdb->prefix}educator_booking_groups 
+      "SELECT * FROM {$wpdb->prefix}hmwevents_booking_groups 
             WHERE payment_status IN ('pending', 'failed') 
             OR (payment_status = 'paid' AND payment_type = 'deposit')"
     );
@@ -647,7 +683,7 @@ class ProcessPayment
 
     // Get payment transaction
     $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}educator_payment_transactions
+            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
             WHERE booking_group_id = %d
             ORDER BY created_at DESC
             LIMIT 1
@@ -660,14 +696,14 @@ class ProcessPayment
     // Get booking details
     $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_title as course_name
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             LEFT JOIN {$wpdb->prefix}posts c ON b.course_post_id = c.ID
             WHERE b.booking_group_id = %d
             LIMIT 1
         ", $booking_group->id));
 
     // Get customer details
-    $customer_email = get_post_meta($booking_group->customer_post_id, 'customer_email', true);
+    $registrant_email = get_post_meta($booking_group->customer_post_id, 'registrant_email', true);
     $customer_name = get_the_title($booking_group->customer_post_id);
 
     // Check if we're in test mode
@@ -728,7 +764,7 @@ class ProcessPayment
     if ($is_remaining_payment) {
       // Check if remaining payment has already been completed
       $remaining_payment = $wpdb->get_row($wpdb->prepare("
-                SELECT * FROM {$wpdb->prefix}educator_payment_transactions
+                SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
                 WHERE booking_group_id = %d
                 AND status = 'succeeded'
                 AND metadata LIKE %s
@@ -745,7 +781,7 @@ class ProcessPayment
       }
 
       // Get course pricing from ACF fields (stored in dollars)
-      $course_full_price = get_field('course_full_cost', $booking->course_post_id);
+      $course_full_price = get_field('_event_price', $booking->course_post_id);
       $deposit_paid = floatval($booking_group->total_amount);
 
       if ($course_full_price) {
@@ -769,7 +805,7 @@ class ProcessPayment
     if ($is_remaining_payment) {
       // Create new payment intent for remaining balance
       $payment_intent = $stripe_service->create_payment_intent($amount, 'AUD', [
-        'customer_email' => $customer_email,
+        'registrant_email' => $registrant_email,
         'customer_name' => $customer_name,
         'booking_reference' => $booking_group->booking_reference,
         'booking_number' => $booking->booking_number,
@@ -814,7 +850,7 @@ class ProcessPayment
       // — create a fresh Stripe payment intent so the customer can pay.
       if (strpos($transaction->gateway_transaction_id, 'manual_') === 0) {
         $payment_intent = $stripe_service->create_payment_intent($amount, $booking_group->currency ?: 'AUD', [
-          'customer_email'     => $customer_email,
+          'registrant_email'     => $registrant_email,
           'customer_name'      => $customer_name,
           'booking_reference'  => $booking_group->booking_reference,
           'booking_number'     => $booking->booking_number,
@@ -866,7 +902,7 @@ class ProcessPayment
         'booking_number' => $booking->booking_number,
         'course_name' => $booking->course_name,
         'customer_name' => $customer_name,
-        'customer_email' => $customer_email,
+        'registrant_email' => $registrant_email,
         'amount' => $amount,
         'payment_type' => $is_remaining_payment ? 'remaining' : $booking_group->payment_type,
         'payment_intent_id' => $payment_intent_id,
@@ -890,10 +926,10 @@ class ProcessPayment
 
     $voucher_code = $request->get_param('voucher_code');
     $course_id = $request->get_param('course_id');
-    $customer_email = $request->get_param('customer_email');
+    $registrant_email = $request->get_param('registrant_email');
 
     // Validate voucher
-    $voucher_data = $voucher_service->validate_voucher($voucher_code, $course_id, $customer_email);
+    $voucher_data = $voucher_service->validate_voucher($voucher_code, $course_id, $registrant_email);
 
     if (is_wp_error($voucher_data)) {
       return new \WP_Error(
@@ -904,8 +940,8 @@ class ProcessPayment
     }
 
     // Get course pricing
-    $course_cost = get_field('course_full_cost', $course_id);
-    $deposit_cost = get_field('course_deposit_cost', $course_id);
+    $course_cost = get_field('_event_price', $course_id);
+    $deposit_cost = get_field('_event_deposit', $course_id);
 
     // Calculate discount for both full and deposit amounts
     $full_discount = $voucher_service->calculate_discount(floatval($course_cost), $voucher_data);
@@ -944,12 +980,12 @@ class ProcessPayment
     $coupon_code = $request->get_param('coupon_code');
     $course_id = $request->get_param('course_id');
     $educator_id = $request->get_param('educator_id');
-    $customer_email = $request->get_param('customer_email');
+    $registrant_email = $request->get_param('registrant_email');
     $payment_type = $request->get_param('payment_type') === 'deposit' ? 'deposit' : 'full';
 
     // Get course pricing
-    $course_cost = floatval(get_field('course_full_cost', $course_id));
-    $deposit_cost = floatval(get_field('course_deposit_cost', $course_id));
+    $course_cost = floatval(get_field('_event_price', $course_id));
+    $deposit_cost = floatval(get_field('_event_deposit', $course_id));
 
     $amount = $payment_type === 'deposit' && $deposit_cost > 0 ? $deposit_cost : $course_cost;
 
@@ -958,7 +994,7 @@ class ProcessPayment
       $coupon_code,
       $course_id,
       $educator_id,
-      $customer_email,
+      $registrant_email,
       $payment_type,
       $amount
     );
@@ -1015,13 +1051,13 @@ class ProcessPayment
 
     // Verify course exists
     $course = get_post($course_id);
-    if (!$course || $course->post_type !== 'educator_course') {
+    if (!$course || !in_array($course->post_type, ['hmw_event'], true)) {
       return new \WP_Error('invalid_course', 'Course not found', ['status' => 404]);
     }
 
     // Get course pricing from ACF fields (server-side source of truth)
-    $course_cost = get_field('course_full_cost', $course_id);
-    $deposit_cost = get_field('course_deposit_cost', $course_id);
+    $course_cost = get_field('_event_price', $course_id);
+    $deposit_cost = get_field('_event_deposit', $course_id);
     $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
 
     if (empty($course_cost)) {

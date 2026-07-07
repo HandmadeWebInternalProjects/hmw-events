@@ -12,7 +12,7 @@
 
 namespace HMWEvents\Services\Gateways;
 
-use HMWEvents\Helpers\Course;
+use HMWEvents\Helpers\EventHelper;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -87,7 +87,7 @@ class ManualBookingGateway extends AbstractPaymentGateway
      * @param array $booking_data {
      *   @type string $customer_first_name  Required.
      *   @type string $customer_last_name   Required.
-     *   @type string $customer_email       Required.
+     *   @type string $registrant_email       Required.
      *   @type string $customer_phone
      *   @type string $partner_name
      *   @type string $street_address
@@ -117,13 +117,13 @@ class ManualBookingGateway extends AbstractPaymentGateway
             $last_name  = sanitize_text_field($booking_data['customer_last_name'] ?? '');
             $full_name  = trim($first_name . ' ' . $last_name);
             if (empty($full_name)) {
-                $full_name = sanitize_email($booking_data['customer_email'] ?? '');
+                $full_name = sanitize_email($booking_data['registrant_email'] ?? '');
             }
 
             // 1. Create or update the customer post
             $customer_id = $this->get_or_create_customer_post([
                 'customer_name'       => $full_name,
-                'customer_email'      => $booking_data['customer_email'],
+                'registrant_email'      => $booking_data['registrant_email'],
                 'customer_phone'      => $booking_data['customer_phone'] ?? '',
                 'customer_first_name' => $first_name,
                 'customer_last_name'  => $last_name,
@@ -242,7 +242,7 @@ class ManualBookingGateway extends AbstractPaymentGateway
     {
         $details = [];
 
-        foreach (\HMWEvents\Config\BookingFields::from_booking_details() as $key => $field) {
+        foreach (\HMWEvents\Registry\RegistrationFieldRegistry::booking_details_fields() as $key => $field) {
             $value = $booking_data[ $field['form_name'] ] ?? null;
 
             if ($value === null || $value === '') {

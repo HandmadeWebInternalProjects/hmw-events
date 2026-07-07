@@ -68,7 +68,7 @@ class Booking
         global $wpdb;
         $remaining = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*)
-             FROM {$wpdb->prefix}educator_payment_transactions
+             FROM {$wpdb->prefix}hmwevents_payment_transactions
              WHERE booking_group_id = %d
                AND status = 'succeeded'
                AND metadata LIKE %s",
@@ -99,10 +99,10 @@ class Booking
         $course_id        = (int) ($booking->course_post_id ?? 0);
         $booking_group_id = (int) ($booking->booking_group_id ?? 0);
 
-        $customer_email = get_post_meta((int) $booking->customer_post_id, 'customer_email', true);
+        $registrant_email = get_post_meta((int) $booking->customer_post_id, 'registrant_email', true);
         $customer_name  = get_the_title((int) $booking->customer_post_id);
 
-        if (empty($customer_email) || !is_email($customer_email)) {
+        if (empty($registrant_email) || !is_email($registrant_email)) {
             return new \WP_Error('no_email', __('Customer email not found.', 'hmw-events'));
         }
 
@@ -114,7 +114,7 @@ class Booking
         $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
 
         if ($is_remaining) {
-            $course_full_price = floatval(get_field('course_full_cost', $course_id));
+            $course_full_price = floatval(get_field('_event_price', $course_id));
             $amount_due        = $course_full_price > 0
                 ? max(0, $course_full_price - floatval($booking->total_amount))
                 : floatval($booking->total_amount);
@@ -178,7 +178,7 @@ class Booking
         return $email_service->queue_payment_link(
             $booking_id,
             (int) ($booking->post_author ?? 0),
-            $customer_email,
+            $registrant_email,
             $customer_name,
             $subject,
             $message

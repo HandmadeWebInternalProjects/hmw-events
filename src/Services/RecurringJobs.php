@@ -114,7 +114,7 @@ class RecurringJobs
         ));
 
         foreach ($rows as $row) {
-            \HMWEvents\Helpers\Course::ensure_course_availability_row((int) $row->ID);
+            \HMWEvents\Helpers\EventHelper::ensure_course_availability_row((int) $row->ID);
         }
     }
 }

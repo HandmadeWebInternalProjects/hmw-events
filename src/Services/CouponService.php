@@ -15,12 +15,12 @@ class CouponService
      * @param string $coupon_code Coupon code.
      * @param int $course_id Course ID.
      * @param int $educator_id Educator ID.
-     * @param string $customer_email Customer email.
+     * @param string $registrant_email Customer email.
      * @param string $payment_type 'full' or 'deposit'.
      * @param float $amount Booking amount before discount.
      * @return array|\WP_Error Coupon data or error.
      */
-    public function validate_coupon($coupon_code, $course_id, $educator_id, $customer_email = '', $payment_type = 'full', $amount = 0)
+    public function validate_coupon($coupon_code, $course_id, $educator_id, $registrant_email = '', $payment_type = 'full', $amount = 0)
     {
         global $wpdb;
         
@@ -68,7 +68,7 @@ class CouponService
         if ($usage_limit) {
             $usage_count = $wpdb->get_var($wpdb->prepare("
                 SELECT COUNT(*) 
-                FROM {$wpdb->prefix}educator_coupon_usage 
+                FROM {$wpdb->prefix}hmwevents_coupon_usage 
                 WHERE coupon_code = %s
             ", strtoupper($coupon_code)));
 
@@ -78,13 +78,13 @@ class CouponService
         }
 
         // Check per-user usage limit
-        if ($customer_email) {
+        if ($registrant_email) {
             $usage_limit_per_user = get_post_meta($coupon_id, '_usage_limit_per_user', true) ?: 1;
             $user_usage = $wpdb->get_var($wpdb->prepare("
                 SELECT COUNT(*) 
-                FROM {$wpdb->prefix}educator_coupon_usage 
-                WHERE coupon_code = %s AND customer_email = %s
-            ", strtoupper($coupon_code), $customer_email));
+                FROM {$wpdb->prefix}hmwevents_coupon_usage 
+                WHERE coupon_code = %s AND registrant_email = %s
+            ", strtoupper($coupon_code), $registrant_email));
 
             if ($user_usage >= $usage_limit_per_user) {
                 return new \WP_Error('user_limit', 'You have already used this coupon the maximum number of times');
@@ -182,12 +182,12 @@ class CouponService
      *
      * @param string $coupon_code Coupon code.
      * @param int $booking_id Booking ID.
-     * @param string $customer_email Customer email.
+     * @param string $registrant_email Customer email.
      * @param float $discount_amount Discount amount applied.
      * @param float $original_amount Original booking amount.
      * @return bool Success status.
      */
-    public function record_usage($coupon_code, $booking_id, $customer_email, $discount_amount, $original_amount)
+    public function record_usage($coupon_code, $booking_id, $registrant_email, $discount_amount, $original_amount)
     {
         global $wpdb;
 
@@ -209,7 +209,7 @@ class CouponService
                 'coupon_id' => $coupon_posts[0]->ID,
                 'coupon_code' => strtoupper($coupon_code),
                 'booking_id' => $booking_id,
-                'customer_email' => $customer_email,
+                'registrant_email' => $registrant_email,
                 'discount_amount' => $discount_amount,
                 'original_amount' => $original_amount,
             ],

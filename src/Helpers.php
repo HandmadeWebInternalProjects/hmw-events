@@ -148,16 +148,30 @@ if (!function_exists('hmwevents_get_template_part')) {
   function hmwevents_get_template_part($slug, $name = null, $args = [])
   {
     $templates = [];
-    if ($name) $templates[] = "{$slug}-{$name}.php";
-    $templates[] = "{$slug}.php";
+    if ($name) {
+      $templates[] = "hmw-events/{$slug}-{$name}.php";
+    }
+    $templates[] = "hmw-events/{$slug}.php";
 
-    // Check child theme override first
+    // Check child theme override first (via hmw-events/ namespace)
     $located = locate_template($templates, false);
+
+    if (!$located) {
+      // Fallback to bare paths for backward compat
+      $bare = [];
+      if ($name) {
+        $bare[] = "{$slug}-{$name}.php";
+      }
+      $bare[] = "{$slug}.php";
+      $located = locate_template($bare, false);
+    }
+
     if (!$located) {
       // Fallback to plugin templates
       foreach ($templates as $template) {
-        if (file_exists(VIEWS_PATH . $template)) {
-          $located = VIEWS_PATH . $template;
+        $plugin_path = VIEWS_PATH . str_replace('hmw-events/', '', $template);
+        if (file_exists($plugin_path)) {
+          $located = $plugin_path;
           break;
         }
       }
@@ -166,6 +180,41 @@ if (!function_exists('hmwevents_get_template_part')) {
     if ($located && file_exists($located)) {
       load_template($located, false, $args);
     }
+  }
+}
+
+if (!function_exists('hmwevents_get_template')) {
+  function hmwevents_get_template($template_name, $args = [], $template_path = '', $default_path = '')
+  {
+    $located = hmwevents_locate_template($template_name, $template_path, $default_path);
+
+    if ($located && file_exists($located)) {
+      load_template($located, false, $args);
+    }
+  }
+}
+
+if (!function_exists('hmwevents_locate_template')) {
+  function hmwevents_locate_template($template_name, $template_path = '', $default_path = '')
+  {
+    if (!$template_path) {
+      $template_path = 'hmw-events';
+    }
+
+    if (!$default_path) {
+      $default_path = VIEWS_PATH;
+    }
+
+    $template = locate_template([
+      trailingslashit($template_path) . $template_name,
+      $template_name, // backward compat: bare path in theme root
+    ]);
+
+    if (!$template) {
+      $template = $default_path . $template_name;
+    }
+
+    return apply_filters('hmwevents_locate_template', $template, $template_name, $template_path);
   }
 }
 

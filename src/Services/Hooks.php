@@ -2,6 +2,8 @@
 
 namespace HMWEvents\Services;
 
+use HMWEvents\PostTypes\Event;
+
 defined('ABSPATH') || die("Don't run this file directly!");
 
 class Hooks
@@ -9,11 +11,14 @@ class Hooks
   public static function register()
   {
     // Register hooks and filters here
-    add_filter('posts_where', [static::class, 'exclude_expired_courses_from_search'], 10, 2);
+    add_filter('posts_where', [static::class, 'exclude_archived_events_from_search'], 10, 2);
     // Fix Content Control + Search & Filter Pro pagination on the shop page
     add_action('pre_get_posts', [static::class, 'exclude_restricted_products_pre_query'], 10);
     
     add_filter('template_include', [static::class, 'breakdance_pdf_voucher_fix'], 999999);
+
+    // Provide default single event template (theme-overridable via hmw-events/ in theme)
+    add_filter('single_template', [static::class, 'single_event_template']);
   }
 
 
@@ -99,13 +104,40 @@ class Hooks
   }
 
   /**
-   * Exclude educator_course posts with 'expired' status from frontend search results.
+   * Provide a default single event template, overridable by theme.
+   *
+   * Theme override priority:
+   *   1. {theme}/single-hmw_event.php (WordPress native)
+   *   2. {theme}/hmw-events/single-event.php (namespaced)
+   *   3. Plugin default: src/views/single-event.php
+   */
+  public static function single_event_template(string $template): string
+  {
+    if (get_post_type() !== Event::POST_TYPE) {
+      return $template;
+    }
+
+    $theme_template = locate_template(['single-hmw_event.php']);
+    if ($theme_template) {
+      return $theme_template;
+    }
+
+    $plugin_template = \hmwevents_locate_template('single-event.php');
+    if ($plugin_template && file_exists($plugin_template)) {
+      return $plugin_template;
+    }
+
+    return $template;
+  }
+
+  /**
+   * Exclude archived and cancelled hmw_event posts from frontend search results.
    *
    * @param string   $where The WHERE clause of the query.
    * @param \WP_Query $query The current WP_Query instance.
    * @return string Modified WHERE clause.
    */
-  public static function exclude_expired_courses_from_search(string $where, \WP_Query $query): string
+  public static function exclude_archived_events_from_search(string $where, \WP_Query $query): string
   {
     if (is_admin()) {
       return $where;
@@ -113,20 +145,21 @@ class Hooks
 
     $post_types = (array) $query->get('post_type');
 
-    $involves_courses = in_array(\HMWEvents\PostTypes\EducatorCourse::POST_TYPE, $post_types, true)
+    $involves_events = in_array(Event::POST_TYPE, $post_types, true)
       || in_array('any', $post_types, true)
       || empty(array_filter($post_types));
 
-    if (!$involves_courses) {
+    if (!$involves_events) {
       return $where;
     }
 
     global $wpdb;
     $where .= $wpdb->prepare(
-      " AND NOT ({$wpdb->posts}.post_type = %s AND {$wpdb->posts}.post_status = %s)",
-      \HMWEvents\PostTypes\EducatorCourse::POST_TYPE,
-      'expired'
-      );
+      " AND NOT ({$wpdb->posts}.post_type = %s AND {$wpdb->posts}.post_status IN (%s, %s))",
+      Event::POST_TYPE,
+      'archived',
+      'cancelled'
+    );
 
     return $where;
   }

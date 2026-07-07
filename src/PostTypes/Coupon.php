@@ -1,43 +1,71 @@
 <?php
 
+/**
+ * Coupon Custom Post Type (Rebuild).
+ *
+ * Manages discount coupons for events. Replaces the legacy edu_coupon CPT.
+ *
+ * @package HMWEvents\PostTypes
+ * @since 2.0.0
+ */
+
 namespace HMWEvents\PostTypes;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
-/**
- * Coupon Custom Post Type.
- * 
- * Manages discount coupons for courses with flexible restrictions.
- */
 class Coupon
 {
-    public const POST_TYPE = 'edu_coupon';
+    public const POST_TYPE = 'hmw_coupon';
 
-    public function register()
+    public function register(): void
     {
         add_action('init', [$this, 'register_post_type']);
         add_action('add_meta_boxes', [$this, 'add_meta_boxes']);
         add_action('save_post_' . self::POST_TYPE, [$this, 'save_meta'], 10, 2);
         add_filter('manage_' . self::POST_TYPE . '_posts_columns', [$this, 'set_columns']);
         add_action('manage_' . self::POST_TYPE . '_posts_custom_column', [$this, 'render_column'], 10, 2);
-        add_action('admin_notices', [$this, 'show_admin_notices']);
-        add_action('pre_get_posts', [$this, 'filter_educator_coupons']);
-        add_action('admin_menu', [$this, 'register_educator_menu'], 20);
-        add_filter('views_edit-' . self::POST_TYPE, [$this, 'filter_views']);
+        add_action('admin_menu', [$this, 'register_menu'], 20);
+    }
+
+    public function register_post_type(): void
+    {
+        $labels = [
+            'name'               => _x('Coupons', 'Post type general name', 'hmw-events'),
+            'singular_name'      => _x('Coupon', 'Post type singular name', 'hmw-events'),
+            'menu_name'          => _x('Coupons', 'Admin Menu text', 'hmw-events'),
+            'add_new'            => __('Add New', 'hmw-events'),
+            'add_new_item'       => __('Add New Coupon', 'hmw-events'),
+            'edit_item'          => __('Edit Coupon', 'hmw-events'),
+            'view_item'          => __('View Coupon', 'hmw-events'),
+            'all_items'          => __('All Coupons', 'hmw-events'),
+            'search_items'       => __('Search Coupons', 'hmw-events'),
+            'not_found'          => __('No coupons found.', 'hmw-events'),
+            'not_found_in_trash' => __('No coupons found in Trash.', 'hmw-events'),
+        ];
+
+        $args = [
+            'labels'              => $labels,
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => true,
+            'show_in_menu'        => false,
+            'show_in_rest'        => true,
+            'query_var'           => false,
+            'capability_type'     => ['hmw_coupon', 'hmw_coupons'],
+            'map_meta_cap'        => true,
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'supports'            => ['title'],
+            'delete_with_user'    => false,
+        ];
+
+        register_post_type(self::POST_TYPE, $args);
     }
 
     /**
-     * Register the coupon admin pages under the correct parent menu per role.
-     *
-     * With show_in_menu => false, WordPress's _add_post_type_submenus() skips
-     * this CPT entirely, so we register it manually here.
-     *
-     * The WordPress access check in user_can_access_admin_page() cannot match
-     * 'edit.php?post_type=edu_coupon' against $pagenow ('edit.php'), so it falls
-     * back to checking the PARENT menu's capability. Admins must land under
-     * hmwevents-main (manage_options), educators under hmwevents-educator-payments (edit_posts).
+     * Register the coupon admin page under the correct parent menu for each role.
      */
-    public function register_educator_menu()
+    public function register_menu(): void
     {
         if (current_user_can('manage_options')) {
             add_submenu_page(
@@ -55,7 +83,7 @@ class Coupon
         }
 
         add_submenu_page(
-            'hmwevents-educator-payments',
+            'hmwevents-organizer-payments',
             __('Coupons', 'hmw-events'),
             __('Coupons', 'hmw-events'),
             'edit_posts',
@@ -64,582 +92,231 @@ class Coupon
     }
 
     /**
-     * Replace the "All / Published / Draft" counts with author-scoped counts
-     * for non-admins, so the numbers match the filtered list.
+     * Register meta boxes for coupon details.
      */
-    public function filter_views(array $views): array
-    {
-        if (current_user_can('manage_options')) {
-            return $views;
-        }
-
-        $user_id = get_current_user_id();
-
-        // Count posts for this author only, grouped by status.
-        $counts = (array) wp_count_posts(self::POST_TYPE, 'readable');
-
-        // wp_count_posts returns totals for all users; we need per-author counts.
-        $stati = get_post_stati(['show_in_admin_all_list' => true]);
-        $author_counts = [];
-        $total = 0;
-
-        foreach ($stati as $status) {
-            $n = (int) (new \WP_Query([
-                'post_type'      => self::POST_TYPE,
-                'post_status'    => $status,
-                'author'         => $user_id,
-                'posts_per_page' => -1,
-                'fields'         => 'ids',
-                'no_found_rows'  => false,
-            ]))->found_posts;
-            $author_counts[$status] = $n;
-            $total += $n;
-        }
-
-        // Rebuild each view link with the corrected count.
-        $rebuilt = [];
-        foreach ($views as $status => $link) {
-            if ($status === 'all') {
-                $count = $total;
-            } elseif (isset($author_counts[$status])) {
-                $count = $author_counts[$status];
-            } else {
-                continue; // Drop views for statuses that have no posts.
-            }
-
-            if ($count === 0) {
-                continue;
-            }
-
-            // Replace the existing count badge (e.g. <span class="count">(12)</span>) with the new one.
-            $rebuilt[$status] = preg_replace(
-                '/(<span class=["\']count["\']>)\([\d,]+\)(<\/span>)/',
-                '${1}(' . number_format_i18n($count) . ')${2}',
-                $link
-            );
-        }
-
-        return $rebuilt;
-    }
-
-    /**
-     * Limit non-admin users to only see their own coupons in the list view.
-     */
-    public function filter_educator_coupons(\WP_Query $query)
-    {
-        if (!is_admin() || !$query->is_main_query()) {
-            return;
-        }
-
-        if ($query->get('post_type') !== self::POST_TYPE) {
-            return;
-        }
-
-        if (current_user_can('manage_options')) {
-            return;
-        }
-
-        $query->set('author', get_current_user_id());
-    }
-
-    public function register_post_type()
-    {
-        $labels = [
-            'name' => __('Coupons', 'hmw-events'),
-            'singular_name' => __('Coupon', 'hmw-events'),
-            'add_new' => __('Add New', 'hmw-events'),
-            'add_new_item' => __('Add New Coupon', 'hmw-events'),
-            'edit_item' => __('Edit Coupon', 'hmw-events'),
-            'new_item' => __('New Coupon', 'hmw-events'),
-            'view_item' => __('View Coupon', 'hmw-events'),
-            'search_items' => __('Search Coupons', 'hmw-events'),
-            'not_found' => __('No coupons found', 'hmw-events'),
-        ];
-
-        $args = [
-            'labels' => $labels,
-            'public' => false,
-            'show_ui' => true,
-            'show_in_menu' => false,
-            'capability_type' => 'post',
-            'capabilities' => [
-                'create_posts' => 'edit_posts',
-            ],
-            'map_meta_cap' => true,
-            'supports' => ['title'],
-            'has_archive' => false,
-            'rewrite' => false,
-        ];
-
-        register_post_type(self::POST_TYPE, $args);
-    }
-
-    public function add_meta_boxes()
+    public function add_meta_boxes(): void
     {
         add_meta_box(
-            'coupon_details',
+            'hmw_coupon_details',
             __('Coupon Details', 'hmw-events'),
-            [$this, 'render_details_metabox'],
+            [$this, 'render_details_meta_box'],
             self::POST_TYPE,
             'normal',
             'high'
         );
 
         add_meta_box(
-            'coupon_restrictions',
-            __('Restrictions', 'hmw-events'),
-            [$this, 'render_restrictions_metabox'],
+            'hmw_coupon_restrictions',
+            __('Usage Restrictions', 'hmw-events'),
+            [$this, 'render_restrictions_meta_box'],
             self::POST_TYPE,
             'normal',
             'default'
         );
 
         add_meta_box(
-            'coupon_usage',
-            __('Usage Statistics', 'hmw-events'),
-            [$this, 'render_usage_metabox'],
+            'hmw_coupon_usage',
+            __('Usage', 'hmw-events'),
+            [$this, 'render_usage_meta_box'],
             self::POST_TYPE,
             'side',
             'default'
         );
     }
 
-    public function render_details_metabox($post)
+    /**
+     * Render the coupon details meta box.
+     */
+    public function render_details_meta_box(\WP_Post $post): void
     {
-        wp_nonce_field('coupon_details', 'coupon_details_nonce');
-        
-        $code = get_post_meta($post->ID, '_coupon_code', true);
-        $discount_type = get_post_meta($post->ID, '_discount_type', true) ?: 'percentage';
-        $discount_value = get_post_meta($post->ID, '_discount_value', true);
-        $description = get_post_meta($post->ID, '_description', true);
-        $start_date = get_post_meta($post->ID, '_start_date', true);
-        $end_date = get_post_meta($post->ID, '_end_date', true);
-        $status = get_post_meta($post->ID, '_status', true) ?: 'active';
+        wp_nonce_field('hmw_coupon_save', 'hmw_coupon_nonce');
+
+        $code           = get_post_meta($post->ID, '_coupon_code', true) ?? '';
+        $discount_type  = get_post_meta($post->ID, '_coupon_discount_type', true) ?: 'fixed';
+        $discount_value = get_post_meta($post->ID, '_coupon_discount_value', true) ?: '';
+        $start_date     = get_post_meta($post->ID, '_coupon_start_date', true) ?: '';
+        $end_date       = get_post_meta($post->ID, '_coupon_end_date', true) ?: '';
+        $is_active      = get_post_meta($post->ID, '_coupon_is_active', true);
+        $is_active      = ($is_active === '' || $is_active === '1') ? '1' : '0';
+
         ?>
         <table class="form-table">
             <tr>
-                <th><label for="coupon_code">Coupon Code <span class="required">*</span></label></th>
-                <td>
-                    <input type="text" 
-                           id="coupon_code" 
-                           name="coupon_code" 
-                           value="<?php echo esc_attr($code); ?>" 
-                           class="regular-text" 
-                           style="text-transform: uppercase;"
-                           required>
-                    <p class="description">Unique code customers will enter (auto-converted to uppercase)</p>
-                </td>
+                <th><label for="hmw_coupon_code"><?php esc_html_e('Coupon Code', 'hmw-events'); ?></label></th>
+                <td><input type="text" id="hmw_coupon_code" name="hmw_coupon_code" value="<?php echo esc_attr($code); ?>" class="regular-text" required /></td>
             </tr>
             <tr>
-                <th><label for="description">Description</label></th>
+                <th><label for="hmw_coupon_discount_type"><?php esc_html_e('Discount Type', 'hmw-events'); ?></label></th>
                 <td>
-                    <input type="text" 
-                           id="description" 
-                           name="description" 
-                           value="<?php echo esc_attr($description); ?>" 
-                           class="large-text">
-                    <p class="description">Internal description (not shown to customers)</p>
-                </td>
-            </tr>
-            <tr>
-                <th><label for="discount_type">Discount Type</label></th>
-                <td>
-                    <select id="discount_type" name="discount_type">
-                        <option value="percentage" <?php selected($discount_type, 'percentage'); ?>>Percentage</option>
-                        <option value="fixed" <?php selected($discount_type, 'fixed'); ?>>Fixed Amount</option>
+                    <select id="hmw_coupon_discount_type" name="hmw_coupon_discount_type">
+                        <option value="fixed" <?php selected($discount_type, 'fixed'); ?>><?php esc_html_e('Fixed Amount ($)', 'hmw-events'); ?></option>
+                        <option value="percent" <?php selected($discount_type, 'percent'); ?>><?php esc_html_e('Percentage (%)', 'hmw-events'); ?></option>
                     </select>
                 </td>
             </tr>
             <tr>
-                <th><label for="discount_value">Discount Value <span class="required">*</span></label></th>
-                <td>
-                    <input type="number" 
-                           id="discount_value" 
-                           name="discount_value" 
-                           value="<?php echo esc_attr($discount_value); ?>" 
-                           step="0.01" 
-                           min="0"
-                           required>
-                    <p class="description">For percentage: enter 0-100. For fixed: enter dollar amount.</p>
-                </td>
+                <th><label for="hmw_coupon_discount_value"><?php esc_html_e('Discount Value', 'hmw-events'); ?></label></th>
+                <td><input type="number" id="hmw_coupon_discount_value" name="hmw_coupon_discount_value" value="<?php echo esc_attr($discount_value); ?>" step="0.01" min="0" class="small-text" /></td>
             </tr>
             <tr>
-                <th><label for="start_date">Start Date</label></th>
-                <td>
-                    <input type="datetime-local" 
-                           id="start_date" 
-                           name="start_date" 
-                           value="<?php echo esc_attr($start_date); ?>">
-                    <p class="description">Leave empty for immediate activation</p>
-                </td>
+                <th><label for="hmw_coupon_start_date"><?php esc_html_e('Start Date', 'hmw-events'); ?></label></th>
+                <td><input type="date" id="hmw_coupon_start_date" name="hmw_coupon_start_date" value="<?php echo esc_attr($start_date); ?>" /></td>
             </tr>
             <tr>
-                <th><label for="end_date">End Date</label></th>
-                <td>
-                    <input type="datetime-local" 
-                           id="end_date" 
-                           name="end_date" 
-                           value="<?php echo esc_attr($end_date); ?>">
-                    <p class="description">Leave empty for no expiration</p>
-                </td>
+                <th><label for="hmw_coupon_end_date"><?php esc_html_e('End Date', 'hmw-events'); ?></label></th>
+                <td><input type="date" id="hmw_coupon_end_date" name="hmw_coupon_end_date" value="<?php echo esc_attr($end_date); ?>" /></td>
             </tr>
             <tr>
-                <th><label for="status">Status</label></th>
-                <td>
-                    <select id="status" name="status">
-                        <option value="active" <?php selected($status, 'active'); ?>>Active</option>
-                        <option value="inactive" <?php selected($status, 'inactive'); ?>>Inactive</option>
-                        <option value="expired" <?php selected($status, 'expired'); ?>>Expired</option>
-                    </select>
-                </td>
+                <th><label for="hmw_coupon_is_active"><?php esc_html_e('Active', 'hmw-events'); ?></label></th>
+                <td><input type="checkbox" id="hmw_coupon_is_active" name="hmw_coupon_is_active" value="1" <?php checked($is_active, '1'); ?> /></td>
             </tr>
         </table>
         <?php
     }
 
-    public function render_restrictions_metabox($post)
+    /**
+     * Render usage restrictions meta box.
+     */
+    public function render_restrictions_meta_box(\WP_Post $post): void
     {
-        $usage_limit = get_post_meta($post->ID, '_usage_limit', true);
-        $usage_limit_per_user = get_post_meta($post->ID, '_usage_limit_per_user', true) ?: 1;
-        $min_amount = get_post_meta($post->ID, '_min_amount', true);
-        $applies_to = get_post_meta($post->ID, '_applies_to', true) ?: 'both';
-        $educator_ids = get_post_meta($post->ID, '_educator_ids', true) ?: [];
-        $course_ids = get_post_meta($post->ID, '_course_ids', true) ?: [];
-        
-        $current_user_id = get_current_user_id();
-        $is_admin = current_user_can('manage_options');
+        $min_amount    = get_post_meta($post->ID, '_coupon_min_amount', true) ?: '';
+        $max_uses      = get_post_meta($post->ID, '_coupon_max_uses', true) ?: '';
+        $max_per_user  = get_post_meta($post->ID, '_coupon_max_per_user', true) ?: '';
+        $event_types   = get_post_meta($post->ID, '_coupon_event_types', true) ?: [];
+        $specific_events = get_post_meta($post->ID, '_coupon_specific_events', true) ?: [];
+
         ?>
         <table class="form-table">
             <tr>
-                <th><label for="usage_limit">Total Usage Limit</label></th>
-                <td>
-                    <input type="number" 
-                           id="usage_limit" 
-                           name="usage_limit" 
-                           value="<?php echo esc_attr($usage_limit); ?>" 
-                           min="0">
-                    <p class="description">Total number of times this coupon can be used (leave empty for unlimited)</p>
-                </td>
+                <th><label for="hmw_coupon_min_amount"><?php esc_html_e('Minimum Order Amount ($)', 'hmw-events'); ?></label></th>
+                <td><input type="number" id="hmw_coupon_min_amount" name="hmw_coupon_min_amount" value="<?php echo esc_attr($min_amount); ?>" step="0.01" min="0" class="small-text" /></td>
             </tr>
             <tr>
-                <th><label for="usage_limit_per_user">Uses Per Customer</label></th>
-                <td>
-                    <input type="number" 
-                           id="usage_limit_per_user" 
-                           name="usage_limit_per_user" 
-                           value="<?php echo esc_attr($usage_limit_per_user); ?>" 
-                           min="1">
-                    <p class="description">How many times each customer (email) can use this coupon</p>
-                </td>
+                <th><label for="hmw_coupon_max_uses"><?php esc_html_e('Maximum Total Uses', 'hmw-events'); ?></label></th>
+                <td><input type="number" id="hmw_coupon_max_uses" name="hmw_coupon_max_uses" value="<?php echo esc_attr($max_uses); ?>" min="0" class="small-text" /> <span class="description"><?php esc_html_e('0 = unlimited', 'hmw-events'); ?></span></td>
             </tr>
             <tr>
-                <th><label for="min_amount">Minimum Amount</label></th>
-                <td>
-                    <input type="number" 
-                           id="min_amount" 
-                           name="min_amount" 
-                           value="<?php echo esc_attr($min_amount); ?>" 
-                           step="0.01" 
-                           min="0">
-                    <p class="description">Minimum booking amount required to use this coupon</p>
-                </td>
+                <th><label for="hmw_coupon_max_per_user"><?php esc_html_e('Maximum Per Registrant', 'hmw-events'); ?></label></th>
+                <td><input type="number" id="hmw_coupon_max_per_user" name="hmw_coupon_max_per_user" value="<?php echo esc_attr($max_per_user); ?>" min="0" class="small-text" /> <span class="description"><?php esc_html_e('0 = unlimited', 'hmw-events'); ?></span></td>
             </tr>
             <tr>
-                <th><label for="applies_to">Applies To</label></th>
-                <td>
-                    <select id="applies_to" name="applies_to">
-                        <option value="both" <?php selected($applies_to, 'both'); ?>>Full & Deposit Payments</option>
-                        <option value="full" <?php selected($applies_to, 'full'); ?>>Full Payment Only</option>
-                        <option value="deposit" <?php selected($applies_to, 'deposit'); ?>>Deposit Only</option>
-                    </select>
-                </td>
-            </tr>
-            
-            <?php if ($is_admin): ?>
-            <tr>
-                <th><label for="educator_ids">Allowed Educators</label></th>
+                <th><label for="hmw_coupon_event_types"><?php esc_html_e('Restrict to Event Types', 'hmw-events'); ?></label></th>
                 <td>
                     <?php
-                    $educators = get_users(['role__in' => ['administrator', 'educator']]);
-                    echo '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">';
-                    foreach ($educators as $educator):
-                        $checked = in_array($educator->ID, (array)$educator_ids);
-                    ?>
-                    <label style="display: block; margin: 5px 0;">
-                        <input type="checkbox" 
-                               name="educator_ids[]" 
-                               value="<?php echo esc_attr($educator->ID); ?>"
-                               <?php checked($checked); ?>>
-                        <?php echo esc_html($educator->display_name); ?>
-                    </label>
-                    <?php endforeach;
-                    echo '</div>';
-                    ?>
-                    <p class="description">Leave all unchecked to allow for all educators</p>
-                </td>
-            </tr>
-            <?php endif; ?>
-            
-            <tr>
-                <th><label for="course_ids">Allowed Courses</label></th>
-                <td>
-                    <?php
-                    $course_args = ['post_type' => 'educator_course', 'posts_per_page' => -1, 'post_status' => 'publish'];
-                    if (!$is_admin) {
-                        $course_args['author'] = $current_user_id;
-                    }
-                    $courses = get_posts($course_args);
-                    
-                    if (empty($courses)) {
-                        echo '<p>No courses available.</p>';
-                    } else {
-                        echo '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">';
-                        foreach ($courses as $course):
-                            $checked = in_array($course->ID, (array)$course_ids);
-                        ?>
-                        <label style="display: block; margin: 5px 0;">
-                            <input type="checkbox" 
-                                   name="course_ids[]" 
-                                   value="<?php echo esc_attr($course->ID); ?>"
-                                   <?php checked($checked); ?>>
-                            <?php echo esc_html($course->post_title); ?>
-                            <?php if ($is_admin): ?>
-                                <small>(<?php echo get_the_author_meta('display_name', $course->post_author); ?>)</small>
-                            <?php endif; ?>
-                        </label>
+                    $types = get_terms(['taxonomy' => 'hmw_event_type', 'hide_empty' => false]);
+                    if (!empty($types) && !is_wp_error($types)):
+                        foreach ($types as $type): ?>
+                            <label style="display:block; margin-bottom:4px;">
+                                <input type="checkbox" name="hmw_coupon_event_types[]" value="<?php echo esc_attr($type->slug); ?>" <?php checked(in_array($type->slug, (array) $event_types)); ?> />
+                                <?php echo esc_html($type->name); ?>
+                            </label>
                         <?php endforeach;
-                        echo '</div>';
-                    }
+                    else:
+                        esc_html_e('No event types found.', 'hmw-events');
+                    endif;
                     ?>
-                    <p class="description">Leave all unchecked to allow for all courses</p>
                 </td>
             </tr>
         </table>
         <?php
     }
 
-    public function render_usage_metabox($post)
+    /**
+     * Render usage stats meta box.
+     */
+    public function render_usage_meta_box(\WP_Post $post): void
     {
         global $wpdb;
-        
-        $code = get_post_meta($post->ID, '_coupon_code', true);
-        if (!$code) {
-            echo '<p>Save coupon to see usage statistics.</p>';
-            return;
-        }
-        
-        $usage_count = $wpdb->get_var($wpdb->prepare("
-            SELECT COUNT(*) 
-            FROM {$wpdb->prefix}educator_coupon_usage 
-            WHERE coupon_code = %s
-        ", $code));
-        
-        $total_discount = $wpdb->get_var($wpdb->prepare("
-            SELECT SUM(discount_amount) 
-            FROM {$wpdb->prefix}educator_coupon_usage 
-            WHERE coupon_code = %s
-        ", $code));
-        
-        $usage_limit = get_post_meta($post->ID, '_usage_limit', true);
-        
+        $usage = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}hmwevents_coupon_usage WHERE coupon_code = %s",
+            get_post_meta($post->ID, '_coupon_code', true)
+        ));
         ?>
-        <div class="coupon-stats">
-            <p><strong>Times Used:</strong> <?php echo (int)$usage_count; ?>
-            <?php if ($usage_limit): ?>
-                / <?php echo (int)$usage_limit; ?>
-            <?php endif; ?>
-            </p>
-            <p><strong>Total Discount Given:</strong> $<?php echo number_format((float)$total_discount, 2); ?></p>
-        </div>
+        <p>
+            <strong><?php esc_html_e('Times Used:', 'hmw-events'); ?></strong>
+            <?php echo (int) $usage; ?>
+        </p>
         <?php
     }
 
-    public function save_meta($post_id, $post)
+    /**
+     * Save coupon meta.
+     */
+    public function save_meta(int $post_id, \WP_Post $post): void
     {
-        if (!isset($_POST['coupon_details_nonce']) || !wp_verify_nonce($_POST['coupon_details_nonce'], 'coupon_details')) {
+        if (!isset($_POST['hmw_coupon_nonce']) || !wp_verify_nonce($_POST['hmw_coupon_nonce'], 'hmw_coupon_save')) {
             return;
         }
-
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
             return;
         }
-
         if (!current_user_can('edit_post', $post_id)) {
             return;
         }
 
-        // Non-admins can only edit their own coupons
-        if (!current_user_can('manage_options')) {
-            $post_author = (int) get_post_field('post_author', $post_id);
-            if ($post_author !== get_current_user_id()) {
-                return;
-            }
-        }
-
-        // Save coupon code (uppercase)
-        if (isset($_POST['coupon_code'])) {
-            $code = strtoupper(sanitize_text_field($_POST['coupon_code']));
-            
-            // Check for duplicate codes
-            $existing = get_posts([
-                'post_type' => self::POST_TYPE,
-                'meta_key' => '_coupon_code',
-                'meta_value' => $code,
-                'post__not_in' => [$post_id],
-                'posts_per_page' => 1,
-            ]);
-            
-            if (!empty($existing)) {
-                add_filter('redirect_post_location', function($location) {
-                    return add_query_arg('coupon_error', 'duplicate_code', $location);
-                });
-                return;
-            }
-            
-            update_post_meta($post_id, '_coupon_code', $code);
-        }
-
-        // Save other fields
         $fields = [
-            'description' => 'sanitize_text_field',
-            'discount_type' => 'sanitize_text_field',
-            'discount_value' => 'floatval',
-            'start_date' => 'sanitize_text_field',
-            'end_date' => 'sanitize_text_field',
-            'status' => 'sanitize_text_field',
-            'usage_limit' => 'intval',
-            'usage_limit_per_user' => 'intval',
-            'min_amount' => 'floatval',
-            'applies_to' => 'sanitize_text_field',
+            '_coupon_code'          => sanitize_text_field($_POST['hmw_coupon_code'] ?? ''),
+            '_coupon_discount_type' => sanitize_text_field($_POST['hmw_coupon_discount_type'] ?? 'fixed'),
+            '_coupon_discount_value' => (float) ($_POST['hmw_coupon_discount_value'] ?? 0),
+            '_coupon_start_date'    => sanitize_text_field($_POST['hmw_coupon_start_date'] ?? ''),
+            '_coupon_end_date'      => sanitize_text_field($_POST['hmw_coupon_end_date'] ?? ''),
+            '_coupon_is_active'     => isset($_POST['hmw_coupon_is_active']) ? '1' : '0',
+            '_coupon_min_amount'    => (float) ($_POST['hmw_coupon_min_amount'] ?? 0),
+            '_coupon_max_uses'      => (int) ($_POST['hmw_coupon_max_uses'] ?? 0),
+            '_coupon_max_per_user'  => (int) ($_POST['hmw_coupon_max_per_user'] ?? 0),
+            '_coupon_event_types'   => array_map('sanitize_text_field', (array) ($_POST['hmw_coupon_event_types'] ?? [])),
         ];
 
-        foreach ($fields as $field => $sanitize) {
-            if (isset($_POST[$field])) {
-                $value = $_POST[$field];
-                if ($value !== '') {
-                    update_post_meta($post_id, '_' . $field, $sanitize($value));
-                } else {
-                    delete_post_meta($post_id, '_' . $field);
-                }
-            }
-        }
-
-        // Save arrays
-        if (!current_user_can('manage_options')) {
-            // Non-admins: always scope this coupon to themselves.
-            update_post_meta($post_id, '_educator_ids', [get_current_user_id()]);
-        } elseif (isset($_POST['educator_ids'])) {
-            update_post_meta($post_id, '_educator_ids', array_map('intval', $_POST['educator_ids']));
-        } else {
-            delete_post_meta($post_id, '_educator_ids');
-        }
-
-        if (isset($_POST['course_ids'])) {
-            $submitted_course_ids = array_map('intval', $_POST['course_ids']);
-
-            if (!current_user_can('manage_options')) {
-                // Non-admins: strip any course IDs that don't belong to them.
-                $current_user_id = get_current_user_id();
-                $submitted_course_ids = array_values(array_filter(
-                    $submitted_course_ids,
-                    function ($cid) use ($current_user_id) {
-                        return (int) get_post_field('post_author', $cid) === $current_user_id;
-                    }
-                ));
-            }
-
-            update_post_meta($post_id, '_course_ids', $submitted_course_ids);
-        } else {
-            delete_post_meta($post_id, '_course_ids');
+        foreach ($fields as $key => $value) {
+            update_post_meta($post_id, $key, $value);
         }
     }
 
-    public function set_columns($columns)
+    /**
+     * Set custom admin columns.
+     */
+    public function set_columns(array $columns): array
     {
-        return [
-            'cb' => $columns['cb'],
-            'title' => __('Coupon Name', 'hmw-events'),
-            'code' => __('Code', 'hmw-events'),
-            'discount' => __('Discount', 'hmw-events'),
-            'usage' => __('Usage', 'hmw-events'),
-            'validity' => __('Validity', 'hmw-events'),
-            'status' => __('Status', 'hmw-events'),
-            'date' => __('Created', 'hmw-events'),
-        ];
+        $new = [];
+        foreach ($columns as $k => $v) {
+            $new[$k] = $v;
+            if ($k === 'title') {
+                $new['coupon_code'] = __('Code', 'hmw-events');
+                $new['discount']    = __('Discount', 'hmw-events');
+            }
+        }
+        $new['usage']   = __('Used', 'hmw-events');
+        $new['active']  = __('Active', 'hmw-events');
+        unset($new['date']);
+        return $new;
     }
 
-    public function render_column($column, $post_id)
+    /**
+     * Render custom column content.
+     */
+    public function render_column(string $column, int $post_id): void
     {
         switch ($column) {
-            case 'code':
-                $code = get_post_meta($post_id, '_coupon_code', true);
-                echo '<code>' . esc_html($code) . '</code>';
+            case 'coupon_code':
+                echo esc_html(get_post_meta($post_id, '_coupon_code', true));
                 break;
-                
             case 'discount':
-                $type = get_post_meta($post_id, '_discount_type', true);
-                $value = get_post_meta($post_id, '_discount_value', true);
-                if ($type === 'percentage') {
-                    echo esc_html($value) . '%';
+                $type  = get_post_meta($post_id, '_coupon_discount_type', true);
+                $value = get_post_meta($post_id, '_coupon_discount_value', true);
+                if ($type === 'percent') {
+                    echo esc_html($value . '%');
                 } else {
-                    echo '$' . number_format($value, 2);
+                    echo '$' . esc_html(number_format((float) $value, 2));
                 }
                 break;
-                
             case 'usage':
-                global $wpdb;
-                $code = get_post_meta($post_id, '_coupon_code', true);
-                $used = $wpdb->get_var($wpdb->prepare("
-                    SELECT COUNT(*) FROM {$wpdb->prefix}educator_coupon_usage WHERE coupon_code = %s
-                ", $code));
-                $limit = get_post_meta($post_id, '_usage_limit', true);
-                
-                echo (int)$used;
-                if ($limit) {
-                    echo ' / ' . (int)$limit;
-                }
+                echo (int) get_post_meta($post_id, '_coupon_usage_count', true);
                 break;
-                
-            case 'validity':
-                $start = get_post_meta($post_id, '_start_date', true);
-                $end = get_post_meta($post_id, '_end_date', true);
-                
-                if ($start) {
-                    echo 'From ' . date('M j, Y', strtotime($start)) . '<br>';
-                }
-                if ($end) {
-                    echo 'Until ' . date('M j, Y', strtotime($end));
-                }
-                if (!$start && !$end) {
-                    echo 'Always valid';
-                }
+            case 'active':
+                echo get_post_meta($post_id, '_coupon_is_active', true) === '1'
+                    ? '<span style="color:green;">' . esc_html__('Yes', 'hmw-events') . '</span>'
+                    : '<span style="color:red;">' . esc_html__('No', 'hmw-events') . '</span>';
                 break;
-                
-            case 'status':
-                $status = get_post_meta($post_id, '_status', true) ?: 'active';
-                $colors = [
-                    'active' => 'green',
-                    'inactive' => 'gray',
-                    'expired' => 'red',
-                ];
-                echo '<span style="color: ' . $colors[$status] . ';">●</span> ' . ucfirst($status);
-                break;
-        }
-    }
-
-    public function show_admin_notices()
-    {
-        $screen = get_current_screen();
-        if (!$screen || $screen->post_type !== self::POST_TYPE) {
-            return;
-        }
-
-        if (isset($_GET['coupon_error']) && $_GET['coupon_error'] === 'duplicate_code') {
-            ?>
-            <div class="notice notice-error is-dismissible">
-                <p><?php _e('Error: A coupon with this code already exists. Please use a different code.', 'hmw-events'); ?></p>
-            </div>
-            <?php
         }
     }
 }

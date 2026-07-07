@@ -25,10 +25,12 @@ class DatabaseService
   const DB_VERSION_OPTION = 'hmwevents_db_version';
 
   /**
-   * Current database version.
+   * Current database schema version.
    * Increment this when schema changes are made.
+   *
+   * @since 2.0.0 Reset to 2.0 for rebuild.
    */
-  const CURRENT_DB_VERSION = '1.3';
+  const CURRENT_DB_VERSION = '2.0';
 
   /**
    * Get the WordPress database instance.
@@ -57,16 +59,49 @@ class DatabaseService
   }
 
   /**
-   * Get table name with prefix.
+   * Get table name with hmwevents_ prefix.
    *
-   * @since 1.0.0
-   * @param string $table_name The table name without prefix.
-   * @return string The full table name with prefix.
+   * @since 2.0.0
+   * @param string $table_name The table name without prefix (e.g. 'bookings').
+   * @return string The full table name with wp and hmwevents prefix.
    */
   public static function get_table_name($table_name)
   {
     global $wpdb;
-    return $wpdb->prefix . $table_name;
+    return $wpdb->prefix . 'hmwevents_' . $table_name;
+  }
+
+  /**
+   * Get all hmwevents_ table names with full prefix.
+   *
+   * @since 2.0.0
+   * @return array<string, string> Short name => full table name
+   */
+  public static function get_all_table_names()
+  {
+    $names = [
+      'event_recurrence',
+      'booking_groups',
+      'event_availability',
+      'event_attendance_options',
+      'event_templates',
+      'saved_report_filters',
+      'email_queue',
+      'email_templates',
+      'private_registration_tokens',
+      'bookings',
+      'payment_transactions',
+      'booking_details',
+      'booking_meta',
+      'booking_history',
+      'voucher_usage',
+      'coupon_usage',
+      'registration_documents',
+      'waitlist',
+      'email_attachments',
+    ];
+
+    return array_combine($names, array_map([self::class, 'get_table_name'], $names));
   }
 
   /**
@@ -137,5 +172,16 @@ class DatabaseService
   {
     delete_option(self::DB_VERSION_OPTION);
     self::maybe_upgrade();
+  }
+
+  /**
+   * Update the stored schema version to match CURRENT_DB_VERSION.
+   * Called after activation/install to align version tracking.
+   *
+   * @since 2.0.0
+   */
+  public static function update_schema_version()
+  {
+    update_option(self::DB_VERSION_OPTION, self::CURRENT_DB_VERSION);
   }
 }

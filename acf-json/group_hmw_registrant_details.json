@@ -1,0 +1,94 @@
+{
+    "key": "group_hmw_registrant_details",
+    "title": "Registrant Details",
+    "fields": [
+        {
+            "key": "field_registrant_first_name",
+            "label": "First Name",
+            "name": "registrant_first_name",
+            "type": "text",
+            "required": 1
+        },
+        {
+            "key": "field_registrant_last_name",
+            "label": "Last Name",
+            "name": "registrant_last_name",
+            "type": "text",
+            "required": 1
+        },
+        {
+            "key": "field_registrant_email",
+            "label": "Email",
+            "name": "registrant_email",
+            "type": "email",
+            "required": 1
+        },
+        {
+            "key": "field_registrant_phone",
+            "label": "Phone",
+            "name": "registrant_phone",
+            "type": "text"
+        },
+        {
+            "key": "field_registrant_address",
+            "label": "Address",
+            "name": "registrant_address",
+            "type": "text"
+        },
+        {
+            "key": "field_registrant_suburb",
+            "label": "Suburb",
+            "name": "registrant_suburb",
+            "type": "text"
+        },
+        {
+            "key": "field_registrant_state",
+            "label": "State",
+            "name": "registrant_state",
+            "type": "select",
+            "choices": {
+                "nsw": "New South Wales",
+                "vic": "Victoria",
+                "qld": "Queensland",
+                "wa": "Western Australia",
+                "sa": "South Australia",
+                "tas": "Tasmania",
+                "act": "Australian Capital Territory",
+                "nt": "Northern Territory"
+            }
+        },
+        {
+            "key": "field_registrant_postcode",
+            "label": "Postcode",
+            "name": "registrant_postcode",
+            "type": "text"
+        },
+        {
+            "key": "field_legacy_customer_id",
+            "label": "Legacy Customer ID",
+            "name": "_legacy_customer_id",
+            "type": "number",
+            "required": 0,
+            "wrapper": {
+                "class": "acf-hidden"
+            }
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "hmw_registrant"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": ""
+}

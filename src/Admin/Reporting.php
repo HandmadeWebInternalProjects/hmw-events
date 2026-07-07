@@ -167,7 +167,7 @@ class Reporting
                     $row->venue             ?: '',
                     $form['mothers_first_name'] ?? '',
                     $form['mothers_last_name']  ?? '',
-                    $row->customer_email    ?: '',
+                    $row->registrant_email    ?: '',
                     number_format((float) $row->booking_amount, 2, '.', ''),
                     $row->booking_date ? date('d/m/Y H:i', strtotime($row->booking_date)) : '',
                 ]);
@@ -223,9 +223,9 @@ class Reporting
                 AND um.meta_value LIKE %s
             LEFT JOIN {$wpdb->posts} c
                 ON  c.post_author = u.ID
-                AND c.post_type   = 'educator_course'
+                AND c.post_type   = 'hmw_event'
                 AND c.post_status != 'trash'
-            LEFT JOIN {$wpdb->prefix}educator_bookings b
+            LEFT JOIN {$wpdb->prefix}hmwevents_bookings b
                 ON  {$booking_on}
             GROUP BY u.ID, u.display_name, u.user_email
             ORDER BY total_sales DESC, total_bookings DESC
@@ -270,11 +270,11 @@ class Reporting
                     NULLIF(pm_suburb.meta_value, ''),
                     NULLIF(pm_state.meta_value,  '')
                 )                           AS venue,
-                pm_email.meta_value         AS customer_email,
+                pm_email.meta_value         AS registrant_email,
                 bd.form_data,
                 b.booking_amount,
                 b.created_at                AS booking_date
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c
                 ON  c.ID = b.course_post_id
                 AND c.post_status != 'trash'
@@ -292,8 +292,8 @@ class Reporting
                 AND pm_state.meta_key = 'course_location_state'
             LEFT JOIN {$wpdb->postmeta} pm_email
                 ON  pm_email.post_id  = b.customer_post_id
-                AND pm_email.meta_key = 'customer_email'
-            LEFT JOIN {$wpdb->prefix}educator_booking_details bd
+                AND pm_email.meta_key = 'registrant_email'
+            LEFT JOIN {$wpdb->prefix}hmwevents_booking_details bd
                 ON  bd.booking_id = b.id
             WHERE {$where}
             ORDER BY c.post_title ASC, b.created_at ASC

@@ -57,7 +57,7 @@ class StripeWebhook
      */
     public function register_routes()
     {
-        register_rest_route('cms/v1', '/webhook/stripe', [
+        register_rest_route('hmwevents/v1', '/webhook/stripe', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_webhook'],
             'permission_callback' => '__return_true',
@@ -147,13 +147,13 @@ class StripeWebhook
 
         // Update bookings to failed
         $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}educator_payment_transactions
+            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
             WHERE gateway_transaction_id = %s
         ", $payment_intent->id));
 
         if ($transaction) {
             $wpdb->update(
-                $wpdb->prefix . 'educator_bookings',
+                $wpdb->prefix . 'hmwevents_bookings',
                 ['payment_status' => 'failed'],
                 ['booking_group_id' => $transaction->booking_group_id],
                 ['%s'],
@@ -185,7 +185,7 @@ class StripeWebhook
 
         // Find the payment transaction
         $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}educator_payment_transactions
+            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
             WHERE gateway_transaction_id = %s
         ", $charge->payment_intent));
 
@@ -210,7 +210,7 @@ class StripeWebhook
 
         // Update bookings
         $wpdb->update(
-            $wpdb->prefix . 'educator_bookings',
+            $wpdb->prefix . 'hmwevents_bookings',
             [
                 'payment_status' => 'refunded',
                 'status' => 'cancelled',

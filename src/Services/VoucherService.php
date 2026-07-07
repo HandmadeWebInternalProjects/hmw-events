@@ -14,10 +14,10 @@ class VoucherService
    *
    * @param string $voucher_code The voucher code to validate.
    * @param int $course_id The course ID.
-   * @param string $customer_email Customer email.
+   * @param string $registrant_email Customer email.
    * @return array|WP_Error Voucher details or error.
    */
-  public function validate_voucher($voucher_code, $course_id, $customer_email = '')
+  public function validate_voucher($voucher_code, $course_id, $registrant_email = '')
   {
     if (empty($voucher_code)) {
       return new \WP_Error('empty_code', 'Voucher code is required');

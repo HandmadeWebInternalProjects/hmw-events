@@ -1,4 +1,4 @@
-.educator-card {
+.organizer-card {
 	background: #fff;
 	border-radius: 12px;
 	padding: 2rem;
@@ -73,7 +73,7 @@
 	}
 
   /* Location */
-	.educator-card-icon {
+	.organizer-card-icon {
 		flex-shrink: 0;
     position: relative;
     top: 0.2rem;
@@ -85,7 +85,7 @@
 		flex: 1;
 	}
 
-  .educator-card-icon-list {
+  .organizer-card-icon-list {
     display: flex;
     gap: 1rem;
   }

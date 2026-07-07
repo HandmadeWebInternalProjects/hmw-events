@@ -102,25 +102,39 @@ final class HMWEvents
           Services\Emails\EmailEventHooks::class,
           Services\Hooks::class,
           Services\ACF::class,
+          Services\EventTemplateService::class,
+          Services\EventTypeDefaultsService::class,
+          Services\RegistrationFormPreset::class,
+          Services\RegistrationFormRenderer::class,
+          Services\DocumentUploadHandler::class,
+          Services\PaymentService::class,
+          Services\NetTermsHandler::class,
+          Services\PaymentOverrideService::class,
+          Services\WaitlistService::class,
+          Services\InvitationTokenService::class,
+          Services\SessionService::class,
+          Services\EmailTemplateManager::class,
+          Services\EmailDispatchService::class,
+          Services\EventListingService::class,
+          Services\ReportingService::class,
 
           // Post Types
-          PostTypes\EducatorCourse::class,
-          PostTypes\Customer::class,
+          PostTypes\Event::class,
+          PostTypes\Registrant::class,
           PostTypes\Coupon::class,
 
           // Taxonomies
-          Taxonomies\CourseType::class,
-          Taxonomies\CourseState::class,
+          Taxonomies\EventType::class,
+          Taxonomies\EventAudience::class,
+          Taxonomies\EventDeliveryMode::class,
+          Taxonomies\EventState::class,
 
           // User Roles
-          Roles\EducatorRole::class,
-          // Hospital role is not used at the moment, it's a meta toggle instead as it would have meant duplicating the educator role with minimal differences. Keeping the class here in case we want to expand it in the future.
-          // Roles\HospitalRole::class,
+          Roles\EventOrganizerRole::class,
 
-          // Meta Fields
-          Meta\CourseMeta::class,
-          Meta\CustomerMeta::class,
-          Meta\EducatorMeta::class,
+          // Meta Fields (placeholder — full ACF groups migrate in later phases)
+          // Meta\EventMeta::class,
+          // Meta\RegistrantMeta::class,
 
           // HTTP & API
           Api\RegisterRoutes::class,
@@ -128,11 +142,11 @@ final class HMWEvents
 
           // Helpers
           Helpers\Encryption::class,
-          Helpers\RecurringCourse::class,
+          Helpers\RecurringEvent::class,
 
           // Admin Handlers
-          Admin\RecurringCourseHandler::class,
-          Admin\EducatorPaymentsDashboard::class,
+          Admin\RecurringEventHandler::class,
+          Admin\OrganizerPaymentsDashboard::class,
 
           // Mailing / CRM integrations
           Services\Mailing\MailingDispatcher::class,
@@ -223,6 +237,15 @@ final class HMWEvents
         register_shutdown_function([$this, 'log_errors']);
         add_action('init', [$this, 'load_plugin_textdomain']);
         add_action('plugins_loaded', [$this, 'maybe_preload_woocommerce_textdomain'], 20);
+
+        // Flush rewrite rules when plugin version changes (prevents 404 on event singles after update)
+        add_action('init', function () {
+            $stored = get_option('hmwevents_plugin_version', '');
+            if ($stored !== HMWEvents_VERSION) {
+                flush_rewrite_rules();
+                update_option('hmwevents_plugin_version', HMWEvents_VERSION);
+            }
+        }, 99);
 
         \HMWEvents\Helpers\GoogleMapField::register_hooks();
 

@@ -13,7 +13,7 @@ async function handlePayment(formValues) {
     const stripe = Stripe(formValues.stripe_publishable_key);
 
     // SECURITY: Verify amount from backend - never trust client-side values
-    const verifyResponse = await fetch('/wp-json/cms/v1/payment/verify-amount', {
+    const verifyResponse = await fetch('/wp-json/hmwevents/v1/payment/verify-amount', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -81,7 +81,7 @@ async function handlePayment(formValues) {
         if (error) throw new Error(error.message);
 
         // Send to backend with all form data
-        const response = await fetch('/wp-json/cms/v1/payment/process', {
+        const response = await fetch('/wp-json/hmwevents/v1/payment/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -137,7 +137,7 @@ async function handlePayment(formValues) {
           }
 
           // Confirm on server to finalise booking side effects
-          const confirmResponse = await fetch('/wp-json/cms/v1/payment/confirm', {
+          const confirmResponse = await fetch('/wp-json/hmwevents/v1/payment/confirm', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({

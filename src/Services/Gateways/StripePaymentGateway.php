@@ -11,7 +11,7 @@
 namespace HMWEvents\Services\Gateways;
 
 use HMWEvents\Services\StripeService;
-use HMWEvents\Helpers\Course;
+use HMWEvents\Helpers\EventHelper;
 use HMWEvents\Helpers\ConfigHelper;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
@@ -470,7 +470,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             // Create Stripe customer if not exists
             $stripe_customer_id = get_post_meta($customer_id, 'stripe_customer_id', true);
             if (empty($stripe_customer_id)) {
-                $stripe_customer = $this->stripe->create_customer($booking_data['customer_email'], [
+                $stripe_customer = $this->stripe->create_customer($booking_data['registrant_email'], [
                     'name' => $booking_data['customer_name'],
                     'phone' => $booking_data['customer_phone'] ?? '',
                     'metadata' => [
@@ -524,7 +524,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             // Update booking with discount amount if voucher was applied
             if ($discount_amount > 0) {
                 $wpdb->update(
-                    $wpdb->prefix . 'educator_bookings',
+                    $wpdb->prefix . 'hmwevents_bookings',
                     ['discount_amount' => $discount_amount],
                     ['id' => $booking_id],
                     ['%f'],
@@ -553,7 +553,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
                     $currency,
                     [
                         'booking_number' => $booking_number,
-                        'customer_email' => $booking_data['customer_email'],
+                        'registrant_email' => $booking_data['registrant_email'],
                         'course_id' => $booking_data['course_id'],
                     ]
                 );
@@ -630,7 +630,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
                     $coupon_service->record_usage(
                         $booking_data['coupon_code'],
                         $booking_id,
-                        $booking_data['customer_email'],
+                        $booking_data['registrant_email'],
                         $discount_amount,
                         $original_amount
                     );
@@ -688,7 +688,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
         if (!$this->educator_id && !$this->is_test_mode()) {
             $educator_id = $wpdb->get_var($wpdb->prepare(
                 "SELECT c.post_author
-                 FROM {$wpdb->prefix}educator_bookings b
+                 FROM {$wpdb->prefix}hmwevents_bookings b
                  INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
                  WHERE b.booking_group_id = %d
                  LIMIT 1",
@@ -722,7 +722,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
 
             // Update all bookings in the group
             $bookings = $wpdb->get_results($wpdb->prepare("
-                SELECT * FROM {$wpdb->prefix}educator_bookings
+                SELECT * FROM {$wpdb->prefix}hmwevents_bookings
                 WHERE booking_group_id = %d
             ", $transaction->booking_group_id));
 
@@ -785,7 +785,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
     {
         // Check if customer exists in WordPress
         $customer_post_id = $this->get_or_create_customer_post([
-            'customer_email' => $email,
+            'registrant_email' => $email,
             'customer_name' => $data['name'] ?? $email,
             'customer_phone' => $data['phone'] ?? '',
         ]);

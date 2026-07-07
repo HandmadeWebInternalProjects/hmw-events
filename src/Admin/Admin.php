@@ -67,6 +67,7 @@ class Admin
     // Initialize email handlers
     new EmailQueue();
     new EmailTemplates();
+    new EventTemplates();
     new Reporting();
 
     // Add filter to encrypt Stripe keys before saving
@@ -274,7 +275,7 @@ class Admin
 
         [
           'type'    => 'content',
-          'content' => '<hr><h3 style="margin-top: 20px;">Webhook Configuration</h3><p>Configure your Stripe webhook to point to:</p><p><code style="background: #f0f0f0; padding: 5px 10px; display: inline-block; margin: 10px 0;">' . rest_url('cms/v1/webhook/stripe') . '</code></p><p>Select the following events in your <a href="https://dashboard.stripe.com/webhooks" target="_blank">Stripe Dashboard</a>:</p><ul style="list-style-type: disc; margin-left: 20px;"><li><code>payment_intent.succeeded</code></li><li><code>payment_intent.payment_failed</code></li><li><code>charge.refunded</code></li><li><code>charge.dispute.created</code></li></ul>',
+          'content' => '<hr><h3 style="margin-top: 20px;">Webhook Configuration</h3><p>Configure your Stripe webhook to point to:</p><p><code style="background: #f0f0f0; padding: 5px 10px; display: inline-block; margin: 10px 0;">' . rest_url('hmwevents/v1/webhook/stripe') . '</code></p><p>Select the following events in your <a href="https://dashboard.stripe.com/webhooks" target="_blank">Stripe Dashboard</a>:</p><ul style="list-style-type: disc; margin-left: 20px;"><li><code>payment_intent.succeeded</code></li><li><code>payment_intent.payment_failed</code></li><li><code>charge.refunded</code></li><li><code>charge.dispute.created</code></li></ul>',
         ],
 
         [
@@ -428,6 +429,16 @@ class Admin
       [$this, 'render_email_templates_page']
     );
 
+    // Event Templates page
+    add_submenu_page(
+      'hmwevents-main',
+      'Event Templates',
+      'Event Templates',
+      'manage_options',
+      'hmwevents-event-templates',
+      [$this, 'render_event_templates_page']
+    );
+
     // Reporting page (admin only)
     add_submenu_page(
       'hmwevents-main',
@@ -508,6 +519,15 @@ class Admin
   }
 
   /**
+   * Render event templates page.
+   */
+  public function render_event_templates_page()
+  {
+    $event_templates = new EventTemplates();
+    $event_templates->render_page();
+  }
+
+  /**
    * Render reporting page.
    *
    * @since 1.0.0
@@ -543,6 +563,7 @@ class Admin
         'lsa-monthly-reports',
         'hmwevents-email-queue',
         'hmwevents-email-templates',
+        'hmwevents-event-templates',
         'hmwevents-reporting'
       ]
     );
@@ -731,7 +752,7 @@ class Admin
       // Localize scripts.
       $localize_params = [
         'ajax_url' => admin_url('admin-ajax.php'),
-        'rest_url' => rest_url('cms/v1'),
+        'rest_url' => rest_url('hmwevents/v1'),
         'nonce'    => wp_create_nonce('wp_rest'),
       ];
 
@@ -757,6 +778,11 @@ class Admin
       ]);
     }
 
+    // Event templates GUI editor JS
+    if (strpos($screen_id, 'hmwevents-event-templates') !== false) {
+      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['jquery'], HMWEvents_VERSION, true);
+    }
+
     // Course bookings meta box assets (only on course edit screen)
     if ($screen && $screen->id === 'educator_course') {
       wp_enqueue_style(
@@ -774,9 +800,9 @@ class Admin
         true
       );
 
-      $edit_modal_fields = \HMWEvents\Config\BookingFields::for_edit_modal();
+      $edit_modal_fields = \HMWEvents\Registry\RegistrationFieldRegistry::for_admin_display();
       wp_localize_script('hmwevents-course-bookings', 'cmsBookings', [
-        'restUrl' => rest_url('cms/v1'),
+        'restUrl' => rest_url('hmwevents/v1'),
         'restNonce' => wp_create_nonce('wp_rest'),
         'bookingFields' => array_map(
           fn($key, $field) => [

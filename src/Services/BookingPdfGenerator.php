@@ -91,7 +91,7 @@ class BookingPdfGenerator
 
     $currency_symbol = $m['currency_symbol'] ?? '£';
     $customer_name   = esc_html($b->customer_name);
-    $customer_email  = esc_html($m['customer_email'] ?? '');
+    $registrant_email  = esc_html($m['registrant_email'] ?? '');
     $customer_phone  = esc_html($m['customer_phone'] ?? '');
     $course_name     = esc_html($b->course_name);
     $course_date     = !empty($m['course_date']) ? date('F j, Y', strtotime($m['course_date'])) : '';
@@ -196,7 +196,7 @@ HTML
           <h2>Your Details</h2>
           <table class="details">
             <tr><td>Name:</td><td>{$customer_name}</td></tr>
-            <tr><td>Email:</td><td>{$customer_email}</td></tr>
+            <tr><td>Email:</td><td>{$registrant_email}</td></tr>
 HTML
       . ($customer_phone ? "<tr><td>Phone:</td><td>{$customer_phone}</td></tr>" : '')
       . <<<HTML

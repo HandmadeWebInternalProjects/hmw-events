@@ -22,40 +22,76 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
  * This class acts as a facade for the payment gateway system.
  * It maintains backward compatibility while delegating to the new
  * factory/strategy pattern implementation.
+ *
+ * For hmw_event bookings, delegates to PaymentService (v2).
  */
 class PaymentGateway
 {
-    /**
-     * Gateway instance.
-     *
-     * @var PaymentGatewayInterface|null
-     */
     private $gateway;
-
-    /**
-     * Gateway identifier.
-     *
-     * @var string
-     */
     private $gateway_id;
-
-    /**
-     * Educator ID for multi-tenant support.
-     *
-     * @var int|null
-     */
     private $educator_id;
 
     /**
      * Constructor.
      *
-     * @param string|null $gateway_id Gateway to use (null for default).
-     * @param int|null    $educator_id Educator ID for multi-tenant credentials.
+     * @param string|null $gateway_id  Gateway identifier.
+     * @param int|null    $organizer_id Event organizer / educator ID.
      */
-    public function __construct($gateway_id = null, $educator_id = null)
+    public function __construct(?string $gateway_id = null, ?int $organizer_id = null)
     {
         $this->gateway_id = $gateway_id;
-        $this->educator_id = $educator_id;
+        $this->educator_id = $organizer_id;
+        $this->gateway = $this->get_gateway();
+    }
+
+    /**
+     * Process a booking using the new PaymentService (v2).
+     *
+     * For hmw_event bookings, this delegates to the v2 payment flow
+     * which handles GST, Stripe fallback, and Net Terms.
+     *
+     * @param array $booking_data Must include 'event_id', 'amount', 'attendance_type'.
+     * @return array|\WP_Error
+     */
+    public function process_new_booking(array $booking_data): array|\WP_Error
+    {
+        $event_id        = (int) ($booking_data['event_id'] ?? $booking_data['course_id'] ?? 0);
+        $amount          = (float) ($booking_data['amount'] ?? $booking_data['total_amount'] ?? 0);
+        $attendance_type = $booking_data['attendance_type'] ?? 'individual';
+        $organizer_id    = $this->resolve_organizer_id($event_id);
+
+        $payment_service = new PaymentService($organizer_id);
+
+        return $payment_service->create_payment_intent(
+            $event_id,
+            $booking_data,
+            $attendance_type,
+            $amount
+        );
+    }
+
+    /**
+     * Resolve the organizer ID from an event.
+     */
+    private function resolve_organizer_id(int $event_id): ?int
+    {
+        $post = get_post($event_id);
+        if (!$post) {
+            return null;
+        }
+
+        if ($post->post_type === 'hmw_event') {
+            return (int) get_post_meta($event_id, '_organizer_id', true) ?: $post->post_author;
+        }
+
+        if ($post->post_type === 'educator_course') {
+            if (function_exists('get_field')) {
+                return (int) get_field('course_educator_id', $event_id);
+            }
+            return $post->post_author;
+        }
+
+        return null;
     }
 
     /**
@@ -171,7 +207,7 @@ class PaymentGateway
 
         // Store token and expiration in booking group metadata
         $metadata = $wpdb->get_var($wpdb->prepare(
-            "SELECT metadata FROM {$wpdb->prefix}educator_booking_groups WHERE id = %d",
+            "SELECT metadata FROM {$wpdb->prefix}hmwevents_booking_groups WHERE id = %d",
             $booking_group_id
         ));
 
@@ -216,7 +252,7 @@ class PaymentGateway
 
         // Get booking group details
         $booking_group = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}educator_booking_groups WHERE id = %d",
+            "SELECT * FROM {$wpdb->prefix}hmwevents_booking_groups WHERE id = %d",
             $booking_group_id
         ));
 
@@ -227,7 +263,7 @@ class PaymentGateway
         // Get first booking in group for course details
         $booking = $wpdb->get_row($wpdb->prepare(
             "SELECT b.*, c.post_title as course_name 
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             LEFT JOIN {$wpdb->prefix}posts c ON b.course_post_id = c.ID
             WHERE b.booking_group_id = %d
             LIMIT 1",
@@ -239,10 +275,10 @@ class PaymentGateway
         }
 
         // Get customer details
-        $customer_email = get_post_meta($booking_group->customer_post_id, 'customer_email', true);
+        $registrant_email = get_post_meta($booking_group->customer_post_id, 'registrant_email', true);
         $customer_name = get_the_title($booking_group->customer_post_id);
 
-        if (!$customer_email) {
+        if (!$registrant_email) {
             return false;
         }
 
@@ -270,7 +306,7 @@ class PaymentGateway
         ];
 
         // Send email
-        return wp_mail($customer_email, $subject, $message, $headers);
+        return wp_mail($registrant_email, $subject, $message, $headers);
     }
 
     /**

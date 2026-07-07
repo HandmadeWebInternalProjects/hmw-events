@@ -98,7 +98,7 @@ class ResumePayment
         // Localize script with settings
         wp_localize_script('hmwevents-payment-resume', 'cmsPaymentResume', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
-            'restUrl' => rest_url('cms/v1/'),
+            'restUrl' => rest_url('hmwevents/v1/'),
             'token' => isset($_GET['token']) ? sanitize_text_field($_GET['token']) : '',
         ]);
     }

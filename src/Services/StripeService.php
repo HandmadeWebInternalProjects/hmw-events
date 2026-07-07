@@ -64,8 +64,15 @@ class StripeService
         // Check if the key is already plain text (starts with sk_)
         // This handles legacy keys that haven't been encrypted yet
         if (strpos($secret_key_encrypted, 'sk_') === 0) {
-            error_log('HMWEvents: Warning - Using plain text Stripe secret key for ' . $mode . ' mode. Please run migration.');
             $secret_key = $secret_key_encrypted;
+
+            // Auto-encrypt plaintext key for future use
+            if (Encryption::is_available()) {
+                $encrypted = Encryption::encrypt($secret_key_encrypted);
+                if ($encrypted !== false && $encrypted !== '') {
+                    ConfigHelper::update_option($prefix . 'secret_key', $encrypted);
+                }
+            }
         } else {
             // Decrypt the secret key
             $secret_key = Encryption::decrypt($secret_key_encrypted);

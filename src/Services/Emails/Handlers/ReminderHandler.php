@@ -49,7 +49,7 @@ class ReminderHandler extends AbstractEmailHandler
         if (empty($booking_data)) {
             $booking = $wpdb->get_row($wpdb->prepare(
                 "SELECT b.*, c.post_title as customer_name
-                 FROM {$wpdb->prefix}educator_bookings b
+                 FROM {$wpdb->prefix}hmwevents_bookings b
                  INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
                  WHERE b.id = %d",
                 $booking_id
@@ -69,8 +69,8 @@ class ReminderHandler extends AbstractEmailHandler
         );
 
         // Get customer email
-        $customer_email = $this->get_customer_email($booking_data['customer_post_id'] ?? null);
-        if (!$customer_email) {
+        $registrant_email = $this->get_registrant_email($booking_data['customer_post_id'] ?? null);
+        if (!$registrant_email) {
             error_log('Customer email not found for reminder: ' . $booking_id);
             return false;
         }
@@ -111,7 +111,7 @@ class ReminderHandler extends AbstractEmailHandler
         return $this->queue([
             'booking_id'      => $booking_id,
             'educator_id'     => $course->post_author,
-            'recipient_email' => $customer_email,
+            'recipient_email' => $registrant_email,
             'recipient_name'  => $customer_name,
             'template_data'   => $template_data,
             'scheduled_at'    => $scheduled_at,
@@ -124,19 +124,19 @@ class ReminderHandler extends AbstractEmailHandler
      * @param int $customer_post_id Customer post ID.
      * @return string|false Email address or false.
      */
-    private function get_customer_email($customer_post_id)
+    private function get_registrant_email($customer_post_id)
     {
         if (!$customer_post_id) {
             return false;
         }
 
-        $email = get_post_meta($customer_post_id, 'customer_email', true);
+        $email = get_post_meta($customer_post_id, 'registrant_email', true);
         if ($email) {
             return $email;
         }
 
         if (function_exists('get_field')) {
-            $email = get_field('customer_email', $customer_post_id);
+            $email = get_field('registrant_email', $customer_post_id);
             if ($email) {
                 return $email;
             }
@@ -242,7 +242,7 @@ class ReminderHandler extends AbstractEmailHandler
         // Get fresh booking details
         $booking = $wpdb->get_row($wpdb->prepare(
             "SELECT b.*, c.post_title as customer_name
-             FROM {$wpdb->prefix}educator_bookings b
+             FROM {$wpdb->prefix}hmwevents_bookings b
              INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
              WHERE b.id = %d",
             $booking_id

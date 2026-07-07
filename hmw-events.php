@@ -73,18 +73,9 @@ add_action('plugins_loaded', function () {
     HMWEvents()->init();
 }, 10);
 
-// Load migration admin pages
-if (is_admin()) {
-    require_once HMWEvents_ABSPATH . 'includes/admin-migration-page.php';
-}
-
 // Load WP-CLI commands
 if (defined('WP_CLI') && WP_CLI) {
-    require_once HMWEvents_ABSPATH . 'src/CLI/StripeKeysCommand.php';
-    require_once HMWEvents_ABSPATH . 'src/CLI/FixCourseTitlesCommand.php';
     require_once HMWEvents_ABSPATH . 'src/CLI/ImportEventVenueCommand.php';
-    require_once HMWEvents_ABSPATH . 'src/CLI/SyncCourseAvailabilityCommand.php';
-    require_once HMWEvents_ABSPATH . 'src/CLI/BackfillRemindersCommand.php';
     require_once HMWEvents_ABSPATH . 'src/CLI/RepairForeignKeysCommand.php';
 }
 
@@ -110,10 +101,10 @@ function hmwevents_activate()
  */
 function hmwevents_deactivate()
 {
-    // Remove capabilities to educator role
-    $educator_role = new \HMWEvents\Roles\EducatorRole();
-    $educator_role->remove_capabilities();
-    
+    // Remove capabilities from event organizer role
+    $organizer_role = new \HMWEvents\Roles\EventOrganizerRole();
+    $organizer_role->remove_capabilities();
+
     // Unschedule recurring jobs
     $recurring_jobs = new \HMWEvents\Services\RecurringJobs();
     $recurring_jobs->unregister();
@@ -149,10 +140,6 @@ add_action(
   // register elements before loading them
   9
 );
-
-
-
-require_once HMWEvents_ABSPATH . 'src/Breakdance/Ajax/get-course-types.php';
 
 add_filter('breakdance_reusable_dependencies_urls', function ($urls) {
 

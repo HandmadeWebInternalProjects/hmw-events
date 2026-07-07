@@ -107,8 +107,8 @@ Your Breakdance form submission will include this automatically!
 
 **Already done!** Your backend is ready:
 
-✅ `/cms/v1/voucher/validate` - Validates vouchers
-✅ `/cms/v1/payment/process` - Accepts voucher_code parameter
+✅ `/hmwevents/v1/voucher/validate` - Validates vouchers
+✅ `/hmwevents/v1/payment/process` - Accepts voucher_code parameter
 ✅ `StripePaymentGateway` - Applies discount automatically
 ✅ Database tracking in `educator_voucher_usage` table
 ✅ WooCommerce voucher redemption after successful payment
@@ -129,7 +129,7 @@ The input and button stack vertically on mobile for better UX.
         ↓
 2. Clicks "Apply Voucher"
         ↓
-3. Element calls API: /cms/v1/voucher/validate
+3. Element calls API: /hmwevents/v1/voucher/validate
         ↓
 4. API checks WooCommerce PDF Vouchers
         ↓

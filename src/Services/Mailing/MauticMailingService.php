@@ -117,9 +117,9 @@ class MauticMailingService implements MailingServiceInterface
                 c.post_title   AS course_name,
                 c.post_author  AS educator_id,
                 bd.form_data
-            FROM {$wpdb->prefix}educator_bookings b
+            FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c  ON c.ID = b.course_post_id
-            LEFT  JOIN {$wpdb->prefix}educator_booking_details bd ON bd.booking_id = b.id
+            LEFT  JOIN {$wpdb->prefix}hmwevents_booking_details bd ON bd.booking_id = b.id
             WHERE b.id = %d
               AND b.deleted_at IS NULL
         ", $booking_id));
@@ -134,7 +134,7 @@ class MauticMailingService implements MailingServiceInterface
 
         // Pull fields stored in customer post meta / form_data
         $customer_post_id = (int) $row->customer_post_id;
-        $email            = get_post_meta($customer_post_id, 'customer_email', true)
+        $email            = get_post_meta($customer_post_id, 'registrant_email', true)
                             ?: ($form_data['email'] ?? '');
         $first_name       = $form_data['mothers_first_name'] ?? get_the_title($customer_post_id);
         $last_name        = $form_data['mothers_last_name'] ?? '';

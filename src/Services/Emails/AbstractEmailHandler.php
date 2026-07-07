@@ -333,7 +333,7 @@ abstract class AbstractEmailHandler
         global $wpdb;
 
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT status, payment_status FROM {$wpdb->prefix}educator_bookings WHERE id = %d",
+            "SELECT status, payment_status FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
             $booking_id
         ));
 
@@ -614,7 +614,7 @@ abstract class AbstractEmailHandler
     {
         return [
             'customer_name'               => 'Customer name',
-            'customer_email'              => 'Customer email',
+            'registrant_email'              => 'Customer email',
             'course_name'                 => 'Course name',
             'course_date'                 => 'Course date',
             'booking_number'              => 'Booking confirmation number',
@@ -653,15 +653,15 @@ abstract class AbstractEmailHandler
         // Enrich form_data with customer post meta for any missing fields.
         // Manual bookings store contact info in post meta rather than form_data,
         // so this ensures {all_fields} is always complete regardless of booking source.
-        $customer_post_id = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT customer_post_id FROM {$wpdb->prefix}educator_bookings WHERE id = %d",
+        $registrant_post_id = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT registrant_post_id FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
             $booking_id
         ));
 
-        if ($customer_post_id > 0) {
-            foreach (\HMWEvents\Config\BookingFields::with_meta_fallback() as $key => $field) {
+        if ($registrant_post_id > 0) {
+            foreach (\HMWEvents\Registry\RegistrationFieldRegistry::registrant_meta_fields() as $key => $field) {
                 if (empty($form_data[$key])) {
-                    $val = get_post_meta($customer_post_id, $field['meta_key'], true);
+                    $val = get_post_meta($registrant_post_id, $field['meta_key'], true);
                     if ($val !== '' && $val !== false) {
                         $form_data[$key] = $val;
                     }
@@ -677,9 +677,9 @@ abstract class AbstractEmailHandler
         $registry_keys = [];
 
         // 1. Render registry fields in canonical order with proper labels.
-        foreach (\HMWEvents\Config\BookingFields::for_email() as $key => $field) {
+        foreach (\HMWEvents\Registry\RegistrationFieldRegistry::for_email() as $key => $field) {
             $registry_keys[] = $key;
-            $value = $form_data[$key] ?? null;
+            $value = \HMWEvents\Registry\RegistrationFieldRegistry::resolve_legacy_value($form_data, $key);
 
             if ($value === null || $value === '') {
                 continue;

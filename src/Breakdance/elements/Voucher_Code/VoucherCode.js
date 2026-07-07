@@ -76,7 +76,7 @@
             this.applyBtn.disabled = true;
 
             try {
-                const response = await fetch('/wp-json/cms/v1/voucher/validate', {
+                const response = await fetch('/wp-json/hmwevents/v1/voucher/validate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

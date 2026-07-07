@@ -109,7 +109,7 @@ class ComposerStaticInitd6fb792aa52a30f955599e7cd68f4f69
     );
 
     public static $prefixLengthsPsr4 = array (
-        'S' =>
+        'S' => 
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
             'Symfony\\Polyfill\\Mbstring\\' => 26,
@@ -119,36 +119,36 @@ class ComposerStaticInitd6fb792aa52a30f955599e7cd68f4f69
             'Stripe\\' => 7,
             'Sabberworm\\CSS\\' => 15,
         ),
-        'P' =>
+        'P' => 
         array (
             'Psr\\EventDispatcher\\' => 20,
             'Psr\\Clock\\' => 10,
             'PhpParser\\' => 10,
         ),
-        'N' =>
+        'N' => 
         array (
             'Nette\\' => 6,
         ),
-        'M' =>
+        'M' => 
         array (
             'Mockery\\' => 8,
             'Masterminds\\' => 12,
         ),
-        'L' =>
+        'L' => 
         array (
             'League\\Config\\' => 14,
             'League\\CommonMark\\' => 18,
         ),
-        'H' =>
+        'H' => 
         array (
             'HMWEvents\\Tests\\' => 16,
             'HMWEvents\\' => 10,
         ),
-        'F' =>
+        'F' => 
         array (
             'FontLib\\' => 8,
         ),
-        'D' =>
+        'D' => 
         array (
             'Dompdf\\' => 7,
             'Doctrine\\Instantiator\\' => 22,
@@ -156,119 +156,119 @@ class ComposerStaticInitd6fb792aa52a30f955599e7cd68f4f69
             'Defuse\\Crypto\\' => 14,
             'DeepCopy\\' => 9,
         ),
-        'C' =>
+        'C' => 
         array (
             'Carbon\\Doctrine\\' => 16,
             'Carbon\\' => 7,
         ),
-        'B' =>
+        'B' => 
         array (
             'Brain\\Monkey\\' => 13,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Symfony\\Polyfill\\Php80\\' =>
+        'Symfony\\Polyfill\\Php80\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php80',
         ),
-        'Symfony\\Polyfill\\Mbstring\\' =>
+        'Symfony\\Polyfill\\Mbstring\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-mbstring',
         ),
-        'Symfony\\Contracts\\Translation\\' =>
+        'Symfony\\Contracts\\Translation\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/translation-contracts',
         ),
-        'Symfony\\Component\\Translation\\' =>
+        'Symfony\\Component\\Translation\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/translation',
         ),
-        'Svg\\' =>
+        'Svg\\' => 
         array (
             0 => __DIR__ . '/..' . '/dompdf/php-svg-lib/src/Svg',
         ),
-        'Stripe\\' =>
+        'Stripe\\' => 
         array (
             0 => __DIR__ . '/..' . '/stripe/stripe-php/lib',
         ),
-        'Sabberworm\\CSS\\' =>
+        'Sabberworm\\CSS\\' => 
         array (
             0 => __DIR__ . '/..' . '/sabberworm/php-css-parser/src',
         ),
-        'Psr\\EventDispatcher\\' =>
+        'Psr\\EventDispatcher\\' => 
         array (
             0 => __DIR__ . '/..' . '/psr/event-dispatcher/src',
         ),
-        'Psr\\Clock\\' =>
+        'Psr\\Clock\\' => 
         array (
             0 => __DIR__ . '/..' . '/psr/clock/src',
         ),
-        'PhpParser\\' =>
+        'PhpParser\\' => 
         array (
             0 => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser',
         ),
-        'Nette\\' =>
+        'Nette\\' => 
         array (
             0 => __DIR__ . '/..' . '/nette/utils/src',
         ),
-        'Mockery\\' =>
+        'Mockery\\' => 
         array (
             0 => __DIR__ . '/..' . '/mockery/mockery/library/Mockery',
         ),
-        'Masterminds\\' =>
+        'Masterminds\\' => 
         array (
             0 => __DIR__ . '/..' . '/masterminds/html5/src',
         ),
-        'League\\Config\\' =>
+        'League\\Config\\' => 
         array (
             0 => __DIR__ . '/..' . '/league/config/src',
         ),
-        'League\\CommonMark\\' =>
+        'League\\CommonMark\\' => 
         array (
             0 => __DIR__ . '/..' . '/league/commonmark/src',
         ),
-        'HMWEvents\\Tests\\' =>
+        'HMWEvents\\Tests\\' => 
         array (
             0 => __DIR__ . '/../..' . '/tests',
         ),
-        'HMWEvents\\' =>
+        'HMWEvents\\' => 
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
-        'FontLib\\' =>
+        'FontLib\\' => 
         array (
             0 => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib',
         ),
-        'Dompdf\\' =>
+        'Dompdf\\' => 
         array (
             0 => __DIR__ . '/..' . '/dompdf/dompdf/src',
         ),
-        'Doctrine\\Instantiator\\' =>
+        'Doctrine\\Instantiator\\' => 
         array (
             0 => __DIR__ . '/..' . '/doctrine/instantiator/src/Doctrine/Instantiator',
         ),
-        'Dflydev\\DotAccessData\\' =>
+        'Dflydev\\DotAccessData\\' => 
         array (
             0 => __DIR__ . '/..' . '/dflydev/dot-access-data/src',
         ),
-        'Defuse\\Crypto\\' =>
+        'Defuse\\Crypto\\' => 
         array (
             0 => __DIR__ . '/..' . '/defuse/php-encryption/src',
         ),
-        'DeepCopy\\' =>
+        'DeepCopy\\' => 
         array (
             0 => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy',
         ),
-        'Carbon\\Doctrine\\' =>
+        'Carbon\\Doctrine\\' => 
         array (
             0 => __DIR__ . '/..' . '/carbonphp/carbon-doctrine-types/src/Carbon/Doctrine',
         ),
-        'Carbon\\' =>
+        'Carbon\\' => 
         array (
             0 => __DIR__ . '/..' . '/nesbot/carbon/src/Carbon',
         ),
-        'Brain\\Monkey\\' =>
+        'Brain\\Monkey\\' => 
         array (
             0 => __DIR__ . '/..' . '/brain/monkey/src',
         ),
@@ -563,22 +563,18 @@ class ComposerStaticInitd6fb792aa52a30f955599e7cd68f4f69
         'FontLib\\WOFF\\Header' => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib/WOFF/Header.php',
         'FontLib\\WOFF\\TableDirectoryEntry' => __DIR__ . '/..' . '/dompdf/php-font-lib/src/FontLib/WOFF/TableDirectoryEntry.php',
         'HMWEvents\\Admin\\Admin' => __DIR__ . '/../..' . '/src/Admin/Admin.php',
-        'HMWEvents\\Admin\\EducatorPaymentsDashboard' => __DIR__ . '/../..' . '/src/Admin/EducatorPaymentsDashboard.php',
         'HMWEvents\\Admin\\EmailQueue' => __DIR__ . '/../..' . '/src/Admin/EmailQueue.php',
         'HMWEvents\\Admin\\EmailTemplates' => __DIR__ . '/../..' . '/src/Admin/EmailTemplates.php',
-        'HMWEvents\\Admin\\RecurringCourseHandler' => __DIR__ . '/../..' . '/src/Admin/RecurringCourseHandler.php',
+        'HMWEvents\\Admin\\OrganizerPaymentsDashboard' => __DIR__ . '/../..' . '/src/Admin/OrganizerPaymentsDashboard.php',
+        'HMWEvents\\Admin\\RecurringEventHandler' => __DIR__ . '/../..' . '/src/Admin/RecurringEventHandler.php',
         'HMWEvents\\Admin\\Reporting' => __DIR__ . '/../..' . '/src/Admin/Reporting.php',
         'HMWEvents\\Api\\ApiHelper' => __DIR__ . '/../..' . '/src/Api/ApiHelper.php',
         'HMWEvents\\Api\\RegisterRoutes' => __DIR__ . '/../..' . '/src/Api/RegisterRoutes.php',
         'HMWEvents\\Api\\Routes\\BookingActions' => __DIR__ . '/../..' . '/src/Api/Routes/BookingActions.php',
-        'HMWEvents\\Api\\Routes\\Courses' => __DIR__ . '/../..' . '/src/Api/Routes/Courses.php',
+        'HMWEvents\\Api\\Routes\\Events' => __DIR__ . '/../..' . '/src/Api/Routes/Events.php',
         'HMWEvents\\Api\\Routes\\ProcessPayment' => __DIR__ . '/../..' . '/src/Api/Routes/ProcessPayment.php',
         'HMWEvents\\Api\\StripeWebhook' => __DIR__ . '/../..' . '/src/Api/StripeWebhook.php',
-        'HMWEvents\\CLI\\BackfillRemindersCommand' => __DIR__ . '/../..' . '/src/CLI/BackfillRemindersCommand.php',
-        'HMWEvents\\CLI\\FixCourseTitlesCommand' => __DIR__ . '/../..' . '/src/CLI/FixCourseTitlesCommand.php',
         'HMWEvents\\CLI\\ImportEventVenueCommand' => __DIR__ . '/../..' . '/src/CLI/ImportEventVenueCommand.php',
-        'HMWEvents\\CLI\\StripeKeysCommand' => __DIR__ . '/../..' . '/src/CLI/StripeKeysCommand.php',
-        'HMWEvents\\CLI\\SyncCourseAvailabilityCommand' => __DIR__ . '/../..' . '/src/CLI/SyncCourseAvailabilityCommand.php',
         'HMWEvents\\Config\\BookingFields' => __DIR__ . '/../..' . '/src/Config/BookingFields.php',
         'HMWEvents\\Factory\\NewsletterFactory' => __DIR__ . '/../..' . '/src/Factory/NewsletterFactory.php',
         'HMWEvents\\Factory\\PaymentGatewayFactory' => __DIR__ . '/../..' . '/src/Factory/PaymentGatewayFactory.php',
@@ -586,31 +582,33 @@ class ComposerStaticInitd6fb792aa52a30f955599e7cd68f4f69
         'HMWEvents\\HMWEvents' => __DIR__ . '/../..' . '/src/HMWEvents.php',
         'HMWEvents\\Helpers\\Booking' => __DIR__ . '/../..' . '/src/Helpers/Booking.php',
         'HMWEvents\\Helpers\\ConfigHelper' => __DIR__ . '/../..' . '/src/Helpers/ConfigHelper.php',
-        'HMWEvents\\Helpers\\Course' => __DIR__ . '/../..' . '/src/Helpers/Course.php',
         'HMWEvents\\Helpers\\Encryption' => __DIR__ . '/../..' . '/src/Helpers/Encryption.php',
+        'HMWEvents\\Helpers\\EventHelper' => __DIR__ . '/../..' . '/src/Helpers/EventHelper.php',
         'HMWEvents\\Helpers\\GoogleMapField' => __DIR__ . '/../..' . '/src/Helpers/GoogleMapField.php',
-        'HMWEvents\\Helpers\\RecurringCourse' => __DIR__ . '/../..' . '/src/Helpers/RecurringCourse.php',
+        'HMWEvents\\Helpers\\RecurringEvent' => __DIR__ . '/../..' . '/src/Helpers/RecurringEvent.php',
         'HMWEvents\\Helpers\\StripeHelper' => __DIR__ . '/../..' . '/src/Helpers/StripeHelper.php',
         'HMWEvents\\Helpers\\StripeKeyMigration' => __DIR__ . '/../..' . '/src/Helpers/StripeKeyMigration.php',
         'HMWEvents\\Interfaces\\MailingServiceInterface' => __DIR__ . '/../..' . '/src/Interfaces/MailingServiceInterface.php',
         'HMWEvents\\Interfaces\\NewsletterInterface' => __DIR__ . '/../..' . '/src/Interfaces/NewsletterInterface.php',
         'HMWEvents\\Interfaces\\PaymentGatewayInterface' => __DIR__ . '/../..' . '/src/Interfaces/PaymentGatewayInterface.php',
-        'HMWEvents\\Meta\\CourseMeta' => __DIR__ . '/../..' . '/src/Meta/CourseMeta.php',
-        'HMWEvents\\Meta\\CustomerMeta' => __DIR__ . '/../..' . '/src/Meta/CustomerMeta.php',
-        'HMWEvents\\Meta\\EducatorMeta' => __DIR__ . '/../..' . '/src/Meta/EducatorMeta.php',
         'HMWEvents\\Middleware\\WordPressCapability' => __DIR__ . '/../..' . '/src/Middleware/WordPressCapability.php',
         'HMWEvents\\PostTypes\\Coupon' => __DIR__ . '/../..' . '/src/PostTypes/Coupon.php',
-        'HMWEvents\\PostTypes\\Customer' => __DIR__ . '/../..' . '/src/PostTypes/Customer.php',
-        'HMWEvents\\PostTypes\\EducatorCourse' => __DIR__ . '/../..' . '/src/PostTypes/EducatorCourse.php',
+        'HMWEvents\\PostTypes\\Event' => __DIR__ . '/../..' . '/src/PostTypes/Event.php',
+        'HMWEvents\\PostTypes\\Registrant' => __DIR__ . '/../..' . '/src/PostTypes/Registrant.php',
         'HMWEvents\\Providers\\Newsletter\\MailpoetProvider' => __DIR__ . '/../..' . '/src/Providers/Newsletter/MailpoetProvider.php',
-        'HMWEvents\\Roles\\EducatorRole' => __DIR__ . '/../..' . '/src/Roles/EducatorRole.php',
-        'HMWEvents\\Roles\\HospitalRole' => __DIR__ . '/../..' . '/src/Roles/HospitalRole.php',
+        'HMWEvents\\Registry\\CommunicationTriggerMatrix' => __DIR__ . '/../..' . '/src/Registry/CommunicationTriggerMatrix.php',
+        'HMWEvents\\Registry\\EventTypeRegistry' => __DIR__ . '/../..' . '/src/Registry/EventTypeRegistry.php',
+        'HMWEvents\\Registry\\RegistrationFieldRegistry' => __DIR__ . '/../..' . '/src/Registry/RegistrationFieldRegistry.php',
+        'HMWEvents\\Roles\\EventOrganizerRole' => __DIR__ . '/../..' . '/src/Roles/EventOrganizerRole.php',
         'HMWEvents\\Services\\ACF' => __DIR__ . '/../..' . '/src/Services/ACF.php',
         'HMWEvents\\Services\\BookingCleanup' => __DIR__ . '/../..' . '/src/Services/BookingCleanup.php',
         'HMWEvents\\Services\\BookingDetailsService' => __DIR__ . '/../..' . '/src/Services/BookingDetailsService.php',
         'HMWEvents\\Services\\BookingPdfGenerator' => __DIR__ . '/../..' . '/src/Services/BookingPdfGenerator.php',
         'HMWEvents\\Services\\CouponService' => __DIR__ . '/../..' . '/src/Services/CouponService.php',
         'HMWEvents\\Services\\DatabaseService' => __DIR__ . '/../..' . '/src/Services/DatabaseService.php',
+        'HMWEvents\\Services\\DocumentUploadHandler' => __DIR__ . '/../..' . '/src/Services/DocumentUploadHandler.php',
+        'HMWEvents\\Services\\EmailDispatchService' => __DIR__ . '/../..' . '/src/Services/EmailDispatchService.php',
+        'HMWEvents\\Services\\EmailTemplateManager' => __DIR__ . '/../..' . '/src/Services/EmailTemplateManager.php',
         'HMWEvents\\Services\\Emails\\AbstractEmailHandler' => __DIR__ . '/../..' . '/src/Services/Emails/AbstractEmailHandler.php',
         'HMWEvents\\Services\\Emails\\EmailEventHooks' => __DIR__ . '/../..' . '/src/Services/Emails/EmailEventHooks.php',
         'HMWEvents\\Services\\Emails\\EmailQueueProcessor' => __DIR__ . '/../..' . '/src/Services/Emails/EmailQueueProcessor.php',
@@ -618,40 +616,58 @@ class ComposerStaticInitd6fb792aa52a30f955599e7cd68f4f69
         'HMWEvents\\Services\\Emails\\EmailService' => __DIR__ . '/../..' . '/src/Services/Emails/EmailService.php',
         'HMWEvents\\Services\\Emails\\EmailTemplateRepository' => __DIR__ . '/../..' . '/src/Services/Emails/EmailTemplateRepository.php',
         'HMWEvents\\Services\\Emails\\Handlers\\BookingConfirmationHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/BookingConfirmationHandler.php',
-        'HMWEvents\\Services\\Emails\\Handlers\\EducatorNewBookingHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/EducatorNewBookingHandler.php',
+        'HMWEvents\\Services\\Emails\\Handlers\\OrganizerNewBookingHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/OrganizerNewBookingHandler.php',
         'HMWEvents\\Services\\Emails\\Handlers\\PaymentLinkHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/PaymentLinkHandler.php',
-        'HMWEvents\\Services\\Emails\\Handlers\\PostCourseHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/PostCourseHandler.php',
+        'HMWEvents\\Services\\Emails\\Handlers\\PostEventHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/PostEventHandler.php',
         'HMWEvents\\Services\\Emails\\Handlers\\ReminderHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/ReminderHandler.php',
         'HMWEvents\\Services\\Emails\\Handlers\\StatusChangeHandler' => __DIR__ . '/../..' . '/src/Services/Emails/Handlers/StatusChangeHandler.php',
+        'HMWEvents\\Services\\EventListingService' => __DIR__ . '/../..' . '/src/Services/EventListingService.php',
+        'HMWEvents\\Services\\EventTemplateService' => __DIR__ . '/../..' . '/src/Services/EventTemplateService.php',
         'HMWEvents\\Services\\Gateways\\AbstractPaymentGateway' => __DIR__ . '/../..' . '/src/Services/Gateways/AbstractPaymentGateway.php',
         'HMWEvents\\Services\\Gateways\\ManualBookingGateway' => __DIR__ . '/../..' . '/src/Services/Gateways/ManualBookingGateway.php',
         'HMWEvents\\Services\\Gateways\\PayPalPaymentGateway' => __DIR__ . '/../..' . '/src/Services/Gateways/PayPalPaymentGateway.php',
         'HMWEvents\\Services\\Gateways\\StripePaymentGateway' => __DIR__ . '/../..' . '/src/Services/Gateways/StripePaymentGateway.php',
+        'HMWEvents\\Services\\GstCalculator' => __DIR__ . '/../..' . '/src/Services/GstCalculator.php',
         'HMWEvents\\Services\\Hooks' => __DIR__ . '/../..' . '/src/Services/Hooks.php',
+        'HMWEvents\\Services\\InvitationTokenService' => __DIR__ . '/../..' . '/src/Services/InvitationTokenService.php',
         'HMWEvents\\Services\\Mailing\\MailingDispatcher' => __DIR__ . '/../..' . '/src/Services/Mailing/MailingDispatcher.php',
         'HMWEvents\\Services\\Mailing\\MauticMailingService' => __DIR__ . '/../..' . '/src/Services/Mailing/MauticMailingService.php',
+        'HMWEvents\\Services\\MigrateService' => __DIR__ . '/../..' . '/src/Services/MigrateService.php',
+        'HMWEvents\\Services\\NetTermsHandler' => __DIR__ . '/../..' . '/src/Services/NetTermsHandler.php',
         'HMWEvents\\Services\\NewsletterService' => __DIR__ . '/../..' . '/src/Services/NewsletterService.php',
         'HMWEvents\\Services\\PaymentGateway' => __DIR__ . '/../..' . '/src/Services/PaymentGateway.php',
+        'HMWEvents\\Services\\PaymentOverrideService' => __DIR__ . '/../..' . '/src/Services/PaymentOverrideService.php',
+        'HMWEvents\\Services\\PaymentService' => __DIR__ . '/../..' . '/src/Services/PaymentService.php',
         'HMWEvents\\Services\\RecurringJobs' => __DIR__ . '/../..' . '/src/Services/RecurringJobs.php',
+        'HMWEvents\\Services\\RegistrationFormPreset' => __DIR__ . '/../..' . '/src/Services/RegistrationFormPreset.php',
+        'HMWEvents\\Services\\RegistrationFormRenderer' => __DIR__ . '/../..' . '/src/Services/RegistrationFormRenderer.php',
+        'HMWEvents\\Services\\ReportingService' => __DIR__ . '/../..' . '/src/Services/ReportingService.php',
         'HMWEvents\\Services\\SessionFlash' => __DIR__ . '/../..' . '/src/Services/SessionFlash.php',
+        'HMWEvents\\Services\\SessionService' => __DIR__ . '/../..' . '/src/Services/SessionService.php',
         'HMWEvents\\Services\\StripeService' => __DIR__ . '/../..' . '/src/Services/StripeService.php',
         'HMWEvents\\Services\\VoucherService' => __DIR__ . '/../..' . '/src/Services/VoucherService.php',
+        'HMWEvents\\Services\\WaitlistService' => __DIR__ . '/../..' . '/src/Services/WaitlistService.php',
         'HMWEvents\\Shortcodes\\BookingConfirmation' => __DIR__ . '/../..' . '/src/Shortcodes/BookingConfirmation.php',
         'HMWEvents\\Shortcodes\\BookingForm' => __DIR__ . '/../..' . '/src/Shortcodes/BookingForm.php',
         'HMWEvents\\Shortcodes\\ResumePayment' => __DIR__ . '/../..' . '/src/Shortcodes/ResumePayment.php',
-        'HMWEvents\\Taxonomies\\CourseState' => __DIR__ . '/../..' . '/src/Taxonomies/CourseState.php',
-        'HMWEvents\\Taxonomies\\CourseType' => __DIR__ . '/../..' . '/src/Taxonomies/CourseType.php',
-        'HMWEvents\\Tests\\Integration\\BaseIntegrationTest' => __DIR__ . '/../..' . '/tests/Integration/BaseIntegrationTest.php',
-        'HMWEvents\\Tests\\Integration\\StripeWebhookIntegrationTest' => __DIR__ . '/../..' . '/tests/Integration/StripeWebhookIntegrationTest.php',
-        'HMWEvents\\Tests\\Unit\\Breakdance\\SearchFunctionsTest' => __DIR__ . '/../..' . '/tests/Unit/Breakdance/SearchFunctionsTest.php',
-        'HMWEvents\\Tests\\Unit\\Helpers\\CourseTest' => __DIR__ . '/../..' . '/tests/Unit/Helpers/CourseTest.php',
+        'HMWEvents\\Taxonomies\\EventAudience' => __DIR__ . '/../..' . '/src/Taxonomies/EventAudience.php',
+        'HMWEvents\\Taxonomies\\EventDeliveryMode' => __DIR__ . '/../..' . '/src/Taxonomies/EventDeliveryMode.php',
+        'HMWEvents\\Taxonomies\\EventState' => __DIR__ . '/../..' . '/src/Taxonomies/EventState.php',
+        'HMWEvents\\Taxonomies\\EventType' => __DIR__ . '/../..' . '/src/Taxonomies/EventType.php',
+        'HMWEvents\\Tests\\Unit\\CommsAndReportingTest' => __DIR__ . '/../..' . '/tests/Unit/CommsAndReportingTest.php',
+        'HMWEvents\\Tests\\Unit\\DatabaseServiceTest' => __DIR__ . '/../..' . '/tests/Unit/DatabaseServiceTest.php',
+        'HMWEvents\\Tests\\Unit\\DomainModelTest' => __DIR__ . '/../..' . '/tests/Unit/DomainModelTest.php',
+        'HMWEvents\\Tests\\Unit\\EventTypeRegistryTest' => __DIR__ . '/../..' . '/tests/Unit/EventTypeRegistryTest.php',
         'HMWEvents\\Tests\\Unit\\Helpers\\EncryptionTest' => __DIR__ . '/../..' . '/tests/Unit/Helpers/EncryptionTest.php',
-        'HMWEvents\\Tests\\Unit\\Helpers\\RecurringCourseTest' => __DIR__ . '/../..' . '/tests/Unit/Helpers/RecurringCourseTest.php',
+        'HMWEvents\\Tests\\Unit\\PaymentsTest' => __DIR__ . '/../..' . '/tests/Unit/PaymentsTest.php',
+        'HMWEvents\\Tests\\Unit\\RegistrationFormTest' => __DIR__ . '/../..' . '/tests/Unit/RegistrationFormTest.php',
+        'HMWEvents\\Tests\\Unit\\SchemaTest' => __DIR__ . '/../..' . '/tests/Unit/SchemaTest.php',
         'HMWEvents\\Tests\\Unit\\Services\\BookingCleanupTest' => __DIR__ . '/../..' . '/tests/Unit/Services/BookingCleanupTest.php',
         'HMWEvents\\Tests\\Unit\\Services\\BookingPdfGeneratorTest' => __DIR__ . '/../..' . '/tests/Unit/Services/BookingPdfGeneratorTest.php',
         'HMWEvents\\Tests\\Unit\\Services\\Emails\\EmailQueueRepositoryTest' => __DIR__ . '/../..' . '/tests/Unit/Services/Emails/EmailQueueRepositoryTest.php',
         'HMWEvents\\Tests\\Unit\\Services\\Emails\\EmailTemplateRepositoryTest' => __DIR__ . '/../..' . '/tests/Unit/Services/Emails/EmailTemplateRepositoryTest.php',
         'HMWEvents\\Tests\\Unit\\Services\\StripeServiceTest' => __DIR__ . '/../..' . '/tests/Unit/Services/StripeServiceTest.php',
+        'HMWEvents\\Tests\\Unit\\WaitlistAndSessionsTest' => __DIR__ . '/../..' . '/tests/Unit/WaitlistAndSessionsTest.php',
         'HMWEvents\\Traits\\HasComponents' => __DIR__ . '/../..' . '/src/Traits/HasComponents.php',
         'HMWEvents\\Traits\\MakesHttpRequests' => __DIR__ . '/../..' . '/src/Traits/MakesHttpRequests.php',
         'HMWEvents\\Utils\\Pagination' => __DIR__ . '/../..' . '/src/Utils/Pagination.php',

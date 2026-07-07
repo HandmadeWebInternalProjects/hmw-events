@@ -1,12 +1,14 @@
 <?php
 
 /**
- * Installation functions for HMWEvents plugin.
+ * Installation functions for HMWEvents plugin (Rebuild v2).
  *
- * Handles database table creation and foreign key management with support for
- * WP Migrate DB and other migration tools that change table prefixes.
+ * Handles database table creation and foreign key management for the
+ * new hmwevents_* table set only. Old educator_* tables are treated
+ * as legacy and are not created or managed here.
  *
  * Features:
+ * - Creates only hmwevents_* tables
  * - Dynamic foreign key recreation when table prefixes change
  * - Graceful handling of hosting environments that don't support foreign keys
  * - Option to disable foreign keys via HMWEvents_DISABLE_FOREIGN_KEYS constant
@@ -16,364 +18,100 @@
  * define('HMWEvents_DISABLE_FOREIGN_KEYS', true);
  *
  * @package HMWEvents
- * @since 1.0.0
- * @updated 1.0.17 Added migration-aware foreign key management
+ * @since 2.0.0
  */
-
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 /**
- * Install plugin - create database tables.
+ * Install plugin - create hmwevents_* database tables.
  *
- * @since 1.0.0
+ * @since 2.0.0
  */
 function hmwevents_install()
 {
     global $wpdb;
 
-    // Include WordPress database upgrade functions
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    require_once __DIR__ . '/schema.php';
 
-    // Get the correct table prefix
-    $table_prefix = $wpdb->prefix;
+    $schemas = hmwevents_get_schema();
+    $prefix = $wpdb->prefix . 'hmwevents_';
 
-    // ============================================================
-    // EDUCATOR BOOKING SYSTEM TABLES
-    // ============================================================
+    // TIER 1 — Independent tables (no FK deps on other hmwevents tables)
+    dbDelta($schemas['event_recurrence']);
+    dbDelta($schemas['booking_groups']);
+    dbDelta($schemas['event_availability']);
+    dbDelta($schemas['event_attendance_options']);
+    dbDelta($schemas['event_templates']);
+    dbDelta($schemas['saved_report_filters']);
+    dbDelta($schemas['email_queue']);
+    dbDelta($schemas['email_templates']);
+    dbDelta($schemas['private_registration_tokens']);
 
-    // Recurrence Rules (complex scheduling logic)
-    $sql_educator_course_recurrence = "CREATE TABLE {$table_prefix}educator_course_recurrence (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        course_template_id bigint UNSIGNED NOT NULL,
-        recurrence_type ENUM('none', 'daily', 'weekly', 'monthly', 'custom') DEFAULT 'none',
-        recurrence_interval int UNSIGNED DEFAULT 1,
-        recurrence_days varchar(50),
-        start_date date NOT NULL,
-        end_date date,
-        max_occurrences int UNSIGNED,
-        is_active tinyint(1) DEFAULT 1,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_template (course_template_id),
-        KEY idx_active (is_active)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    // TIER 2 — Tables referencing booking_groups
+    dbDelta($schemas['bookings']);
+    dbDelta($schemas['payment_transactions']);
 
-    // Booking Groups (for multi-course/recurring purchases)
-    $sql_educator_booking_groups = "CREATE TABLE {$table_prefix}educator_booking_groups (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        customer_post_id bigint UNSIGNED NOT NULL,
-        booking_reference varchar(50) NOT NULL,
-        booking_type ENUM('single', 'recurring', 'package') DEFAULT 'single',
-        payment_type ENUM('full', 'deposit') NOT NULL DEFAULT 'full',
-        total_courses int UNSIGNED DEFAULT 1,
-        total_amount decimal(10,2) NOT NULL DEFAULT 0.00,
-        currency varchar(3) DEFAULT 'AUD',
-        payment_status ENUM('pending', 'partial', 'paid', 'refunded', 'failed') DEFAULT 'pending',
-        metadata JSON DEFAULT NULL,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        UNIQUE KEY idx_reference (booking_reference),
-        KEY idx_customer (customer_post_id),
-        KEY idx_payment_status (payment_status),
-        KEY idx_created (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    // TIER 3 — Tables referencing bookings
+    dbDelta($schemas['booking_details']);
+    dbDelta($schemas['booking_meta']);
+    dbDelta($schemas['booking_history']);
+    dbDelta($schemas['voucher_usage']);
+    dbDelta($schemas['coupon_usage']);
+    dbDelta($schemas['registration_documents']);
 
-    // Individual Bookings
-    $sql_educator_bookings = "CREATE TABLE {$table_prefix}educator_bookings (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        booking_group_id bigint UNSIGNED NOT NULL,
-        course_post_id bigint UNSIGNED NOT NULL,
-        customer_post_id bigint UNSIGNED NOT NULL,
-        booking_number varchar(50) NOT NULL,
-        ticket_type ENUM('full', 'deposit') NOT NULL DEFAULT 'full',
-        ticket_quantity int UNSIGNED DEFAULT 1,
-        booking_amount decimal(10,2) NOT NULL DEFAULT 0.00,
-        currency varchar(3) DEFAULT 'AUD',
-        coupon_code varchar(100),
-        discount_amount decimal(10,2) DEFAULT 0.00,
-        status ENUM('pending', 'confirmed', 'cancelled', 'attended', 'no_show') DEFAULT 'pending',
-        payment_status ENUM('pending', 'paid', 'refunded', 'failed') DEFAULT 'pending',
-        booking_source varchar(50) DEFAULT 'website',
-        cancelled_at datetime NULL,
-        deleted_at datetime NULL,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        UNIQUE KEY idx_number (booking_number),
-        KEY idx_group (booking_group_id),
-        KEY idx_course (course_post_id),
-        KEY idx_customer (customer_post_id),
-        KEY idx_status (status, deleted_at),
-        KEY idx_payment (payment_status),
-        KEY idx_created (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    // TIER 4 — Other dependent tables
+    dbDelta($schemas['waitlist']);
+    dbDelta($schemas['email_attachments']);
 
-    // Booking Details (flexible JSON storage for questionnaire responses)
-    $sql_educator_booking_details = "CREATE TABLE {$table_prefix}educator_booking_details (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        booking_id bigint UNSIGNED NOT NULL,
-        form_data JSON NOT NULL COMMENT 'All form responses stored as JSON',
-        form_version varchar(20) DEFAULT '1.0' COMMENT 'Track which form version was used',
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        UNIQUE KEY idx_booking (booking_id),
-        KEY idx_form_version (form_version)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Booking Metadata (for searchable fields from booking details)
-    $sql_educator_booking_meta = "CREATE TABLE {$table_prefix}educator_booking_meta (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        booking_id bigint UNSIGNED NOT NULL,
-        meta_key varchar(255) NOT NULL,
-        meta_value longtext,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_booking (booking_id),
-        KEY idx_meta_key (meta_key),
-        KEY idx_meta_key_value (meta_key, meta_value(191))
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Payment Transactions (audit trail)
-    $sql_educator_payment_transactions = "CREATE TABLE {$table_prefix}educator_payment_transactions (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        booking_group_id bigint UNSIGNED NOT NULL,
-        transaction_type ENUM('charge', 'refund', 'partial_refund') NOT NULL,
-        amount decimal(10,2) NOT NULL,
-        currency varchar(3) DEFAULT 'AUD',
-        payment_gateway varchar(50) DEFAULT 'stripe',
-        gateway varchar(50) DEFAULT 'stripe',
-        gateway_transaction_id varchar(255),
-        gateway_customer_id varchar(255),
-        gateway_payment_method_id varchar(255),
-        status ENUM('pending', 'processing', 'succeeded', 'failed', 'cancelled', 'refunded') DEFAULT 'pending',
-        error_message text,
-        refund_id varchar(255),
-        refunded_amount decimal(10,2),
-        refunded_at datetime,
-        metadata longtext,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_booking_group (booking_group_id),
-        KEY idx_gateway_transaction (gateway_transaction_id),
-        KEY idx_status (status),
-        KEY idx_created (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Waitlist for full courses
-    $sql_educator_waitlist = "CREATE TABLE {$table_prefix}educator_waitlist (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        course_post_id bigint UNSIGNED NOT NULL,
-        customer_post_id bigint UNSIGNED NOT NULL,
-        position int UNSIGNED NOT NULL,
-        notified_at datetime NULL,
-        expires_at datetime NULL,
-        status ENUM('waiting', 'notified', 'converted', 'expired', 'cancelled') DEFAULT 'waiting',
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_course_position (course_post_id, position),
-        KEY idx_status (status)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Course Availability Cache (performance optimization)
-    $sql_educator_course_availability = "CREATE TABLE {$table_prefix}educator_course_availability (
-        course_post_id bigint UNSIGNED NOT NULL,
-        capacity int UNSIGNED NOT NULL,
-        booked_count int UNSIGNED DEFAULT 0,
-        available_count int UNSIGNED DEFAULT 0,
-        last_calculated datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (course_post_id),
-        KEY idx_calculated (last_calculated)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // ============================================================
-    // EMAIL SYSTEM TABLES
-    // ============================================================
-
-    // Email Queue (stores all pending/sent emails)
-    $sql_email_queue = "CREATE TABLE {$table_prefix}email_queue (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        booking_id bigint UNSIGNED,
-        educator_id bigint UNSIGNED,
-        recipient_email varchar(255) NOT NULL,
-        recipient_name varchar(255),
-        email_type varchar(50) NOT NULL,
-        subject varchar(255),
-        template_key varchar(100),
-        template_data longtext COMMENT 'JSON serialized template variables',
-        html_body longtext,
-        status ENUM('pending', 'processing', 'sent', 'failed', 'dead_letter', 'cancelled') DEFAULT 'pending',
-        attempts int UNSIGNED DEFAULT 0,
-        max_attempts int UNSIGNED DEFAULT 5,
-        last_error text,
-        scheduled_at datetime,
-        sent_at datetime,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_status (status),
-        KEY idx_scheduled (scheduled_at),
-        KEY idx_recipient (recipient_email),
-        KEY idx_type (email_type),
-        KEY idx_booking (booking_id),
-        KEY idx_educator (educator_id),
-        KEY idx_created (created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Email Templates (customizable by educator)
-    $sql_email_templates = "CREATE TABLE {$table_prefix}email_templates (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        educator_id bigint UNSIGNED,
-        template_key varchar(100) NOT NULL,
-        subject varchar(255),
-        body longtext,
-        variables longtext COMMENT 'JSON array of available variables',
-        is_active tinyint(1) DEFAULT 1,
-        version int UNSIGNED DEFAULT 1,
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        UNIQUE KEY idx_educator_template (educator_id, template_key),
-        KEY idx_active (is_active),
-        KEY idx_template_key (template_key)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Email Attachments (for files sent with emails)
-    $sql_email_attachments = "CREATE TABLE {$table_prefix}email_attachments (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        email_queue_id bigint UNSIGNED NOT NULL,
-        file_path varchar(255) NOT NULL,
-        file_name varchar(255),
-        mime_type varchar(100),
-        created_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_email (email_queue_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Voucher Usage Tracking
-    $sql_educator_voucher_usage = "CREATE TABLE {$table_prefix}educator_voucher_usage (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        booking_id bigint UNSIGNED NOT NULL,
-        voucher_code varchar(100) NOT NULL,
-        voucher_id bigint UNSIGNED,
-        voucher_type varchar(50) DEFAULT 'single',
-        redeemed_value decimal(10,2) NOT NULL,
-        original_amount decimal(10,2) NOT NULL,
-        discounted_amount decimal(10,2) NOT NULL,
-        applied_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY  (id),
-        KEY idx_booking (booking_id),
-        KEY idx_voucher_code (voucher_code),
-        KEY idx_applied (applied_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Coupon Usage Tracking
-    $sql_educator_coupon_usage = "CREATE TABLE {$table_prefix}educator_coupon_usage (
-        id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-        coupon_id bigint UNSIGNED NOT NULL,
-        coupon_code varchar(50) NOT NULL,
-        booking_id bigint UNSIGNED NOT NULL,
-        customer_email varchar(255) NOT NULL,
-        discount_amount decimal(10,2) NOT NULL,
-        original_amount decimal(10,2) NOT NULL,
-        used_at datetime DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY idx_coupon_id (coupon_id),
-        KEY idx_coupon_code (coupon_code),
-        KEY idx_booking (booking_id),
-        KEY idx_customer (customer_email),
-        KEY idx_used_at (used_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-
-    // Execute SQL statements in correct order: Parent tables FIRST, then child tables
-    
-    // ============================================================
-    // EDUCATOR BOOKING SYSTEM - Create tables in dependency order
-    // ============================================================
-    
-    // 1. Tables with no dependencies (reference wp_posts which already exists)
-    dbDelta($sql_educator_course_recurrence);     // References wp_posts (course templates)
-    dbDelta($sql_educator_booking_groups);       // References wp_posts (customers)
-    dbDelta($sql_educator_course_availability);   // References wp_posts (courses)
-    
-    // 2. Tables that reference booking groups
-    dbDelta($sql_educator_bookings);             // References booking_groups, wp_posts (courses & customers)
-    dbDelta($sql_educator_payment_transactions); // References booking_groups
-    
-    // 3. Tables that reference bookings
-    dbDelta($sql_educator_booking_details);      // References bookings
-    dbDelta($sql_educator_booking_meta);         // References bookings
-    dbDelta($sql_educator_voucher_usage);        // References bookings
-    dbDelta($sql_educator_coupon_usage);         // References bookings
-    
-    // 4. Waitlist references wp_posts
-    dbDelta($sql_educator_waitlist);             // References wp_posts (courses & customers)
-
-    // ============================================================
-    // EMAIL SYSTEM - Create tables
-    // ============================================================
-    dbDelta($sql_email_queue);        // Email queue (no dependencies)
-    dbDelta($sql_email_templates);    // Email templates (no dependencies)
-    dbDelta($sql_email_attachments);  // Email attachments (references email_queue)
-
-    // 5. Add foreign keys separately since dbDelta doesn't handle them
+    // Add foreign keys separately since dbDelta doesn't handle them
     hmwevents_ensure_foreign_keys();
 
-    // Add version option to track plugin database version
-    add_option('hmwevents_db_version', '1.0.0');
-
-    // Check if there were any errors during table creation
     if ($wpdb->last_error) {
         error_log('HMWEvents install error: ' . $wpdb->last_error);
         return new WP_Error('hmwevents_install_error', $wpdb->last_error, ['status' => 500]);
     }
 
-    // ✅ UPDATE THE DATABASE VERSION
-    update_option('hmwevents_db_version', '1.0.0');
-
-    // Flush rewrite rules
     flush_rewrite_rules();
 }
 
 /**
- * Get list of all foreign key constraint names
- * Centralized list to avoid duplication (DRY principle)
+ * Get list of all foreign key constraint names.
  *
- * NOTE: When adding new foreign keys, add the constraint name to this list
- * AND add the full constraint definition to hmwevents_add_foreign_keys()
- *
- * @since 1.0.0
+ * @since 2.0.0
  * @return array List of foreign key constraint names
  */
 function hmwevents_get_foreign_key_constraints()
 {
     return [
-        'fk_voucher_usage_booking',
-      // Educator booking system foreign keys
-      'fk_educator_booking_groups_customer',
-      'fk_educator_bookings_group',
-      'fk_educator_bookings_course',
-      'fk_educator_bookings_customer',
-      'fk_educator_booking_details_booking',
-      'fk_educator_booking_meta_booking',
-      'fk_educator_payment_transactions_group',
-      'fk_educator_waitlist_course',
-      'fk_educator_waitlist_customer',
-      'fk_educator_course_availability_course',
-      'fk_educator_course_recurrence_template',
-            // Email system foreign keys
-            'fk_email_attachments_queue',
+        'fk_hmwevents_booking_groups_registrant',
+        'fk_hmwevents_event_recurrence_event',
+        'fk_hmwevents_event_availability_event',
+        'fk_hmwevents_event_attendance_options_event',
+        'fk_hmwevents_bookings_group',
+        'fk_hmwevents_bookings_event',
+        'fk_hmwevents_bookings_registrant',
+        'fk_hmwevents_bookings_attendance_option',
+        'fk_hmwevents_booking_details_booking',
+        'fk_hmwevents_booking_meta_booking',
+        'fk_hmwevents_booking_history_booking',
+        'fk_hmwevents_voucher_usage_booking',
+        'fk_hmwevents_coupon_usage_booking',
+        'fk_hmwevents_coupon_usage_coupon',
+        'fk_hmwevents_registration_documents_booking',
+        'fk_hmwevents_payment_transactions_group',
+        'fk_hmwevents_waitlist_event',
+        'fk_hmwevents_waitlist_registrant',
+        'fk_hmwevents_private_registration_tokens_event',
+        'fk_hmwevents_email_attachments_queue',
     ];
 }
 
 /**
- * Drop all foreign keys (used before migration)
+ * Drop all foreign keys (used before migration).
  *
- * @since 1.0.0
+ * @since 2.0.0
  */
 function hmwevents_drop_foreign_keys()
 {
@@ -382,12 +120,11 @@ function hmwevents_drop_foreign_keys()
     $constraints = hmwevents_get_foreign_key_constraints();
 
     foreach ($constraints as $constraint) {
-        // Find which table has this constraint
         $table = $wpdb->get_var($wpdb->prepare("
-            SELECT TABLE_NAME 
-            FROM information_schema.TABLE_CONSTRAINTS 
-            WHERE CONSTRAINT_SCHEMA = %s 
-            AND CONSTRAINT_NAME = %s 
+            SELECT TABLE_NAME
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE CONSTRAINT_SCHEMA = %s
+            AND CONSTRAINT_NAME = %s
             AND CONSTRAINT_TYPE = 'FOREIGN KEY'
         ", DB_NAME, $constraint));
 
@@ -403,63 +140,54 @@ function hmwevents_drop_foreign_keys()
 }
 
 /**
- * Check and recreate foreign keys after migration
- * This should run on plugin activation and after detecting prefix changes
+ * Check and recreate foreign keys after migration.
  *
- * @since 1.0.0
+ * @since 2.0.0
  */
 function hmwevents_ensure_foreign_keys()
 {
     global $wpdb;
 
-    // Check if foreign keys are supported
     $supports_fk = $wpdb->get_var("SELECT @@foreign_key_checks");
     if (!$supports_fk) {
         error_log('HMWEvents: Foreign keys not supported on this server');
         return false;
     }
 
-    // Add option to disable foreign keys via constant
     if (defined('HMWEvents_DISABLE_FOREIGN_KEYS') && HMWEvents_DISABLE_FOREIGN_KEYS) {
         error_log('HMWEvents: Foreign keys disabled via constant');
         return false;
     }
 
-    // Store current table prefix in option for migration detection
     $table_prefix = $wpdb->prefix;
     $stored_prefix = get_option('hmwevents_table_prefix', '');
-    
+
     $should_recreate = false;
 
     if ($stored_prefix && $stored_prefix !== $table_prefix) {
-        // Prefix changed - drop ALL foreign keys and recreate
         error_log('HMWEvents: Table prefix changed from ' . $stored_prefix . ' to ' . $table_prefix . ', dropping all foreign keys...');
         hmwevents_drop_foreign_keys();
         $should_recreate = true;
     }
-    
+
     update_option('hmwevents_table_prefix', $table_prefix);
 
-    // If prefix changed, recreate all foreign keys
     if ($should_recreate) {
         error_log('HMWEvents: Recreating all foreign keys with new prefix...');
         hmwevents_add_foreign_keys();
         return;
     }
 
-    // Otherwise, check if any are missing
     $expected_constraints = hmwevents_get_foreign_key_constraints();
-
-    // Check how many of our expected constraints actually exist
     $existing_count = 0;
     $missing_constraints = [];
 
     foreach ($expected_constraints as $constraint) {
         $exists = $wpdb->get_var($wpdb->prepare("
-            SELECT COUNT(*) 
-            FROM information_schema.TABLE_CONSTRAINTS 
-            WHERE CONSTRAINT_SCHEMA = %s 
-            AND CONSTRAINT_NAME = %s 
+            SELECT COUNT(*)
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE CONSTRAINT_SCHEMA = %s
+            AND CONSTRAINT_NAME = %s
             AND CONSTRAINT_TYPE = 'FOREIGN KEY'
         ", DB_NAME, $constraint));
 
@@ -477,8 +205,6 @@ function hmwevents_ensure_foreign_keys()
         hmwevents_add_foreign_keys();
     } elseif ($existing_count < $total_expected) {
         error_log('HMWEvents: Only ' . $existing_count . '/' . $total_expected . ' foreign keys found. Missing: ' . implode(', ', $missing_constraints));
-        // Drop all and recreate to ensure consistency
-        error_log('HMWEvents: Dropping all foreign keys to ensure consistency...');
         hmwevents_drop_foreign_keys();
         hmwevents_add_foreign_keys();
     } else {
@@ -487,147 +213,159 @@ function hmwevents_ensure_foreign_keys()
 }
 
 /**
- * Add foreign keys separately since dbDelta doesn't handle them
- * Enhanced with automatic orphan cleanup on FK creation failure.
+ * Add foreign keys for all hmwevents_* tables.
  *
- * @since 1.0.0
- * @updated 1.0.17 Added cleanup SQL and automatic retry on referential errors
+ * @since 2.0.0
  */
 function hmwevents_add_foreign_keys()
 {
     global $wpdb;
-    $table_prefix = $wpdb->prefix;
+    $p = $wpdb->prefix . 'hmwevents_';
 
-    // Check and add foreign keys
     $foreign_keys = [
-      // ============================================================
-      // EDUCATOR BOOKING SYSTEM FOREIGN KEYS
-      // ============================================================
-      [
-        'table' => "{$table_prefix}educator_booking_groups",
-        'constraint' => 'fk_educator_booking_groups_customer',
-        'sql' => "ALTER TABLE {$table_prefix}educator_booking_groups 
-                     ADD CONSTRAINT fk_educator_booking_groups_customer 
-                     FOREIGN KEY (customer_post_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE bg FROM {$table_prefix}educator_booking_groups bg LEFT JOIN {$wpdb->posts} p ON bg.customer_post_id = p.ID WHERE p.ID IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_bookings",
-        'constraint' => 'fk_educator_bookings_group',
-        'sql' => "ALTER TABLE {$table_prefix}educator_bookings 
-                     ADD CONSTRAINT fk_educator_bookings_group 
-                     FOREIGN KEY (booking_group_id) REFERENCES {$table_prefix}educator_booking_groups(id) ON DELETE CASCADE",
-        'cleanup' => "DELETE eb FROM {$table_prefix}educator_bookings eb LEFT JOIN {$table_prefix}educator_booking_groups bg ON eb.booking_group_id = bg.id WHERE bg.id IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_bookings",
-        'constraint' => 'fk_educator_bookings_course',
-        'sql' => "ALTER TABLE {$table_prefix}educator_bookings 
-                     ADD CONSTRAINT fk_educator_bookings_course 
-                     FOREIGN KEY (course_post_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE eb FROM {$table_prefix}educator_bookings eb LEFT JOIN {$wpdb->posts} p ON eb.course_post_id = p.ID WHERE p.ID IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_bookings",
-        'constraint' => 'fk_educator_bookings_customer',
-        'sql' => "ALTER TABLE {$table_prefix}educator_bookings 
-                     ADD CONSTRAINT fk_educator_bookings_customer 
-                     FOREIGN KEY (customer_post_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE eb FROM {$table_prefix}educator_bookings eb LEFT JOIN {$wpdb->posts} p ON eb.customer_post_id = p.ID WHERE p.ID IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_booking_details",
-        'constraint' => 'fk_educator_booking_details_booking',
-        'sql' => "ALTER TABLE {$table_prefix}educator_booking_details 
-                     ADD CONSTRAINT fk_educator_booking_details_booking 
-                     FOREIGN KEY (booking_id) REFERENCES {$table_prefix}educator_bookings(id) ON DELETE CASCADE",
-        'cleanup' => "DELETE bd FROM {$table_prefix}educator_booking_details bd LEFT JOIN {$table_prefix}educator_bookings b ON bd.booking_id = b.id WHERE b.id IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_booking_meta",
-        'constraint' => 'fk_educator_booking_meta_booking',
-        'sql' => "ALTER TABLE {$table_prefix}educator_booking_meta 
-                     ADD CONSTRAINT fk_educator_booking_meta_booking 
-                     FOREIGN KEY (booking_id) REFERENCES {$table_prefix}educator_bookings(id) ON DELETE CASCADE",
-        'cleanup' => "DELETE bm FROM {$table_prefix}educator_booking_meta bm LEFT JOIN {$table_prefix}educator_bookings b ON bm.booking_id = b.id WHERE b.id IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_voucher_usage",
-        'constraint' => 'fk_voucher_usage_booking',
-        'sql' => "ALTER TABLE {$table_prefix}educator_voucher_usage 
-                     ADD CONSTRAINT fk_voucher_usage_booking 
-                     FOREIGN KEY (booking_id) REFERENCES {$table_prefix}educator_bookings(id) ON DELETE CASCADE",
-        'cleanup' => "DELETE vu FROM {$table_prefix}educator_voucher_usage vu LEFT JOIN {$table_prefix}educator_bookings b ON vu.booking_id = b.id WHERE b.id IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_payment_transactions",
-        'constraint' => 'fk_educator_payment_transactions_group',
-        'sql' => "ALTER TABLE {$table_prefix}educator_payment_transactions 
-                     ADD CONSTRAINT fk_educator_payment_transactions_group 
-                     FOREIGN KEY (booking_group_id) REFERENCES {$table_prefix}educator_booking_groups(id) ON DELETE CASCADE",
-        'cleanup' => "DELETE pt FROM {$table_prefix}educator_payment_transactions pt LEFT JOIN {$table_prefix}educator_booking_groups bg ON pt.booking_group_id = bg.id WHERE bg.id IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_waitlist",
-        'constraint' => 'fk_educator_waitlist_course',
-        'sql' => "ALTER TABLE {$table_prefix}educator_waitlist 
-                     ADD CONSTRAINT fk_educator_waitlist_course 
-                     FOREIGN KEY (course_post_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE w FROM {$table_prefix}educator_waitlist w LEFT JOIN {$wpdb->posts} p ON w.course_post_id = p.ID WHERE p.ID IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_waitlist",
-        'constraint' => 'fk_educator_waitlist_customer',
-        'sql' => "ALTER TABLE {$table_prefix}educator_waitlist 
-                     ADD CONSTRAINT fk_educator_waitlist_customer 
-                     FOREIGN KEY (customer_post_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE w FROM {$table_prefix}educator_waitlist w LEFT JOIN {$wpdb->posts} p ON w.customer_post_id = p.ID WHERE p.ID IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_course_availability",
-        'constraint' => 'fk_educator_course_availability_course',
-        'sql' => "ALTER TABLE {$table_prefix}educator_course_availability 
-                     ADD CONSTRAINT fk_educator_course_availability_course 
-                     FOREIGN KEY (course_post_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE ca FROM {$table_prefix}educator_course_availability ca LEFT JOIN {$wpdb->posts} p ON ca.course_post_id = p.ID WHERE p.ID IS NULL",
-      ],
-      [
-        'table' => "{$table_prefix}educator_course_recurrence",
-        'constraint' => 'fk_educator_course_recurrence_template',
-        'sql' => "ALTER TABLE {$table_prefix}educator_course_recurrence 
-                     ADD CONSTRAINT fk_educator_course_recurrence_template 
-                     FOREIGN KEY (course_template_id) REFERENCES {$table_prefix}posts(ID) ON DELETE CASCADE",
-        'cleanup' => "DELETE cr FROM {$table_prefix}educator_course_recurrence cr LEFT JOIN {$wpdb->posts} p ON cr.course_template_id = p.ID WHERE p.ID IS NULL",
-            ],
-            // ============================================================
-            // EMAIL SYSTEM FOREIGN KEYS
-            // ============================================================
-            [
-                'table' => "{$table_prefix}email_attachments",
-                'constraint' => 'fk_email_attachments_queue',
-                'sql' => "ALTER TABLE {$table_prefix}email_attachments
-                                         ADD CONSTRAINT fk_email_attachments_queue
-                                         FOREIGN KEY (email_queue_id) REFERENCES {$table_prefix}email_queue(id) ON DELETE CASCADE",
-                'cleanup' => "DELETE ea FROM {$table_prefix}email_attachments ea LEFT JOIN {$table_prefix}email_queue eq ON ea.email_queue_id = eq.id WHERE eq.id IS NULL",
-            ]
+        // TIER 1 — Ref wp_posts (CPT references)
+        [
+            'table' => "{$p}booking_groups",
+            'constraint' => 'fk_hmwevents_booking_groups_registrant',
+            'sql' => "ALTER TABLE {$p}booking_groups ADD CONSTRAINT fk_hmwevents_booking_groups_registrant FOREIGN KEY (registrant_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE bg FROM {$p}booking_groups bg LEFT JOIN {$wpdb->posts} p ON bg.registrant_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}event_recurrence",
+            'constraint' => 'fk_hmwevents_event_recurrence_event',
+            'sql' => "ALTER TABLE {$p}event_recurrence ADD CONSTRAINT fk_hmwevents_event_recurrence_event FOREIGN KEY (event_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE er FROM {$p}event_recurrence er LEFT JOIN {$wpdb->posts} p ON er.event_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}event_availability",
+            'constraint' => 'fk_hmwevents_event_availability_event',
+            'sql' => "ALTER TABLE {$p}event_availability ADD CONSTRAINT fk_hmwevents_event_availability_event FOREIGN KEY (event_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE ea FROM {$p}event_availability ea LEFT JOIN {$wpdb->posts} p ON ea.event_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}event_attendance_options",
+            'constraint' => 'fk_hmwevents_event_attendance_options_event',
+            'sql' => "ALTER TABLE {$p}event_attendance_options ADD CONSTRAINT fk_hmwevents_event_attendance_options_event FOREIGN KEY (event_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE eao FROM {$p}event_attendance_options eao LEFT JOIN {$wpdb->posts} p ON eao.event_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}private_registration_tokens",
+            'constraint' => 'fk_hmwevents_private_registration_tokens_event',
+            'sql' => "ALTER TABLE {$p}private_registration_tokens ADD CONSTRAINT fk_hmwevents_private_registration_tokens_event FOREIGN KEY (event_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE prt FROM {$p}private_registration_tokens prt LEFT JOIN {$wpdb->posts} p ON prt.event_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+
+        // TIER 2 — Ref booking_groups
+        [
+            'table' => "{$p}bookings",
+            'constraint' => 'fk_hmwevents_bookings_group',
+            'sql' => "ALTER TABLE {$p}bookings ADD CONSTRAINT fk_hmwevents_bookings_group FOREIGN KEY (booking_group_id) REFERENCES {$p}booking_groups(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE b FROM {$p}bookings b LEFT JOIN {$p}booking_groups bg ON b.booking_group_id = bg.id WHERE bg.id IS NULL",
+        ],
+        [
+            'table' => "{$p}bookings",
+            'constraint' => 'fk_hmwevents_bookings_event',
+            'sql' => "ALTER TABLE {$p}bookings ADD CONSTRAINT fk_hmwevents_bookings_event FOREIGN KEY (event_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE b FROM {$p}bookings b LEFT JOIN {$wpdb->posts} p ON b.event_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}bookings",
+            'constraint' => 'fk_hmwevents_bookings_registrant',
+            'sql' => "ALTER TABLE {$p}bookings ADD CONSTRAINT fk_hmwevents_bookings_registrant FOREIGN KEY (registrant_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE b FROM {$p}bookings b LEFT JOIN {$wpdb->posts} p ON b.registrant_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}bookings",
+            'constraint' => 'fk_hmwevents_bookings_attendance_option',
+            'sql' => "ALTER TABLE {$p}bookings ADD CONSTRAINT fk_hmwevents_bookings_attendance_option FOREIGN KEY (attendance_option_id) REFERENCES {$p}event_attendance_options(id) ON DELETE SET NULL",
+            'cleanup' => '',
+        ],
+        [
+            'table' => "{$p}payment_transactions",
+            'constraint' => 'fk_hmwevents_payment_transactions_group',
+            'sql' => "ALTER TABLE {$p}payment_transactions ADD CONSTRAINT fk_hmwevents_payment_transactions_group FOREIGN KEY (booking_group_id) REFERENCES {$p}booking_groups(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE pt FROM {$p}payment_transactions pt LEFT JOIN {$p}booking_groups bg ON pt.booking_group_id = bg.id WHERE bg.id IS NULL",
+        ],
+
+        // TIER 3 — Ref bookings
+        [
+            'table' => "{$p}booking_details",
+            'constraint' => 'fk_hmwevents_booking_details_booking',
+            'sql' => "ALTER TABLE {$p}booking_details ADD CONSTRAINT fk_hmwevents_booking_details_booking FOREIGN KEY (booking_id) REFERENCES {$p}bookings(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE bd FROM {$p}booking_details bd LEFT JOIN {$p}bookings b ON bd.booking_id = b.id WHERE b.id IS NULL",
+        ],
+        [
+            'table' => "{$p}booking_meta",
+            'constraint' => 'fk_hmwevents_booking_meta_booking',
+            'sql' => "ALTER TABLE {$p}booking_meta ADD CONSTRAINT fk_hmwevents_booking_meta_booking FOREIGN KEY (booking_id) REFERENCES {$p}bookings(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE bm FROM {$p}booking_meta bm LEFT JOIN {$p}bookings b ON bm.booking_id = b.id WHERE b.id IS NULL",
+        ],
+        [
+            'table' => "{$p}booking_history",
+            'constraint' => 'fk_hmwevents_booking_history_booking',
+            'sql' => "ALTER TABLE {$p}booking_history ADD CONSTRAINT fk_hmwevents_booking_history_booking FOREIGN KEY (booking_id) REFERENCES {$p}bookings(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE bh FROM {$p}booking_history bh LEFT JOIN {$p}bookings b ON bh.booking_id = b.id WHERE b.id IS NULL",
+        ],
+        [
+            'table' => "{$p}voucher_usage",
+            'constraint' => 'fk_hmwevents_voucher_usage_booking',
+            'sql' => "ALTER TABLE {$p}voucher_usage ADD CONSTRAINT fk_hmwevents_voucher_usage_booking FOREIGN KEY (booking_id) REFERENCES {$p}bookings(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE vu FROM {$p}voucher_usage vu LEFT JOIN {$p}bookings b ON vu.booking_id = b.id WHERE b.id IS NULL",
+        ],
+        [
+            'table' => "{$p}coupon_usage",
+            'constraint' => 'fk_hmwevents_coupon_usage_booking',
+            'sql' => "ALTER TABLE {$p}coupon_usage ADD CONSTRAINT fk_hmwevents_coupon_usage_booking FOREIGN KEY (booking_id) REFERENCES {$p}bookings(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE cu FROM {$p}coupon_usage cu LEFT JOIN {$p}bookings b ON cu.booking_id = b.id WHERE b.id IS NULL",
+        ],
+        [
+            'table' => "{$p}coupon_usage",
+            'constraint' => 'fk_hmwevents_coupon_usage_coupon',
+            'sql' => "ALTER TABLE {$p}coupon_usage ADD CONSTRAINT fk_hmwevents_coupon_usage_coupon FOREIGN KEY (coupon_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE cu FROM {$p}coupon_usage cu LEFT JOIN {$wpdb->posts} p ON cu.coupon_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}registration_documents",
+            'constraint' => 'fk_hmwevents_registration_documents_booking',
+            'sql' => "ALTER TABLE {$p}registration_documents ADD CONSTRAINT fk_hmwevents_registration_documents_booking FOREIGN KEY (booking_id) REFERENCES {$p}bookings(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE rd FROM {$p}registration_documents rd LEFT JOIN {$p}bookings b ON rd.booking_id = b.id WHERE b.id IS NULL",
+        ],
+
+        // TIER 4 — Other dependent tables
+        [
+            'table' => "{$p}waitlist",
+            'constraint' => 'fk_hmwevents_waitlist_event',
+            'sql' => "ALTER TABLE {$p}waitlist ADD CONSTRAINT fk_hmwevents_waitlist_event FOREIGN KEY (event_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE w FROM {$p}waitlist w LEFT JOIN {$wpdb->posts} p ON w.event_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}waitlist",
+            'constraint' => 'fk_hmwevents_waitlist_registrant',
+            'sql' => "ALTER TABLE {$p}waitlist ADD CONSTRAINT fk_hmwevents_waitlist_registrant FOREIGN KEY (registrant_post_id) REFERENCES {$wpdb->posts}(ID) ON DELETE CASCADE",
+            'cleanup' => "DELETE w FROM {$p}waitlist w LEFT JOIN {$wpdb->posts} p ON w.registrant_post_id = p.ID WHERE p.ID IS NULL",
+        ],
+        [
+            'table' => "{$p}email_attachments",
+            'constraint' => 'fk_hmwevents_email_attachments_queue',
+            'sql' => "ALTER TABLE {$p}email_attachments ADD CONSTRAINT fk_hmwevents_email_attachments_queue FOREIGN KEY (email_queue_id) REFERENCES {$p}email_queue(id) ON DELETE CASCADE",
+            'cleanup' => "DELETE ea FROM {$p}email_attachments ea LEFT JOIN {$p}email_queue eq ON ea.email_queue_id = eq.id WHERE eq.id IS NULL",
+        ],
     ];
 
     foreach ($foreign_keys as $fk) {
-        // Check if foreign key already exists
         $exists = $wpdb->get_var($wpdb->prepare("
-            SELECT COUNT(*) 
-            FROM information_schema.TABLE_CONSTRAINTS 
-            WHERE CONSTRAINT_SCHEMA = %s 
-            AND TABLE_NAME = %s 
-            AND CONSTRAINT_NAME = %s 
+            SELECT COUNT(*)
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE CONSTRAINT_SCHEMA = %s
+            AND TABLE_NAME = %s
+            AND CONSTRAINT_NAME = %s
             AND CONSTRAINT_TYPE = 'FOREIGN KEY'
         ", DB_NAME, $fk['table'], $fk['constraint']));
 
         if (!$exists) {
             $result = $wpdb->query($fk['sql']);
             if ($result === false) {
-                // Check if it's a referential integrity error (errno 1452)
-                $is_fk_error = strpos($wpdb->last_error, '1452') !== false 
+                $is_fk_error = strpos($wpdb->last_error, '1452') !== false
                     || strpos($wpdb->last_error, 'foreign key constraint fails') !== false
                     || strpos($wpdb->last_error, 'Cannot add or update a child row') !== false;
 
@@ -635,8 +373,6 @@ function hmwevents_add_foreign_keys()
                     error_log('HMWEvents: FK ' . $fk['constraint'] . ' failed with referential error. Cleaning orphans and retrying...');
                     $cleaned = $wpdb->query($fk['cleanup']);
                     error_log('HMWEvents: Cleaned ' . ($cleaned ?: 0) . ' orphaned rows for ' . $fk['constraint']);
-                    
-                    // Retry
                     $result = $wpdb->query($fk['sql']);
                     if ($result === false) {
                         error_log('HMWEvents: Retry failed for ' . $fk['constraint'] . ': ' . $wpdb->last_error);
@@ -652,245 +388,70 @@ function hmwevents_add_foreign_keys()
         }
     }
 
-    // Store that we're using foreign keys with this prefix
     update_option('hmwevents_uses_foreign_keys', true);
-
     return true;
 }
 
 /**
- * Clean up orphaned data in child tables before recreating foreign keys.
- * 
- * This ensures FK creation won't fail due to orphaned records left behind
- * after data migration, prefix changes, or manual DB manipulation.
- * 
- * IMPORTANT: Foreign keys should be dropped BEFORE calling this function
- * to avoid FK constraint errors during cleanup.
+ * Clean up orphaned data in hmwevents_* child tables.
  *
- * @since 1.0.17
+ * @since 2.0.0
  * @return array Summary of cleaned records per table/column
  */
 function hmwevents_clean_orphaned_data()
 {
     global $wpdb;
-    $table_prefix = $wpdb->prefix;
-
+    $p = $wpdb->prefix . 'hmwevents_';
     $cleaned = [];
 
-    // ============================================================
-    // EDUCATOR BOOKING SYSTEM - Orphan cleanup (child→parent order)
-    // ============================================================
+    $orphan_checks = [
+        // Child → Parent order
+        "email_attachments"     => ["LEFT JOIN {$p}email_queue eq ON ea.email_queue_id = eq.id", "eq.id IS NULL", "email_queue_id"],
+        "registration_documents" => ["LEFT JOIN {$p}bookings b ON rd.booking_id = b.id", "b.id IS NULL", "booking_id"],
+        "coupon_usage"          => ["LEFT JOIN {$p}bookings b ON cu.booking_id = b.id", "b.id IS NULL", "booking_id"],
+        "voucher_usage"         => ["LEFT JOIN {$p}bookings b ON vu.booking_id = b.id", "b.id IS NULL", "booking_id"],
+        "booking_history"       => ["LEFT JOIN {$p}bookings b ON bh.booking_id = b.id", "b.id IS NULL", "booking_id"],
+        "booking_meta"          => ["LEFT JOIN {$p}bookings b ON bm.booking_id = b.id", "b.id IS NULL", "booking_id"],
+        "booking_details"       => ["LEFT JOIN {$p}bookings b ON bd.booking_id = b.id", "b.id IS NULL", "booking_id"],
+        "payment_transactions"  => ["LEFT JOIN {$p}booking_groups bg ON pt.booking_group_id = bg.id", "bg.id IS NULL", "booking_group_id"],
+        "bookings"              => ["LEFT JOIN {$p}booking_groups bg ON b.booking_group_id = bg.id", "bg.id IS NULL", "booking_group_id"],
+        "booking_groups"        => ["LEFT JOIN {$wpdb->posts} p ON bg.registrant_post_id = p.ID", "p.ID IS NULL", "registrant_post_id"],
+        "waitlist"              => ["LEFT JOIN {$wpdb->posts} p ON w.event_post_id = p.ID", "p.ID IS NULL", "event_post_id"],
+        "event_recurrence"      => ["LEFT JOIN {$wpdb->posts} p ON er.event_post_id = p.ID", "p.ID IS NULL", "event_post_id"],
+        "event_availability"    => ["LEFT JOIN {$wpdb->posts} p ON ea.event_post_id = p.ID", "p.ID IS NULL", "event_post_id"],
+        "event_attendance_options" => ["LEFT JOIN {$wpdb->posts} p ON eao.event_post_id = p.ID", "p.ID IS NULL", "event_post_id"],
+        "private_registration_tokens" => ["LEFT JOIN {$wpdb->posts} p ON prt.event_post_id = p.ID", "p.ID IS NULL", "event_post_id"],
+    ];
 
-    // 1. booking_details → bookings (orphaned booking_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_booking_details bd
-        LEFT JOIN {$table_prefix}educator_bookings b ON bd.booking_id = b.id
-        WHERE b.id IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE bd FROM {$table_prefix}educator_booking_details bd
-            LEFT JOIN {$table_prefix}educator_bookings b ON bd.booking_id = b.id
-            WHERE b.id IS NULL
+    $aliases = [
+        'email_attachments'     => 'ea',
+        'registration_documents' => 'rd',
+        'coupon_usage'          => 'cu',
+        'voucher_usage'         => 'vu',
+        'booking_history'       => 'bh',
+        'booking_meta'          => 'bm',
+        'booking_details'       => 'bd',
+        'payment_transactions'  => 'pt',
+        'bookings'              => 'b',
+        'booking_groups'        => 'bg',
+        'waitlist'              => 'w',
+        'event_recurrence'      => 'er',
+        'event_availability'    => 'ea',
+        'event_attendance_options' => 'eao',
+        'private_registration_tokens' => 'prt',
+    ];
+
+    foreach ($orphan_checks as $table => [$join, $where, $col]) {
+        $alias = $aliases[$table];
+        $full_table = "{$p}{$table}";
+        $orphaned = $wpdb->get_var("
+            SELECT COUNT(*) FROM {$full_table} {$alias} {$join} WHERE {$where}
         ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned booking_details (missing booking)");
-        $cleaned['educator_booking_details.booking_id'] = (int) $orphaned;
-    }
-
-    // 2. booking_meta → bookings (orphaned booking_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_booking_meta bm
-        LEFT JOIN {$table_prefix}educator_bookings b ON bm.booking_id = b.id
-        WHERE b.id IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE bm FROM {$table_prefix}educator_booking_meta bm
-            LEFT JOIN {$table_prefix}educator_bookings b ON bm.booking_id = b.id
-            WHERE b.id IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned booking_meta (missing booking)");
-        $cleaned['educator_booking_meta.booking_id'] = (int) $orphaned;
-    }
-
-    // 3. voucher_usage → bookings (orphaned booking_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_voucher_usage vu
-        LEFT JOIN {$table_prefix}educator_bookings b ON vu.booking_id = b.id
-        WHERE b.id IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE vu FROM {$table_prefix}educator_voucher_usage vu
-            LEFT JOIN {$table_prefix}educator_bookings b ON vu.booking_id = b.id
-            WHERE b.id IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned voucher_usage (missing booking)");
-        $cleaned['educator_voucher_usage.booking_id'] = (int) $orphaned;
-    }
-
-    // 4. bookings → booking_groups (orphaned booking_group_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_bookings eb
-        LEFT JOIN {$table_prefix}educator_booking_groups bg ON eb.booking_group_id = bg.id
-        WHERE bg.id IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE eb FROM {$table_prefix}educator_bookings eb
-            LEFT JOIN {$table_prefix}educator_booking_groups bg ON eb.booking_group_id = bg.id
-            WHERE bg.id IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned bookings (missing booking_group)");
-        $cleaned['educator_bookings.booking_group_id'] = (int) $orphaned;
-    }
-
-    // 5. bookings → wp_posts (orphaned course_post_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_bookings eb
-        LEFT JOIN {$wpdb->posts} p ON eb.course_post_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE eb FROM {$table_prefix}educator_bookings eb
-            LEFT JOIN {$wpdb->posts} p ON eb.course_post_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned bookings (missing course_post)");
-        $cleaned['educator_bookings.course_post_id'] = (int) $orphaned;
-    }
-
-    // 6. bookings → wp_posts (orphaned customer_post_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_bookings eb
-        LEFT JOIN {$wpdb->posts} p ON eb.customer_post_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE eb FROM {$table_prefix}educator_bookings eb
-            LEFT JOIN {$wpdb->posts} p ON eb.customer_post_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned bookings (missing customer_post)");
-        $cleaned['educator_bookings.customer_post_id'] = (int) $orphaned;
-    }
-
-    // 7. payment_transactions → booking_groups (orphaned booking_group_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_payment_transactions pt
-        LEFT JOIN {$table_prefix}educator_booking_groups bg ON pt.booking_group_id = bg.id
-        WHERE bg.id IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE pt FROM {$table_prefix}educator_payment_transactions pt
-            LEFT JOIN {$table_prefix}educator_booking_groups bg ON pt.booking_group_id = bg.id
-            WHERE bg.id IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned payment_transactions (missing booking_group)");
-        $cleaned['educator_payment_transactions.booking_group_id'] = (int) $orphaned;
-    }
-
-    // 8. booking_groups → wp_posts (orphaned customer_post_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_booking_groups bg
-        LEFT JOIN {$wpdb->posts} p ON bg.customer_post_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE bg FROM {$table_prefix}educator_booking_groups bg
-            LEFT JOIN {$wpdb->posts} p ON bg.customer_post_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned booking_groups (missing customer_post)");
-        $cleaned['educator_booking_groups.customer_post_id'] = (int) $orphaned;
-    }
-
-    // 9. waitlist → wp_posts (orphaned course_post_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_waitlist w
-        LEFT JOIN {$wpdb->posts} p ON w.course_post_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE w FROM {$table_prefix}educator_waitlist w
-            LEFT JOIN {$wpdb->posts} p ON w.course_post_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned waitlist (missing course_post)");
-        $cleaned['educator_waitlist.course_post_id'] = (int) $orphaned;
-    }
-
-    // 10. waitlist → wp_posts (orphaned customer_post_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_waitlist w
-        LEFT JOIN {$wpdb->posts} p ON w.customer_post_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE w FROM {$table_prefix}educator_waitlist w
-            LEFT JOIN {$wpdb->posts} p ON w.customer_post_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned waitlist (missing customer_post)");
-        $cleaned['educator_waitlist.customer_post_id'] = (int) $orphaned;
-    }
-
-    // 11. course_availability → wp_posts (orphaned course_post_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_course_availability ca
-        LEFT JOIN {$wpdb->posts} p ON ca.course_post_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE ca FROM {$table_prefix}educator_course_availability ca
-            LEFT JOIN {$wpdb->posts} p ON ca.course_post_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned course_availability (missing course_post)");
-        $cleaned['educator_course_availability.course_post_id'] = (int) $orphaned;
-    }
-
-    // 12. course_recurrence → wp_posts (orphaned course_template_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}educator_course_recurrence cr
-        LEFT JOIN {$wpdb->posts} p ON cr.course_template_id = p.ID
-        WHERE p.ID IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE cr FROM {$table_prefix}educator_course_recurrence cr
-            LEFT JOIN {$wpdb->posts} p ON cr.course_template_id = p.ID
-            WHERE p.ID IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned course_recurrence (missing course_template)");
-        $cleaned['educator_course_recurrence.course_template_id'] = (int) $orphaned;
-    }
-
-    // ============================================================
-    // EMAIL SYSTEM - Orphan cleanup
-    // ============================================================
-
-    // 13. email_attachments → email_queue (orphaned email_queue_id)
-    $orphaned = $wpdb->get_var("
-        SELECT COUNT(*) FROM {$table_prefix}email_attachments ea
-        LEFT JOIN {$table_prefix}email_queue eq ON ea.email_queue_id = eq.id
-        WHERE eq.id IS NULL
-    ");
-    if ($orphaned > 0) {
-        $wpdb->query("
-            DELETE ea FROM {$table_prefix}email_attachments ea
-            LEFT JOIN {$table_prefix}email_queue eq ON ea.email_queue_id = eq.id
-            WHERE eq.id IS NULL
-        ");
-        error_log("HMWEvents: Cleaned $orphaned orphaned email_attachments (missing email_queue)");
-        $cleaned['email_attachments.email_queue_id'] = (int) $orphaned;
+        if ($orphaned > 0) {
+            $wpdb->query("DELETE {$alias} FROM {$full_table} {$alias} {$join} WHERE {$where}");
+            error_log("HMWEvents: Cleaned $orphaned orphaned {$table} (missing {$col})");
+            $cleaned["{$table}.{$col}"] = (int) $orphaned;
+        }
     }
 
     return $cleaned;
@@ -898,29 +459,20 @@ function hmwevents_clean_orphaned_data()
 
 /**
  * Full repair: drop FKs, clean orphans, rebuild FKs.
- * 
- * This is the safest approach for data migration scenarios:
- * 1. Drop all foreign keys (so no FK errors during cleanup)
- * 2. Remove orphaned child records
- * 3. Recreate all foreign keys
- * 
- * Designed to be called on plugin activation or manually via WP-CLI.
  *
- * @since 1.0.17
+ * @since 2.0.0
  * @return bool True on success
  */
 function hmwevents_repair_and_rebuild_foreign_keys()
 {
     global $wpdb;
 
-    // Check if foreign keys are supported
     $supports_fk = $wpdb->get_var("SELECT @@foreign_key_checks");
     if (!$supports_fk) {
         error_log('HMWEvents: Foreign keys not supported on this server');
         return false;
     }
 
-    // Add option to disable foreign keys via constant
     if (defined('HMWEvents_DISABLE_FOREIGN_KEYS') && HMWEvents_DISABLE_FOREIGN_KEYS) {
         error_log('HMWEvents: Foreign keys disabled via constant');
         return false;
@@ -928,10 +480,8 @@ function hmwevents_repair_and_rebuild_foreign_keys()
 
     error_log('HMWEvents: Starting full foreign key repair and rebuild...');
 
-    // Step 1: Drop all existing foreign keys
     hmwevents_drop_foreign_keys();
 
-    // Step 2: Clean orphaned data
     $cleaned = hmwevents_clean_orphaned_data();
     $total_cleaned = array_sum($cleaned);
     if ($total_cleaned > 0) {
@@ -940,10 +490,7 @@ function hmwevents_repair_and_rebuild_foreign_keys()
         error_log('HMWEvents: No orphaned data found.');
     }
 
-    // Step 3: Rebuild all foreign keys
     hmwevents_add_foreign_keys();
-
-    // Step 4: Store current prefix for future migration detection
     update_option('hmwevents_table_prefix', $wpdb->prefix);
 
     error_log('HMWEvents: Foreign key repair and rebuild complete.');
@@ -951,70 +498,107 @@ function hmwevents_repair_and_rebuild_foreign_keys()
 }
 
 /**
- * Plugin activation hook - ensure foreign keys are properly set up
- * Call this on plugin activation to handle migration scenarios.
- * 
- * Uses the full repair-and-rebuild cycle to handle any orphaned data
- * that may exist after table prefix changes or data migrations.
+ * Plugin activation hook.
  *
- * @since 1.0.0
- * @updated 1.0.17 Uses repair_and_rebuild for robust migration handling
+ * @since 2.0.0
  */
 function hmwevents_activation()
 {
-    // Run installation to ensure tables exist
     hmwevents_install();
-
-    // Full repair cycle: drop FKs, clean orphans, rebuild FKs
     hmwevents_repair_and_rebuild_foreign_keys();
-
-    // Add capabilities to educator role
-    $educator_role = new \HMWEvents\Roles\EducatorRole();
-    $educator_role->add_capabilities();
-
-    // Ensure foreign keys are correct for current prefix
-    hmwevents_ensure_foreign_keys();
-
-    // Flush rewrite rules to ensure custom post types work
+    \HMWEvents\Services\DatabaseService::update_schema_version();
+    update_option('hmwevents_plugin_version', HMWEvents_VERSION);
     flush_rewrite_rules();
 }
 
 /**
- * Uninstall plugin - remove database tables and options.
+ * Uninstall plugin - remove all hmwevents_* tables and options.
  *
- * @since 1.0.0
+ * @since 2.0.0
  */
 function hmwevents_uninstall()
 {
     global $wpdb;
+    $p = $wpdb->prefix . 'hmwevents_';
 
-    $table_prefix = $wpdb->prefix;
-
-    // Drop all tables in reverse order (due to foreign key constraints)
+    // Drop in reverse dependency order
     $tables = [
-      // Email system tables
-      'email_attachments',
-      'email_queue',
-      'email_templates',
-      // Educator booking system tables
-      'educator_booking_details',
-      'educator_payment_transactions',
-      'educator_bookings',
-      'educator_booking_groups',
-      'educator_waitlist',
-      'educator_course_availability',
-      'educator_course_recurrence',
+        'email_attachments',
+        'email_queue',
+        'email_templates',
+        'registration_documents',
+        'coupon_usage',
+        'voucher_usage',
+        'booking_history',
+        'booking_meta',
+        'booking_details',
+        'bookings',
+        'payment_transactions',
+        'booking_groups',
+        'waitlist',
+        'event_recurrence',
+        'event_availability',
+        'event_attendance_options',
+        'event_templates',
+        'saved_report_filters',
+        'private_registration_tokens',
     ];
 
     foreach ($tables as $table) {
-        $wpdb->query("DROP TABLE IF EXISTS {$table_prefix}{$table}");
+        $wpdb->query("DROP TABLE IF EXISTS {$p}{$table}");
     }
 
-    // Remove options
     delete_option('hmwevents_db_version');
     delete_option('hmwevents_table_prefix');
     delete_option('hmwevents_uses_foreign_keys');
-
-    // Clear any cached data
+    delete_option('hmwevents_plugin_version');
     wp_cache_flush();
+}
+
+/**
+ * Purge legacy educator_* and bare email_* tables.
+ *
+ * This is a destructive operation that drops all old tables from the
+ * Calmbirth/educator system. Only call this when you are certain the
+ * new hmwevents_* system is fully operational.
+ *
+ * @since 2.0.0
+ * @return array List of tables dropped
+ */
+function hmwevents_purge_legacy_tables()
+{
+    global $wpdb;
+    $prefix = $wpdb->prefix;
+    $dropped = [];
+
+    $legacy_tables = [
+        'educator_course_recurrence',
+        'educator_booking_groups',
+        'educator_bookings',
+        'educator_booking_details',
+        'educator_booking_meta',
+        'educator_payment_transactions',
+        'educator_waitlist',
+        'educator_course_availability',
+        'educator_voucher_usage',
+        'educator_coupon_usage',
+        'email_queue',
+        'email_templates',
+        'email_attachments',
+    ];
+
+    // Drop legacy FKs first
+    hmwevents_drop_foreign_keys();
+
+    foreach ($legacy_tables as $table) {
+        $sql = "DROP TABLE IF EXISTS {$prefix}{$table}";
+        $wpdb->query($sql);
+        $dropped[] = "{$prefix}{$table}";
+        error_log("HMWEvents: Purged legacy table {$prefix}{$table}");
+    }
+
+    delete_option('hmwevents_db_version');
+    delete_option('hmwevents_uses_foreign_keys');
+
+    return $dropped;
 }

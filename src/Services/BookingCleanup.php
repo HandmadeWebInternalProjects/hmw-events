@@ -81,7 +81,7 @@ class BookingCleanup
 
         $abandoned_groups = $wpdb->get_results($wpdb->prepare("
             SELECT id, customer_post_id
-            FROM {$wpdb->prefix}educator_booking_groups
+            FROM {$wpdb->prefix}hmwevents_booking_groups
             WHERE payment_status IN ('pending', 'failed')
             AND created_at < %s
         ", $cutoff_time));
@@ -96,7 +96,7 @@ class BookingCleanup
         foreach ($abandoned_groups as $group) {
             // Get all bookings in this group
             $bookings = $wpdb->get_results($wpdb->prepare("
-                SELECT * FROM {$wpdb->prefix}educator_bookings
+                SELECT * FROM {$wpdb->prefix}hmwevents_bookings
                 WHERE booking_group_id = %d
                 AND status != 'cancelled'
             ", $group->id));
@@ -118,7 +118,7 @@ class BookingCleanup
             foreach ($bookings as $booking) {
                 // Update booking status
                 $wpdb->update(
-                    $wpdb->prefix . 'educator_bookings',
+                    $wpdb->prefix . 'hmwevents_bookings',
                     [
                         'status' => 'cancelled',
                         'cancelled_at' => current_time('mysql'),
@@ -130,7 +130,7 @@ class BookingCleanup
 
                 // Restore course availability
                 $wpdb->query($wpdb->prepare("
-                    UPDATE {$wpdb->prefix}educator_course_availability
+                    UPDATE {$wpdb->prefix}hmwevents_course_availability
                     SET booked_count = GREATEST(0, booked_count - %d),
                         available_count = available_count + %d
                     WHERE course_post_id = %d

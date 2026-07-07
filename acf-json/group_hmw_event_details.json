@@ -1,0 +1,323 @@
+{
+    "key": "group_hmw_event_details",
+    "title": "Event Details",
+    "fields": [
+        {
+            "key": "field_event_start_date",
+            "label": "Start Date",
+            "name": "_event_start_date",
+            "type": "date_time_picker",
+            "required": 1,
+            "display_format": "d/m/Y g:i a",
+            "return_format": "Y-m-d H:i:s"
+        },
+        {
+            "key": "field_event_end_date",
+            "label": "End Date",
+            "name": "_event_end_date",
+            "type": "date_time_picker",
+            "required": 1,
+            "display_format": "d/m/Y g:i a",
+            "return_format": "Y-m-d H:i:s"
+        },
+        {
+            "key": "field_event_price",
+            "label": "Full Price",
+            "name": "_event_price",
+            "type": "number",
+            "required": 0,
+            "min": 0,
+            "step": "0.01",
+            "prepend": "$"
+        },
+        {
+            "key": "field_event_deposit",
+            "label": "Deposit Price",
+            "name": "_event_deposit",
+            "type": "number",
+            "required": 0,
+            "min": 0,
+            "step": "0.01",
+            "prepend": "$"
+        },
+        {
+            "key": "field_event_capacity",
+            "label": "Capacity",
+            "name": "_event_capacity",
+            "type": "number",
+            "required": 1,
+            "min": 1,
+            "default_value": 20
+        },
+        {
+            "key": "field_event_is_free",
+            "label": "Free Event",
+            "name": "_event_is_free",
+            "type": "true_false",
+            "default_value": 0,
+            "ui": 1
+        },
+        {
+            "key": "field_event_allow_net_terms",
+            "label": "Allow Net Terms / Pay Later",
+            "name": "_event_allow_net_terms",
+            "type": "true_false",
+            "default_value": 0,
+            "ui": 1
+        },
+        {
+            "key": "field_event_is_recurring",
+            "label": "Recurring Event",
+            "name": "_event_is_recurring",
+            "type": "true_false",
+            "default_value": 0,
+            "ui": 1
+        },
+        {
+            "key": "field_event_recurrence_interval",
+            "label": "Repeat every",
+            "name": "_event_recurrence_interval",
+            "type": "number",
+            "instructions": "The number of intervals between occurrences. E.g. 2 with \u0022weeks\u0022 = every 2 weeks.",
+            "required": 1,
+            "default_value": 1,
+            "min": 1,
+            "step": 1,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "20"
+            }
+        },
+        {
+            "key": "field_event_recurrence_unit",
+            "label": "Repeat unit",
+            "name": "_event_recurrence_unit",
+            "type": "select",
+            "instructions": "Choose how this event repeats.",
+            "required": 1,
+            "choices": {
+                "daily": "Days",
+                "weekly": "Weeks",
+                "monthly": "Months",
+                "custom": "Specific dates"
+            },
+            "default_value": "weekly",
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "30"
+            },
+            "return_format": "value"
+        },
+        {
+            "key": "field_event_recurrence_days",
+            "label": "On",
+            "name": "_event_recurrence_days",
+            "type": "checkbox",
+            "instructions": "Select which days of the week this event runs on.",
+            "choices": {
+                "1": "Mon",
+                "2": "Tue",
+                "3": "Wed",
+                "4": "Thu",
+                "5": "Fri",
+                "6": "Sat",
+                "7": "Sun"
+            },
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_event_recurrence_unit",
+                        "operator": "==",
+                        "value": "weekly"
+                    }
+                ]
+            ],
+            "layout": "horizontal"
+        },
+        {
+            "key": "field_event_recurrence_end_type",
+            "label": "Ends",
+            "name": "_event_recurrence_end_type",
+            "type": "select",
+            "choices": {
+                "never": "Never",
+                "date": "On a specific date",
+                "count": "After a number of occurrences"
+            },
+            "default_value": "never",
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_event_recurrence_unit",
+                        "operator": "!=",
+                        "value": "custom"
+                    }
+                ]
+            ],
+            "wrapper": {
+                "width": "30"
+            },
+            "return_format": "value"
+        },
+        {
+            "key": "field_event_recurrence_end_date",
+            "label": "End date",
+            "name": "_event_recurrence_end_date",
+            "type": "date_picker",
+            "instructions": "The last date this event can occur on.",
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_event_recurrence_end_type",
+                        "operator": "==",
+                        "value": "date"
+                    }
+                ]
+            ],
+            "display_format": "d/m/Y",
+            "return_format": "Y-m-d",
+            "first_day": 1
+        },
+        {
+            "key": "field_event_recurrence_max_occurrences",
+            "label": "After this many occurrences",
+            "name": "_event_recurrence_max_occurrences",
+            "type": "number",
+            "instructions": "The total number of times this event will occur (including the first one).",
+            "default_value": 10,
+            "min": 1,
+            "step": 1,
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_event_recurrence_end_type",
+                        "operator": "==",
+                        "value": "count"
+                    }
+                ]
+            ]
+        },
+        {
+            "key": "field_event_recurrence_custom_dates",
+            "label": "Specific Dates",
+            "name": "_event_recurrence_custom_dates",
+            "type": "repeater",
+            "instructions": "Add each date this event should occur on.",
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_event_recurrence_unit",
+                        "operator": "==",
+                        "value": "custom"
+                    }
+                ]
+            ],
+            "layout": "table",
+            "button_label": "Add Date",
+            "sub_fields": [
+                {
+                    "key": "field_event_recurrence_custom_date",
+                    "label": "Date",
+                    "name": "date",
+                    "type": "date_picker",
+                    "required": 1,
+                    "display_format": "d/m/Y",
+                    "return_format": "Y-m-d",
+                    "first_day": 1
+                }
+            ]
+        },
+        {
+            "key": "field_event_venue_name",
+            "label": "Venue Name",
+            "name": "_event_venue_name",
+            "type": "text"
+        },
+        {
+            "key": "field_event_venue_address",
+            "label": "Venue Address",
+            "name": "_event_venue_address",
+            "type": "textarea",
+            "rows": 3
+        },
+        {
+            "key": "field_event_webinar_url",
+            "label": "Webinar URL",
+            "name": "_event_webinar_url",
+            "type": "url"
+        },
+        {
+            "key": "field_event_booking_notes",
+            "label": "Booking Notes",
+            "name": "_event_booking_notes",
+            "type": "textarea",
+            "rows": 4
+        },
+        {
+            "key": "field_organizer_id",
+            "label": "Organizer",
+            "name": "_organizer_id",
+            "type": "user",
+            "role": ["event_organizer", "administrator"],
+            "allow_null": 1
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "hmw_event"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": ""
+}

@@ -54,7 +54,7 @@ The element automatically adds a hidden field `voucher_code` that your payment f
 <input type="hidden" name="voucher_code" value="SAVE20" />
 ```
 
-Your payment endpoint (`/cms/v1/payment/process`) will automatically receive this parameter.
+Your payment endpoint (`/hmwevents/v1/payment/process`) will automatically receive this parameter.
 
 ### JavaScript Events
 
@@ -147,7 +147,7 @@ The element uses these REST API endpoints:
 
 ### Validate Voucher
 ```
-POST /wp-json/cms/v1/voucher/validate
+POST /wp-json/hmwevents/v1/voucher/validate
 ```
 
 **Request:**
