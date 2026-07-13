@@ -20,7 +20,7 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
  *   type                 string   Input type: text | email | tel | date | textarea | select | checkbox.
  *   source               string   'customer_meta'   → stored as WP post meta on the customer CPT.
  *                                 'booking_details' → stored as JSON in educator_booking_details.form_data.
- *   meta_key             string|null  WP post-meta key (customer_meta fields and partner_name).
+ *   meta_key             string|null  WP post-meta key (customer_meta fields).
  *   form_name            string   HTML name= attribute used in the PHP manual-booking form.
  *   form_description     string   (checkbox only) Secondary text shown beside the checkbox in admin form.
  *   options              array    (select only) Ordered map of value => label.
@@ -189,62 +189,6 @@ class BookingFields
 
             // ── Questionnaire / detail fields (booking_details source) ─────────────
             // Stored as JSON in educator_booking_details.form_data.
-            // partner_name is also written to customer post meta as a convenience.
-
-            'partner_name' => [
-                'label'                => 'Partner / Support Person',
-                'type'                 => 'text',
-                'source'               => 'booking_details',
-                'meta_key'             => 'partner_name',   // also in customer CPT meta
-                'form_name'            => 'partner_name',
-                'manual_required'      => false,
-                'in_csv'               => true,
-                'in_email'             => true,
-                'frontend_section'     => 'your_information',
-                'frontend_width'       => 'full',
-                'frontend_required'    => true,
-                'frontend_label'       => "Partner/Support Person's Name",
-                'frontend_placeholder' => '',
-                'frontend_input'       => null,
-                'frontend_rows'        => null,
-            ],
-
-            'health_fund' => [
-                'label'                => 'Health Fund',
-                'type'                 => 'text',
-                'source'               => 'booking_details',
-                'meta_key'             => null,
-                'form_name'            => 'health_fund',
-                'manual_required'      => false,
-                'in_csv'               => true,
-                'in_email'             => true,
-                'frontend_section'     => 'extra_details',
-                'frontend_width'       => 'half',
-                'frontend_required'    => true,
-                'frontend_label'       => 'Health Fund Name',
-                'frontend_placeholder' => '',
-                'frontend_input'       => null,
-                'frontend_rows'        => null,
-            ],
-
-            'due_date' => [
-                'label'                => 'Due Date',
-                'type'                 => 'date',
-                'source'               => 'booking_details',
-                'meta_key'             => null,
-                'form_name'            => 'due_date',
-                'manual_required'      => false,
-                'in_csv'               => true,
-                'in_email'             => true,
-                'frontend_section'     => 'extra_details',
-                'frontend_width'       => 'half',
-                'frontend_required'    => true,
-                'frontend_label'       => null,
-                'frontend_placeholder' => '',
-                'frontend_input'       => null,
-                'frontend_rows'        => null,
-            ],
-
             'dietary_requirements' => [
                 'label'                => 'Dietary / Allergies',
                 'type'                 => 'textarea',
@@ -261,25 +205,6 @@ class BookingFields
                 'frontend_placeholder' => 'Please list any food allergies or dietary restrictions',
                 'frontend_input'       => null,
                 'frontend_rows'        => 3,
-            ],
-
-            'first_baby' => [
-                'label'                => 'First Baby?',
-                'type'                 => 'select',
-                'source'               => 'booking_details',
-                'meta_key'             => null,
-                'form_name'            => 'first_baby',
-                'manual_required'      => false,
-                'in_csv'               => true,
-                'in_email'             => true,
-                'options'              => ['' => '— Select —', 'yes' => 'Yes', 'no' => 'No'],
-                'frontend_section'     => 'extra_details',
-                'frontend_width'       => 'full',
-                'frontend_required'    => false,
-                'frontend_label'       => 'Is this your first baby?',
-                'frontend_placeholder' => '',
-                'frontend_input'       => 'radio',  // renders as radio group, not <select>
-                'frontend_rows'        => null,
             ],
 
             'special_considerations' => [
@@ -368,8 +293,7 @@ class BookingFields
 
     /**
      * Fields that have a WP post-meta fallback key (used for CSV / email enrichment).
-     * Includes all customer_meta fields plus any booking_details fields that also
-     * write to customer post meta (currently: partner_name).
+     * Includes all customer_meta fields with meta_key assigned.
      *
      * @return array<string, array>
      */

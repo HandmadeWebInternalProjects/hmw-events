@@ -1,0 +1,398 @@
+:root {
+  --hmw-color-primary: #2563eb;
+  --hmw-color-primary-hover: #1d4ed8;
+  --hmw-color-primary-light: #eff6ff;
+  --hmw-color-error: #dc2626;
+  --hmw-color-error-bg: #fef2f2;
+  --hmw-color-success: #16a34a;
+  --hmw-color-success-bg: #f0fdf4;
+  --hmw-color-text: #1e293b;
+  --hmw-color-text-muted: #64748b;
+  --hmw-color-border: #e2e8f0;
+  --hmw-color-border-focus: #93c5fd;
+  --hmw-color-bg: #ffffff;
+  --hmw-color-bg-section: #f8fafc;
+  --hmw-color-bg-page: #f1f5f9;
+  --hmw-color-label: #334155;
+  --hmw-radius: 8px;
+  --hmw-radius-sm: 4px;
+  --hmw-gap: 16px;
+  --hmw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --hmw-font-size-xs: 1rem;
+  --hmw-font-size-sm: 1.2rem;
+  --hmw-font-size-base: 1.6rem;
+  --hmw-font-size-lg: 1.8rem;
+  --hmw-font-size-xl: 2rem;
+  --hmw-font-size-2xl: 2.4rem;
+  --hmw-shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
+  --hmw-shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
+  --hmw-transition: 150ms ease;
+}
+
+.hmw-v3-booking-wrapper {
+  font-family: var(--hmw-font-family);
+  color: var(--hmw-color-text);
+  line-height: 1.6;
+  max-inline-size: 720px;
+  margin-inline: auto;
+  padding: var(--hmw-gap);
+}
+
+.hmw-v3-booking-wrapper *,
+.hmw-v3-booking-wrapper ::before,
+.hmw-v3-booking-wrapper ::after {
+  box-sizing: border-box;
+}
+
+.hmw-registration-form--v3 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmw-gap);
+}
+
+.hmw-reg-section {
+  background: var(--hmw-color-bg);
+  border: 1px solid var(--hmw-color-border);
+  border-radius: var(--hmw-radius);
+  padding: 20px;
+  box-shadow: var(--hmw-shadow-sm);
+}
+
+.hmw-reg-section-title {
+  margin: 0 0 16px;
+  font-size: var(--hmw-font-size-lg);
+  font-weight: 600;
+  color: var(--hmw-color-text);
+  padding-block-end: 10px;
+  border-block-end: 1px solid var(--hmw-color-border);
+}
+
+.hmw-reg-section--payment {
+  background: var(--hmw-color-primary-light);
+  border-color: var(--hmw-color-border-focus);
+}
+
+.hmw-reg-section--payment .hmw-reg-section-title {
+  color: var(--hmw-color-primary);
+  border-color: var(--hmw-color-border-focus);
+}
+
+.hmw-reg-section--attendees {
+  background: var(--hmw-color-bg-section);
+}
+
+.hmw-reg-section-desc {
+  margin: -12px 0 12px;
+  font-size: var(--hmw-font-size-sm);
+  color: var(--hmw-color-text-muted);
+}
+
+.hmw-reg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px var(--hmw-gap);
+}
+
+.hmw-reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  & label {
+    font-size: var(--hmw-font-size-sm);
+    font-weight: 500;
+    color: var(--hmw-color-label);
+    cursor: pointer;
+  }
+
+  & input,
+  & select,
+  & textarea {
+    inline-size: 100%;
+    padding: 10px 12px;
+    font-size: var(--hmw-font-size-base);
+    font-family: inherit;
+    color: var(--hmw-color-text);
+    background: var(--hmw-color-bg);
+    border: 1px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius-sm);
+    transition: border-color var(--hmw-transition), box-shadow var(--hmw-transition);
+    outline: none;
+  }
+
+  & input:focus,
+  & select:focus,
+  & textarea:focus {
+    border-color: var(--hmw-color-border-focus);
+    box-shadow: 0 0 0 3px rgba(147, 197, 253, .25);
+  }
+
+  & textarea {
+    resize: vertical;
+    min-block-size: 80px;
+  }
+
+  & select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-inline-end: 36px;
+  }
+
+  & input:user-invalid,
+  & select:user-invalid,
+  & textarea:user-invalid {
+    border-color: var(--hmw-color-error);
+  }
+}
+
+.hmw-reg-field--full {
+  grid-column: 1 / -1;
+}
+
+.hmw-required {
+  color: var(--hmw-color-error);
+  font-weight: 600;
+}
+
+
+.hmw-reg-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+
+  & input {
+    inline-size: 18px;
+    block-size: 18px;
+    accent-color: var(--hmw-color-primary);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  & label {
+    cursor: pointer;
+    margin: 0;
+  }
+}
+
+.hmw-reg-field--radio {
+  flex-direction: column;
+
+  & fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  & legend {
+    font-size: var(--hmw-font-size-sm);
+    font-weight: 500;
+    color: var(--hmw-color-label);
+    margin-block-end: 6px;
+  }
+}
+
+.hmw-reg-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hmw-reg-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--hmw-font-size-sm);
+  cursor: pointer;
+
+  & input {
+    inline-size: 16px;
+    block-size: 16px;
+    accent-color: var(--hmw-color-primary);
+  }
+}
+
+.hmw-reg-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--hmw-font-size-sm);
+  cursor: pointer;
+
+  & input {
+    inline-size: 16px;
+    block-size: 16px;
+    accent-color: var(--hmw-color-primary);
+  }
+}
+
+.hmw-stripe-element {
+  margin-block-start: 8px;
+}
+
+.hmw-reg-payment-summary {
+  font-size: var(--hmw-font-size-lg);
+
+  & strong {
+    color: var(--hmw-color-primary);
+  }
+}
+
+.hmw-v3-attendee-block {
+  border: 1px solid var(--hmw-color-border);
+  border-radius: var(--hmw-radius);
+  padding: 14px;
+  margin-block-end: 10px;
+  background: var(--hmw-color-bg);
+  box-shadow: var(--hmw-shadow-sm);
+
+  & .hmw-reg-grid {
+    margin-block-start: 4px;
+  }
+}
+
+.hmw-v3-attendee-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-block-end: 8px;
+  padding-block-end: 8px;
+  border-block-end: 1px solid var(--hmw-color-border);
+}
+
+.hmw-reg-attendee-title {
+  margin: 0;
+  font-size: var(--hmw-font-size-base);
+  font-weight: 600;
+  color: var(--hmw-color-text);
+}
+
+.hmw-v3-remove-attendee {
+  background: none;
+  border: none;
+  color: var(--hmw-color-error);
+  font-size: var(--hmw-font-size-xl);
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: var(--hmw-radius-sm);
+  transition: background var(--hmw-transition);
+
+  &:hover {
+    background: var(--hmw-color-error-bg);
+  }
+}
+
+.hmw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: var(--hmw-font-size-base);
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  border-radius: var(--hmw-radius-sm);
+  cursor: pointer;
+  transition: background var(--hmw-transition), transform var(--hmw-transition);
+  text-decoration: none;
+
+  &:active {
+    transform: scale(.98);
+  }
+}
+
+.hmw-btn--primary {
+  background: var(--hmw-color-primary);
+  color: #fff;
+
+  &:hover {
+    background: var(--hmw-color-primary-hover);
+  }
+
+  &:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.hmw-btn--secondary {
+  background: var(--hmw-color-bg);
+  color: var(--hmw-color-primary);
+  border: 1px solid var(--hmw-color-border);
+
+  &:hover {
+    background: var(--hmw-color-primary-light);
+  }
+}
+
+.hmw-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block-start: 4px;
+}
+
+.hmw-form-error {
+  padding: 10px 14px;
+  background: var(--hmw-color-error-bg);
+  border: 1px solid var(--hmw-color-error);
+  border-radius: var(--hmw-radius-sm);
+  color: var(--hmw-color-error);
+  font-size: var(--hmw-font-size-sm);
+}
+
+.hmw-v3-attendee-count {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-block-end: 0;
+  padding: 12px 0;
+
+  & select {
+    padding: 8px 12px;
+    font-size: var(--hmw-font-size-base);
+    border: 1px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius-sm);
+    background: var(--hmw-color-bg);
+    min-inline-size: 80px;
+  }
+}
+
+.hmw-v3-total {
+  margin-inline-start: auto;
+  font-size: var(--hmw-font-size-lg);
+
+  & strong {
+    color: var(--hmw-color-primary);
+  }
+}
+
+#hmw-v3-add-attendee-btn {
+  margin-block-start: 4px;
+}
+
+@media (width <= 600px) {
+  .hmw-v3-booking-wrapper {
+    padding: 12px;
+  }
+
+  .hmw-reg-section {
+    padding: 14px;
+  }
+
+  .hmw-reg-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hmw-reg-field--half {
+    grid-column: 1 / -1;
+  }
+
+  .hmw-reg-field--full {
+    grid-column: 1 / -1;
+  }
+}

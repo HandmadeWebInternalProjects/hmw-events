@@ -35,20 +35,20 @@ class RegistrationFormTest extends TestCase
         $this->assertArrayHasKey('professional_body', $fields);
     }
 
-    public function test_parent_fields_exist(): void
+    public function test_parent_fields_removed(): void
     {
         $fields = RegistrationFieldRegistry::all();
-        $this->assertArrayHasKey('due_date', $fields);
-        $this->assertArrayHasKey('first_baby', $fields);
-        $this->assertArrayHasKey('health_fund', $fields);
-        $this->assertArrayHasKey('partner_name', $fields);
+        $this->assertArrayNotHasKey('due_date', $fields);
+        $this->assertArrayNotHasKey('first_baby', $fields);
+        $this->assertArrayNotHasKey('health_fund', $fields);
+        $this->assertArrayNotHasKey('partner_name', $fields);
     }
 
-    public function test_child_fields_exist(): void
+    public function test_child_fields_removed(): void
     {
         $fields = RegistrationFieldRegistry::all();
-        $this->assertArrayHasKey('child_name', $fields);
-        $this->assertArrayHasKey('child_age', $fields);
+        $this->assertArrayNotHasKey('child_name', $fields);
+        $this->assertArrayNotHasKey('child_age', $fields);
     }
 
     public function test_document_upload_field_exists(): void
@@ -61,25 +61,24 @@ class RegistrationFormTest extends TestCase
     public function test_for_audience_parent(): void
     {
         $parent_fields = RegistrationFieldRegistry::for_audience('parent');
-        $this->assertArrayHasKey('due_date', $parent_fields);
         $this->assertArrayHasKey('first_name', $parent_fields);
+        $this->assertArrayNotHasKey('organisation', $parent_fields);
     }
 
     public function test_for_audience_professional(): void
     {
         $pro_fields = RegistrationFieldRegistry::for_audience('professional');
         $this->assertArrayHasKey('organisation', $pro_fields);
-        $this->assertArrayNotHasKey('due_date', $pro_fields);
         $this->assertArrayHasKey('first_name', $pro_fields);
+        $this->assertArrayNotHasKey('health_fund', $pro_fields);
     }
 
     public function test_individual_audience_excludes_parent_pro(): void
     {
         $fields = RegistrationFieldRegistry::for_audience('individual');
         $this->assertArrayHasKey('first_name', $fields);
-        $this->assertArrayNotHasKey('due_date', $fields);
         $this->assertArrayNotHasKey('organisation', $fields);
-        $this->assertArrayNotHasKey('partner_name', $fields);
+        $this->assertArrayNotHasKey('health_fund', $fields);
     }
 
     public function test_get_sections_returns_all(): void
@@ -88,7 +87,8 @@ class RegistrationFormTest extends TestCase
         $this->assertArrayHasKey('contact', $sections);
         $this->assertArrayHasKey('professional', $sections);
         $this->assertArrayHasKey('documents', $sections);
-        $this->assertArrayHasKey('parent_details', $sections);
+        $this->assertArrayNotHasKey('parent_details', $sections);
+        $this->assertArrayNotHasKey('attendee_details', $sections);
     }
 
     public function test_preset_service_in_components(): void
@@ -142,10 +142,10 @@ class RegistrationFormTest extends TestCase
         Functions\when('esc_html__')->returnArg();
 
         $renderer = new RegistrationFormRenderer();
-        $fields = RegistrationFieldRegistry::for_audience('parent');
+        $fields = RegistrationFieldRegistry::for_audience('individual');
         $sections = $renderer->group_fields_by_section($fields);
         $this->assertArrayHasKey('contact', $sections);
-        $this->assertArrayHasKey('parent_details', $sections);
+        $this->assertArrayNotHasKey('parent_details', $sections);
     }
 
     public function test_render_field_returns_html(): void
@@ -170,6 +170,20 @@ class RegistrationFormTest extends TestCase
         $handler = new DocumentUploadHandler();
         $result = $handler->handle_upload(['tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE], 0, 1);
         $this->assertInstanceOf(\WP_Error::class, $result);
+    }
+
+    public function test_presets_available(): void
+    {
+        $presets = RegistrationFieldRegistry::presets();
+        $this->assertIsArray($presets);
+        $this->assertArrayHasKey('first_name', $presets);
+        $this->assertArrayHasKey('last_name', $presets);
+        $this->assertArrayHasKey('email', $presets);
+        $this->assertArrayHasKey('phone', $presets);
+        $this->assertSame('text', $presets['first_name']['type']);
+        $this->assertSame('registrant_meta', $presets['first_name']['source']);
+        $this->assertSame('half', $presets['first_name']['width']);
+        $this->assertTrue($presets['first_name']['required']);
     }
 
     protected function setUp(): void

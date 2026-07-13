@@ -22,6 +22,8 @@ class EventType
     {
         add_action('init', [$this, 'register_taxonomy']);
         add_action('init', [$this, 'insert_default_terms'], 20);
+        add_action('add_meta_boxes_hmw_event', [$this, 'replace_taxonomy_meta_box']);
+        add_action('save_post_hmw_event', [$this, 'save_event_type'], 9);
     }
 
     public function register_taxonomy(): void
@@ -77,18 +79,18 @@ class EventType
      */
     public function insert_default_terms(): void
     {
-        if (get_option('hmwevents_event_types_inserted')) {
+        if (get_option('hmwevents_event_types_inserted_v2')) {
             return;
         }
 
         $defaults = [
-            'webinar'          => __('Webinar', 'hmw-events'),
-            'workshop'         => __('Workshop', 'hmw-events'),
-            'course'           => __('Course', 'hmw-events'),
-            'seminar'          => __('Seminar', 'hmw-events'),
-            'conference'       => __('Conference', 'hmw-events'),
-            'parent-education' => __('Parent Education', 'hmw-events'),
-            'professional-dev' => __('Professional Development', 'hmw-events'),
+            'parenting-webinar'      => __('Parenting Webinar', 'hmw-events'),
+            'professional-webinar'   => __('Professional Webinar', 'hmw-events'),
+            'parent-one-off-free'    => __('Parent One-Off Free Event', 'hmw-events'),
+            'parent-walk-in'         => __('Parent Recurring Walk-In', 'hmw-events'),
+            'parent-course'          => __('Parent Multi-Week Course', 'hmw-events'),
+            'professional-online'    => __('Professional Online Event', 'hmw-events'),
+            'professional-in-person' => __('Professional In-Person Event', 'hmw-events'),
         ];
 
         foreach ($defaults as $slug => $name) {
@@ -97,6 +99,62 @@ class EventType
             }
         }
 
-        update_option('hmwevents_event_types_inserted', true);
+        update_option('hmwevents_event_types_inserted_v2', true);
+    }
+
+    public function replace_taxonomy_meta_box(): void
+    {
+        remove_meta_box('hmw_event_typediv', 'hmw_event', 'side');
+        add_meta_box(
+            'hmwevents_event_type_select',
+            __('Event Type', 'hmw-events'),
+            [$this, 'render_event_type_select'],
+            'hmw_event',
+            'side',
+            'high'
+        );
+    }
+
+    public function render_event_type_select(\WP_Post $post): void
+    {
+        $type_terms = wp_get_object_terms($post->ID, 'hmw_event_type', ['fields' => 'slugs']);
+        $current_slug = (!is_wp_error($type_terms) && !empty($type_terms)) ? sanitize_key((string) $type_terms[0]) : '';
+
+        wp_nonce_field('hmwevents_event_type_save', 'hmwevents_event_type_nonce');
+
+        wp_dropdown_categories([
+            'taxonomy'          => 'hmw_event_type',
+            'value_field'       => 'slug',
+            'show_option_none'  => '— Select Event Type —',
+            'option_none_value' => '',
+            'selected'          => $current_slug,
+            'hide_empty'        => false,
+            'hierarchical'      => true,
+            'name'              => 'hmwevents_event_type',
+            'id'                => 'hmwevents-event-type-select',
+        ]);
+    }
+
+    public function save_event_type(int $post_id): void
+    {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+
+        if (!isset($_POST['hmwevents_event_type_nonce']) || !wp_verify_nonce($_POST['hmwevents_event_type_nonce'], 'hmwevents_event_type_save')) {
+            return;
+        }
+
+        if (!current_user_can('edit_post', $post_id)) {
+            return;
+        }
+
+        $type_slug = sanitize_key((string) ($_POST['hmwevents_event_type'] ?? ''));
+
+        if ($type_slug === '') {
+            wp_delete_object_term_relationships($post_id, 'hmw_event_type');
+        } else {
+            wp_set_object_terms($post_id, $type_slug, 'hmw_event_type', false);
+        }
     }
 }

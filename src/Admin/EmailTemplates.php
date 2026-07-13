@@ -662,7 +662,7 @@ class EmailTemplates
       $booking = $wpdb->get_row($wpdb->prepare(
         "SELECT b.*, c.post_author
          FROM {$wpdb->prefix}hmwevents_bookings b
-         INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+         INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
          WHERE b.id = %d AND c.post_author = %d AND b.deleted_at IS NULL",
         $booking_id,
         $user_id
@@ -1167,7 +1167,7 @@ class EmailTemplates
     $query = "SELECT b.id, b.booking_number, c.post_title as course_name, 
                      cu.post_title as customer_name, b.created_at
               FROM {$wpdb->prefix}hmwevents_bookings b
-              INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+              INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
               INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
               WHERE b.deleted_at IS NULL";
 
@@ -1223,10 +1223,6 @@ class EmailTemplates
       'mothers_last_name'  => 'Smith',
       'email'              => 'jane.smith@example.com',
       'phone'              => '0400 000 000',
-      'partner_name'       => 'John Smith',
-      'due_date'           => 'August 2026',
-      'first_baby'         => 'Yes',
-      'health_fund'        => 'Medibank',
     ];
     $sample_fields = [];
     foreach (\HMWEvents\Registry\RegistrationFieldRegistry::for_email() as $key => $field) {

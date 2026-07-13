@@ -697,7 +697,7 @@ class ProcessPayment
     $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_title as course_name
             FROM {$wpdb->prefix}hmwevents_bookings b
-            LEFT JOIN {$wpdb->prefix}posts c ON b.course_post_id = c.ID
+            LEFT JOIN {$wpdb->prefix}posts c ON b.event_post_id = c.ID
             WHERE b.booking_group_id = %d
             LIMIT 1
         ", $booking_group->id));
@@ -718,7 +718,7 @@ class ProcessPayment
     } else {
       // In live mode, use educator's keys if they have Stripe configured,
       // otherwise fall back to plugin live keys (same logic as StripePaymentGateway::get_api_keys).
-      $course = get_post($booking->course_post_id);
+      $course = get_post($booking->event_post_id);
       $educator_id = $course ? (int) $course->post_author : 0;
       $educator_payment_type = get_user_meta($educator_id, 'educator_payment_type', true);
 
@@ -781,7 +781,7 @@ class ProcessPayment
       }
 
       // Get course pricing from ACF fields (stored in dollars)
-      $course_full_price = get_field('_event_price', $booking->course_post_id);
+      $course_full_price = get_field('_event_price', $booking->event_post_id);
       $deposit_paid = floatval($booking_group->total_amount);
 
       if ($course_full_price) {
@@ -831,7 +831,7 @@ class ProcessPayment
       // Amount is stored in dollars.
       global $wpdb;
       $wpdb->insert(
-        $wpdb->prefix . 'educator_payment_transactions',
+        $wpdb->prefix . 'hmwevents_payment_transactions',
         [
           'booking_group_id' => $booking_group->id,
           'gateway' => 'stripe',
@@ -872,7 +872,7 @@ class ProcessPayment
 
         // Update the transaction row so future resume attempts use the real Stripe ID
         $wpdb->update(
-          $wpdb->prefix . 'educator_payment_transactions',
+          $wpdb->prefix . 'hmwevents_payment_transactions',
           ['gateway_transaction_id' => $payment_intent_id],
           ['id' => $transaction->id],
           ['%s'],

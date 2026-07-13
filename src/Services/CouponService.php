@@ -204,7 +204,7 @@ class CouponService
         }
 
         $result = $wpdb->insert(
-            $wpdb->prefix . 'educator_coupon_usage',
+            $wpdb->prefix . 'hmwevents_coupon_usage',
             [
                 'coupon_id' => $coupon_posts[0]->ID,
                 'coupon_code' => strtoupper($coupon_code),

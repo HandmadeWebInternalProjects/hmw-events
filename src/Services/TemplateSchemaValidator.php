@@ -1,14 +1,5 @@
 <?php
 
-/**
- * Template Schema Validator.
- *
- * Normalizes and validates event template payloads.
- *
- * @package HMWEvents\Services
- * @since 2.0.0
- */
-
 namespace HMWEvents\Services;
 
 use HMWEvents\Registry\EventTypeRegistry;
@@ -18,13 +9,15 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class TemplateSchemaValidator
 {
-    /**
-     * Normalize and validate template data.
-     *
-     * Supports both new schema and legacy template format.
-     *
-     * @return array|\WP_Error
-     */
+    const SCHEMA_VERSION = 3;
+
+    const ALLOWED_FIELD_TYPES = [
+        'text', 'email', 'tel', 'textarea', 'select',
+        'checkbox', 'radio', 'date', 'number', 'file',
+    ];
+
+    const ALLOWED_SOURCES = ['registrant_meta', 'booking_details'];
+
     public function normalize(array $template_data): array|\WP_Error
     {
         $normalized = $this->normalize_shape($template_data);
@@ -37,21 +30,11 @@ class TemplateSchemaValidator
         return $normalized;
     }
 
-    /**
-     * Convert legacy payload into the canonical schema.
-     */
     private function normalize_shape(array $template_data): array
     {
         $known_top_level = [
-            'schema_version',
-            'template_version',
-            'post',
-            'event_fields',
-            'registration_fields',
-            'defaults',
-            'meta',
-            'post_title',
-            'post_content',
+            'schema_version', 'template_version', 'post', 'event_fields',
+            'registration_fields', 'defaults', 'meta', 'post_title', 'post_content',
         ];
 
         $legacy_meta = [];
@@ -80,8 +63,24 @@ class TemplateSchemaValidator
 
         $defaults['event_meta'] = array_merge($defaults['event_meta'], $legacy_meta);
 
+        $schema_version = (int) ($template_data['schema_version'] ?? 1);
+
+        if ($schema_version < 2) {
+            $registration_fields = $this->normalize_v1_to_v2($registration_fields);
+            $schema_version = 2;
+        }
+
+        if ($schema_version < 3) {
+            $registration_fields = $this->migrate_v2_to_v3($registration_fields);
+            $schema_version = 3;
+        }
+
+        if ($schema_version >= 3) {
+            $registration_fields = $this->normalize_v3_sections($registration_fields);
+        }
+
         return [
-            'schema_version'      => (int) ($template_data['schema_version'] ?? 1),
+            'schema_version'      => $schema_version,
             'template_version'    => max(1, (int) ($template_data['template_version'] ?? 1)),
             'post'                => [
                 'title_pattern' => sanitize_text_field($post['title_pattern'] ?? ''),
@@ -89,7 +88,7 @@ class TemplateSchemaValidator
                 'post_title'    => sanitize_text_field($post['post_title'] ?? ($template_data['post_title'] ?? '')),
             ],
             'event_fields'        => $this->normalize_field_state($event_fields, true),
-            'registration_fields' => $this->normalize_field_state($registration_fields),
+            'registration_fields' => $registration_fields,
             'defaults'            => [
                 'event_meta'         => $this->sanitize_assoc($defaults['event_meta']),
                 'registration'       => $this->normalize_registration_defaults($defaults['registration'] ?? []),
@@ -98,17 +97,224 @@ class TemplateSchemaValidator
         ];
     }
 
-    /**
-     * Validate normalized data and return plain-text errors.
-     *
-     * @return string[]
-     */
+    private function normalize_v1_to_v2(array $registration_fields): array
+    {
+        $required = $this->sanitize_string_list($registration_fields['required'] ?? []);
+        $optional = $this->sanitize_string_list($registration_fields['optional'] ?? []);
+        $order = array_merge($required, $optional);
+
+        return [
+            'required'        => $required,
+            'optional'        => $optional,
+            'hidden'          => $registration_fields['hidden'] ?? [],
+            'order'           => $order,
+            'field_overrides' => [],
+        ];
+    }
+
+    private function migrate_v2_to_v3(array $registration_fields): array
+    {
+        $registry = RegistrationFieldRegistry::all();
+        $required = $this->sanitize_string_list($registration_fields['required'] ?? []);
+        $optional = $this->sanitize_string_list($registration_fields['optional'] ?? []);
+        $hidden = $this->sanitize_string_list($registration_fields['hidden'] ?? []);
+        $order = $this->sanitize_string_list($registration_fields['order'] ?? []);
+        $overrides = is_array($registration_fields['field_overrides'] ?? null)
+            ? $registration_fields['field_overrides']
+            : [];
+
+        $key_set = [];
+        $order_keys = [];
+        foreach ($order as $k) {
+            if (!in_array($k, $hidden, true) && isset($registry[$k])) {
+                $key_set[$k] = false;
+                $order_keys[] = $k;
+            }
+        }
+        foreach ($required as $k) {
+            if (!in_array($k, $hidden, true) && isset($registry[$k])) {
+                $key_set[$k] = true;
+            }
+        }
+        foreach ($optional as $k) {
+            if (!in_array($k, $hidden, true) && isset($registry[$k]) && !isset($key_set[$k])) {
+                $key_set[$k] = false;
+            }
+        }
+
+        $fields = [];
+        $seen_keys = [];
+
+        foreach ($order_keys as $k) {
+            if (!in_array($k, $seen_keys, true)) {
+                $seen_keys[] = $k;
+                $fields[] = $this->build_migrated_field($k, $registry, $key_set[$k], $overrides);
+            }
+        }
+
+        foreach ($key_set as $k => $is_required) {
+            if (!in_array($k, $seen_keys, true)) {
+                $seen_keys[] = $k;
+                $fields[] = $this->build_migrated_field($k, $registry, $is_required, $overrides);
+            }
+        }
+
+        return [
+            'sections' => [[
+                'id'     => 'general',
+                'label'  => 'General',
+                'fields' => $fields,
+            ]],
+            'multi_booking' => [
+                'enabled' => false,
+                'min'     => 1,
+                'max'     => 10,
+            ],
+        ];
+    }
+
+    private function build_migrated_field(string $key, array $registry, bool $is_required, array $overrides): array
+    {
+        $reg_field = $registry[$key] ?? [];
+        $override = $overrides[$key] ?? [];
+
+        return $this->build_v3_field(
+            $key,
+            $override['label'] ?? $reg_field['label'] ?? $key,
+            $reg_field['type'] ?? 'text',
+            $is_required,
+            $override['placeholder'] ?? '',
+            $override['width'] ?? 'full',
+            $reg_field['source'] ?? 'booking_details',
+            $reg_field['meta_key'] ?? null,
+            is_array($reg_field['options'] ?? null) ? $reg_field['options'] : []
+        );
+    }
+
+    private function build_v3_field(
+        string $key, string $label, string $type, bool $required,
+        string $placeholder, string $width, string $source, ?string $meta_key,
+        array $options = []
+    ): array {
+        $requires_options = in_array($type, ['select', 'checkbox', 'radio'], true);
+
+        if ($requires_options && empty($options)) {
+            if ($type === 'checkbox') {
+                $options = [['value' => '1', 'label' => __('Yes', 'hmw-events')]];
+            } else {
+                $options = [];
+            }
+        }
+
+        return [
+            'key'          => $key,
+            'label'        => $label,
+            'type'         => $type,
+            'required'     => $required,
+            'placeholder'  => $placeholder,
+            'width'        => $width,
+            'source'       => $source,
+            'meta_key'     => $meta_key,
+            'preset'       => ($source === 'registrant_meta'),
+            'per_attendee' => false,
+            'options'      => [],
+        ];
+    }
+
+    private function normalize_v3_sections(array $registration_fields): array
+    {
+        $sections = [];
+        $raw_sections = is_array($registration_fields['sections'] ?? null) ? $registration_fields['sections'] : [];
+
+        foreach ($raw_sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $section_id = sanitize_key($section['id'] ?? 'sec_' . bin2hex(random_bytes(4)));
+            $fields = [];
+
+            foreach ($section['fields'] as $raw_field) {
+                if (!is_array($raw_field)) {
+                    continue;
+                }
+
+                $fields[] = $this->normalize_v3_field($raw_field);
+            }
+
+            $sections[] = [
+                'id'     => $section_id,
+                'label'  => sanitize_text_field($section['label'] ?? $section_id),
+                'fields' => $fields,
+            ];
+        }
+
+        $multi_booking = is_array($registration_fields['multi_booking'] ?? null)
+            ? $registration_fields['multi_booking']
+            : [];
+
+        return [
+            'sections'      => $sections,
+            'multi_booking' => [
+                'enabled' => (bool) ($multi_booking['enabled'] ?? false),
+                'min'     => max(1, (int) ($multi_booking['min'] ?? 1)),
+                'max'     => max(1, (int) ($multi_booking['max'] ?? 10)),
+            ],
+        ];
+    }
+
+    private function normalize_v3_field(array $field): array
+    {
+        $type = sanitize_key($field['type'] ?? 'text');
+
+        $source = sanitize_key($field['source'] ?? 'booking_details');
+        if (!in_array($source, self::ALLOWED_SOURCES, true)) {
+            $source = 'booking_details';
+        }
+
+        $width = sanitize_key($field['width'] ?? 'full');
+        if (!in_array($width, ['half', 'full'], true)) {
+            $width = 'full';
+        }
+
+        $requires_options = in_array($type, ['select', 'checkbox', 'radio'], true);
+        $options = [];
+
+        if ($requires_options) {
+            $raw_options = is_array($field['options'] ?? null) ? $field['options'] : [];
+            foreach ($raw_options as $opt) {
+                if (!is_array($opt)) {
+                    continue;
+                }
+                $options[] = [
+                    'value' => sanitize_text_field($opt['value'] ?? ''),
+                    'label' => sanitize_text_field($opt['label'] ?? ''),
+                ];
+            }
+        }
+
+        return [
+            'key'          => sanitize_key($field['key'] ?? 'field_' . bin2hex(random_bytes(4))),
+            'label'        => sanitize_text_field($field['label'] ?? ''),
+            'type'         => $type,
+            'required'     => (bool) ($field['required'] ?? false),
+            'placeholder'  => sanitize_text_field($field['placeholder'] ?? ''),
+            'width'        => $width,
+            'source'       => $source,
+            'meta_key'     => $field['meta_key'] ?? null,
+            'preset'       => (bool) ($field['preset'] ?? false),
+            'per_attendee' => (bool) ($field['per_attendee'] ?? false),
+            'options'      => $options,
+        ];
+    }
+
     private function validate(array $data): array
     {
         $errors = [];
 
-        if (($data['schema_version'] ?? 0) !== 1) {
-            $errors[] = 'Unsupported schema_version; expected 1.';
+        $schema_version = (int) ($data['schema_version'] ?? 0);
+        if ($schema_version < 1 || $schema_version > self::SCHEMA_VERSION) {
+            $errors[] = sprintf('Unsupported schema_version; expected between 1 and %d.', self::SCHEMA_VERSION);
         }
 
         $known_event_fields = $this->get_known_event_field_keys();
@@ -120,32 +326,172 @@ class TemplateSchemaValidator
             }
         }
 
-        $known_registration_fields = array_keys(RegistrationFieldRegistry::all());
+        if ($schema_version >= 3) {
+            $errors = array_merge($errors, $this->validate_sections($data));
+            $errors = array_merge($errors, $this->validate_multi_booking($data));
+        } elseif ($schema_version >= 2) {
+            $errors = array_merge($errors, $this->validate_v2_registration($data));
+        }
+
+        return $errors;
+    }
+
+    private function validate_v2_registration(array $data): array
+    {
+        $errors = [];
+        $known = array_keys(RegistrationFieldRegistry::all());
+
         foreach (['required', 'optional', 'hidden'] as $bucket) {
             foreach ($data['registration_fields'][$bucket] as $key) {
-                if (!in_array($key, $known_registration_fields, true)) {
+                if (!in_array($key, $known, true)) {
                     $errors[] = sprintf('Unknown registration field: %s.', $key);
                 }
             }
         }
 
-        foreach ($data['defaults']['registration']['field_overrides'] as $field_key => $field_override) {
-            if (!in_array($field_key, $known_registration_fields, true)) {
-                $errors[] = sprintf('Unknown field override key: %s.', $field_key);
+        foreach ($data['registration_fields']['order'] as $key) {
+            if (!in_array($key, $known, true)) {
+                $errors[] = sprintf('Unknown registration field in order: %s.', $key);
+            }
+        }
+
+        foreach ($data['registration_fields']['field_overrides'] as $field_key => $override) {
+            if (!in_array($field_key, $known, true)) {
+                $errors[] = sprintf('Unknown registration field override key: %s.', $field_key);
                 continue;
             }
 
-            if (!is_array($field_override)) {
-                $errors[] = sprintf('Invalid field override shape for: %s.', $field_key);
+            if (!is_array($override)) {
+                $errors[] = sprintf('Invalid registration field override shape for: %s.', $field_key);
             }
         }
 
         return $errors;
     }
 
-    /**
-     * @return array{required:string[], optional:string[], hidden:string[]}
-     */
+    private function validate_sections(array $data): array
+    {
+        $errors = [];
+        $sections = $data['registration_fields']['sections'];
+        $multi_enabled = (bool) ($data['registration_fields']['multi_booking']['enabled'] ?? false);
+
+        if (empty($sections)) {
+            return $errors;
+        }
+
+        $section_ids = [];
+        $all_field_keys = [];
+
+        foreach ($sections as $si => $section) {
+            $id = $section['id'] ?? '';
+            if ($id === '') {
+                $errors[] = sprintf('Section %d has an empty id.', $si);
+            } elseif (in_array($id, $section_ids, true)) {
+                $errors[] = sprintf('Duplicate section id: %s.', $id);
+            } else {
+                $section_ids[] = $id;
+            }
+
+            $label = $section['label'] ?? '';
+            if ($label === '') {
+                $errors[] = sprintf('Section "%s" has an empty label.', $id);
+            }
+
+            $fields = $section['fields'] ?? [];
+            if (!is_array($fields) || empty($fields)) {
+                continue;
+            }
+
+            foreach ($fields as $fi => $field) {
+                $fkey = $field['key'] ?? '';
+                if ($fkey === '') {
+                    $errors[] = sprintf('Section "%s" field %d has an empty key.', $id, $fi);
+                    continue;
+                }
+
+                if (in_array($fkey, $all_field_keys, true)) {
+                    $errors[] = sprintf('Duplicate field key "%s" in section "%s".', $fkey, $id);
+                } else {
+                    $all_field_keys[] = $fkey;
+                }
+
+                if (empty($field['label'])) {
+                    $errors[] = sprintf('Field "%s" in section "%s" has an empty label.', $fkey, $id);
+                }
+
+                $type = $field['type'] ?? '';
+                if (!in_array($type, self::ALLOWED_FIELD_TYPES, true)) {
+                    $errors[] = sprintf('Field "%s" has invalid type "%s".', $fkey, $type);
+                }
+
+                $source = $field['source'] ?? '';
+                if (!in_array($source, self::ALLOWED_SOURCES, true)) {
+                    $errors[] = sprintf('Field "%s" has invalid source "%s".', $fkey, $source);
+                }
+
+                $width = $field['width'] ?? '';
+                if (!in_array($width, ['half', 'full'], true)) {
+                    $errors[] = sprintf('Field "%s" has invalid width "%s".', $fkey, $width);
+                }
+
+                $requires_options = in_array($type, ['select', 'checkbox', 'radio'], true);
+                if ($requires_options) {
+                    $options = $field['options'] ?? [];
+                    if (!is_array($options) || empty($options)) {
+                        $errors[] = sprintf('Field "%s" of type "%s" requires at least one option.', $fkey, $type);
+                    } else {
+                        foreach ($options as $oi => $opt) {
+                            if (!is_array($opt) || !isset($opt['value']) || !isset($opt['label'])) {
+                                $errors[] = sprintf('Field "%s" option %d is invalid (needs value and label).', $fkey, $oi);
+                            }
+                        }
+                    }
+                }
+
+                if (!is_bool($field['required'])) {
+                    $errors[] = sprintf('Field "%s" required must be boolean.', $fkey);
+                }
+
+                if (!is_bool($field['per_attendee'])) {
+                    $errors[] = sprintf('Field "%s" per_attendee must be boolean.', $fkey);
+                }
+
+                if ($field['per_attendee'] && !$multi_enabled) {
+                    $errors[] = sprintf('Field "%s" has per_attendee=true but multi-booking is disabled.', $fkey);
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    private function validate_multi_booking(array $data): array
+    {
+        $errors = [];
+        $mb = $data['registration_fields']['multi_booking'];
+
+        if (!isset($mb['enabled']) || !is_bool($mb['enabled'])) {
+            $errors[] = 'multi_booking.enabled must be a boolean.';
+        }
+
+        $min = (int) ($mb['min'] ?? 1);
+        $max = (int) ($mb['max'] ?? 10);
+
+        if ($min < 1) {
+            $errors[] = 'multi_booking.min must be at least 1.';
+        }
+
+        if ($max < 1 || $max > 100) {
+            $errors[] = 'multi_booking.max must be between 1 and 100.';
+        }
+
+        if ($min > $max) {
+            $errors[] = 'multi_booking.min must be less than or equal to max.';
+        }
+
+        return $errors;
+    }
+
     private function normalize_field_state(array $state, bool $event_fields = false): array
     {
         $required = $this->sanitize_string_list($state['required'] ?? []);
@@ -158,11 +504,8 @@ class TemplateSchemaValidator
             $hidden = $this->canonicalize_event_field_list($hidden);
         }
 
-        // Hidden wins.
         $required = array_values(array_diff($required, $hidden));
         $optional = array_values(array_diff($optional, $hidden));
-
-        // Required wins over optional.
         $optional = array_values(array_diff($optional, $required));
 
         return [
@@ -172,10 +515,6 @@ class TemplateSchemaValidator
         ];
     }
 
-    /**
-     * @param string[] $keys
-     * @return string[]
-     */
     private function canonicalize_event_field_list(array $keys): array
     {
         $normalized = [];
@@ -192,9 +531,6 @@ class TemplateSchemaValidator
         return array_values(array_unique($normalized));
     }
 
-    /**
-     * @return array{attendance_default:string, field_overrides:array<string, array{label:string, placeholder:string}>}
-     */
     private function normalize_registration_defaults(array $registration): array
     {
         $attendance_default = sanitize_key($registration['attendance_default'] ?? 'individual');
@@ -221,9 +557,6 @@ class TemplateSchemaValidator
         ];
     }
 
-    /**
-     * @return array<int, array{option_type:string, label:string, price:float}>
-     */
     private function normalize_attendance_options(array $options): array
     {
         $clean = [];
@@ -250,10 +583,6 @@ class TemplateSchemaValidator
         return $clean;
     }
 
-    /**
-     * @param array<string,mixed> $data
-     * @return array<string,mixed>
-     */
     private function sanitize_assoc(array $data): array
     {
         $clean = [];
@@ -264,10 +593,6 @@ class TemplateSchemaValidator
         return $clean;
     }
 
-    /**
-     * @param mixed $list
-     * @return string[]
-     */
     private function sanitize_string_list($list): array
     {
         if (!is_array($list)) {
@@ -291,44 +616,55 @@ class TemplateSchemaValidator
         return array_values(array_unique($clean));
     }
 
-    /**
-     * @return string[]
-     */
     private function get_known_event_field_keys(): array
     {
         $keys = [];
-        $all = EventTypeRegistry::all();
 
+        if (defined('HMWEvents_ABSPATH')) {
+            $json_file = HMWEvents_ABSPATH . 'acf-json/group_hmw_event_details.json';
+            if (file_exists($json_file)) {
+                $contents = file_get_contents($json_file);
+                $data = json_decode((string) $contents, true);
+                if (is_array($data) && !empty($data['fields'])) {
+                    foreach ($data['fields'] as $field) {
+                        $meta_name = $field['name'] ?? '';
+                        if ($meta_name === '') {
+                            continue;
+                        }
+
+                        $normalized = sanitize_key($meta_name);
+                        if (str_starts_with($normalized, '_event_')) {
+                            $normalized = substr($normalized, 1);
+                        }
+
+                        $keys[] = $normalized;
+                        if (str_starts_with($normalized, 'event_')) {
+                            $keys[] = '_' . $normalized;
+                        }
+                    }
+                }
+            }
+        }
+
+        $all = EventTypeRegistry::all();
         foreach ($all as $config) {
             foreach (($config['hidden_fields'] ?? []) as $field) {
                 $normalized = sanitize_key((string) $field);
                 $keys[] = $normalized;
-                if (str_starts_with($normalized, 'event_')) {
-                    $keys[] = '_' . $normalized;
-                }
             }
             foreach (($config['required_fields'] ?? []) as $field) {
                 $normalized = sanitize_key((string) $field);
                 $keys[] = $normalized;
-                if (str_starts_with($normalized, 'event_')) {
-                    $keys[] = '_' . $normalized;
-                }
             }
             foreach (array_keys($config['default_meta'] ?? []) as $field) {
                 $normalized = sanitize_key((string) $field);
                 $keys[] = $normalized;
-                if (str_starts_with($normalized, 'event_')) {
-                    $keys[] = '_' . $normalized;
-                }
             }
         }
 
         foreach (array_keys(EventTypeRegistry::defaults()['default_meta'] ?? []) as $field) {
             $normalized = sanitize_key((string) $field);
             $keys[] = $normalized;
-            if (str_starts_with($normalized, 'event_')) {
-                $keys[] = '_' . $normalized;
-            }
         }
 
         $keys = array_filter(array_unique($keys));

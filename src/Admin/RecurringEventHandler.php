@@ -430,6 +430,13 @@ class RecurringEventHandler
 
             update_post_meta($clone_id, '_cloned_from', $post_id);
 
+            $template_override = get_post_meta($post_id, '_event_template_override', true);
+            $apply_to_children = get_post_meta($post_id, '_event_template_override_apply_to_children', true);
+            if ($template_override && $apply_to_children) {
+                update_post_meta($clone_id, '_event_template_override', $template_override);
+                update_post_meta($clone_id, '_event_template_override_apply_to_children', $apply_to_children);
+            }
+
             $clone_ids_map[$date_suffix] = $clone_id;
 
             $cloned_count++;
@@ -714,6 +721,13 @@ class RecurringEventHandler
             EventHelper::ensure_course_availability_row($clone_id);
 
             update_post_meta($clone_id, '_cloned_from', $post_id);
+
+            $template_override = get_post_meta($post_id, '_event_template_override', true);
+            $apply_to_children = get_post_meta($post_id, '_event_template_override_apply_to_children', true);
+            if ($template_override && $apply_to_children) {
+                update_post_meta($clone_id, '_event_template_override', $template_override);
+                update_post_meta($clone_id, '_event_template_override_apply_to_children', $apply_to_children);
+            }
 
             $new_map[$date_suffix] = $clone_id;
             $cloned_count++;

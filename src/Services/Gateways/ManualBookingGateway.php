@@ -89,13 +89,10 @@ class ManualBookingGateway extends AbstractPaymentGateway
      *   @type string $customer_last_name   Required.
      *   @type string $registrant_email       Required.
      *   @type string $customer_phone
-     *   @type string $partner_name
      *   @type string $street_address
      *   @type string $city
      *   @type string $postcode
      *   @type int    $course_id            Required.
-     *   @type string $due_date
-     *   @type string $health_fund
      *   @type string $dietary_requirements
      * }
      * @return array|\WP_Error Result array or error.
@@ -130,7 +127,6 @@ class ManualBookingGateway extends AbstractPaymentGateway
                 'street_address'      => $booking_data['street_address'] ?? '',
                 'city'                => $booking_data['city'] ?? '',
                 'postcode'            => $booking_data['postcode'] ?? '',
-                'partner_name'        => $booking_data['partner_name'] ?? '',
             ]);
 
             if (is_wp_error($customer_id)) {
@@ -138,7 +134,7 @@ class ManualBookingGateway extends AbstractPaymentGateway
             }
 
             // 2. Check course availability
-            if (!Course::check_course_availability($course_id)) {
+            if (!EventHelper::check_course_availability($course_id)) {
                 throw new \Exception(__('This course is fully booked.', 'hmw-events'));
             }
 
@@ -174,7 +170,7 @@ class ManualBookingGateway extends AbstractPaymentGateway
             $booking_id = $this->create_booking([
                 'booking_group_id' => $booking_group_id,
                 'booking_number'   => $booking_number,
-                'course_post_id'   => $course_id,
+                'event_post_id'   => $course_id,
                 'customer_post_id' => $customer_id,
                 'ticket_type'      => 'full',
                 'ticket_quantity'  => 1,

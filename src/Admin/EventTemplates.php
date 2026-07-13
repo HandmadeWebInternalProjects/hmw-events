@@ -50,20 +50,6 @@ class EventTemplates
         $this->localize_template_editor_data();
 
         ?>
-        <style>
-        .hmwevents-field-hidden td { opacity: 0.4; }
-        .hmwevents-field-required td { font-weight: 600; background: #f0f6fc; }
-        .hmwevents-audience-badge { font-size: 10px; background: #e0e0e0; color: #555; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
-        .hmwevents-section { margin-bottom: 24px; background: #fff; border: 1px solid #c3c4c7; padding: 16px; }
-        .hmwevents-section h3 { margin-top: 0; padding-bottom: 8px; border-bottom: 1px solid #eee; }
-        .hmwevents-section table { margin-top: 8px; }
-        .hmwevents-editor-notice { padding: 8px 12px; margin: 0 0 12px; background: #f0f6fc; border-left: 4px solid #2271b1; }
-        #hmwevents-json-preview { background: #f6f7f7; padding: 12px; overflow-x: auto; max-height: 350px; display: none; margin-top: 8px; }
-        #hmwevents-advanced-edit { display: none; margin-top: 8px; }
-        #hmwevents-template-save-status { margin: 8px 0; }
-        .hmwevents-toggle-row { margin: 8px 0; font-size: 12px; }
-        .hmwevents-toggle-row a { text-decoration: none; }
-        </style>
         <div class="wrap">
             <h1><?php esc_html_e('Event Templates', 'hmw-events'); ?></h1>
             <p><?php esc_html_e('Templates are global and can be used by any admin.', 'hmw-events'); ?></p>
@@ -151,14 +137,14 @@ class EventTemplates
                 <!-- Event Fields -->
                 <div class="hmwevents-section">
                     <h3><?php esc_html_e('Event Fields (from ACF)', 'hmw-events'); ?></h3>
-                    <p class="description"><?php esc_html_e('Set visibility for each ACF event detail field. Hidden fields are removed from the edit screen. Required fields are marked mandatory.', 'hmw-events'); ?></p>
+                    <p class="description"><?php esc_html_e('Drag fields between columns. Fields in the left column are hidden from the event edit screen. Check \'Required\' to make a field mandatory.', 'hmw-events'); ?></p>
                     <div id="hmwevents-event-fields-container"></div>
                 </div>
 
                 <!-- Registration Fields -->
                 <div class="hmwevents-section">
-                    <h3><?php esc_html_e('Registration Fields', 'hmw-events'); ?></h3>
-                    <p class="description"><?php esc_html_e('Set visibility for registration form fields. Audience badges show which registrant types see the field.', 'hmw-events'); ?></p>
+                    <h3><?php esc_html_e('Registration Form Builder', 'hmw-events'); ?></h3>
+                    <p class="description"><?php esc_html_e('Drag to reorder fields and move between section groups. Click a field name to edit its label and placeholder. Use the section dropdown to reassign fields.', 'hmw-events'); ?></p>
                     <div id="hmwevents-registration-fields-container"></div>
                 </div>
 
@@ -218,6 +204,71 @@ class EventTemplates
                 </form>
             <?php endif; ?>
         </div>
+
+        <div id="hmwevents-field-modal" style="display:none;">
+            <div class="hmwevents-modal-body">
+                <div class="hmwevents-modal-presets">
+                    <p><strong><?php esc_html_e('Quick Presets', 'hmw-events'); ?></strong></p>
+                    <div id="hmwevents-modal-preset-buttons"></div>
+                    <hr>
+                </div>
+                <table class="form-table">
+                    <tr>
+                        <th><label for="hmwevents-modal-key"><?php esc_html_e('Field Key', 'hmw-events'); ?></label></th>
+                        <td><input type="text" id="hmwevents-modal-key" class="regular-text" placeholder="e.g. custom_field"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-label"><?php esc_html_e('Label', 'hmw-events'); ?></label></th>
+                        <td><input type="text" id="hmwevents-modal-label" class="regular-text"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-placeholder"><?php esc_html_e('Placeholder', 'hmw-events'); ?></label></th>
+                        <td><input type="text" id="hmwevents-modal-placeholder" class="regular-text"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-type"><?php esc_html_e('Type', 'hmw-events'); ?></label></th>
+                        <td>
+                            <select id="hmwevents-modal-type">
+                                <option value="text"><?php esc_html_e('Text', 'hmw-events'); ?></option>
+                                <option value="email"><?php esc_html_e('Email', 'hmw-events'); ?></option>
+                                <option value="tel"><?php esc_html_e('Phone', 'hmw-events'); ?></option>
+                                <option value="textarea"><?php esc_html_e('Textarea', 'hmw-events'); ?></option>
+                                <option value="select"><?php esc_html_e('Select / Dropdown', 'hmw-events'); ?></option>
+                                <option value="checkbox"><?php esc_html_e('Checkbox', 'hmw-events'); ?></option>
+                                <option value="radio"><?php esc_html_e('Radio', 'hmw-events'); ?></option>
+                                <option value="date"><?php esc_html_e('Date', 'hmw-events'); ?></option>
+                                <option value="number"><?php esc_html_e('Number', 'hmw-events'); ?></option>
+                                <option value="file"><?php esc_html_e('File Upload', 'hmw-events'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-required"><?php esc_html_e('Required', 'hmw-events'); ?></label></th>
+                        <td><input type="checkbox" id="hmwevents-modal-required"> <?php esc_html_e('Make this field required', 'hmw-events'); ?></td>
+                    </tr>
+                    <tr>
+                        <th><?php esc_html_e('Width', 'hmw-events'); ?></th>
+                        <td>
+                            <label><input type="radio" name="hmwevents-modal-width" value="half"> <?php esc_html_e('Half', 'hmw-events'); ?></label>
+                            <label style="margin-left:12px;"><input type="radio" name="hmwevents-modal-width" value="full" checked> <?php esc_html_e('Full', 'hmw-events'); ?></label>
+                        </td>
+                    </tr>
+                </table>
+                <div id="hmwevents-modal-options-panel" style="display:none;">
+                    <h4><?php esc_html_e('Options', 'hmw-events'); ?></h4>
+                    <ul id="hmwevents-modal-options-list" class="hmwevents-modal-options-list"></ul>
+                    <button type="button" class="button button-small" id="hmwevents-modal-add-option" style="margin-top:4px;">+ <?php esc_html_e('Add Option', 'hmw-events'); ?></button>
+                </div>
+                <p id="hmwevents-modal-per-attendee-row" style="display:none;">
+                    <label><input type="checkbox" id="hmwevents-modal-per-attendee"> <?php esc_html_e('Repeat this field for each attendee (multi-booking)', 'hmw-events'); ?></label>
+                </p>
+                <p style="margin-top:12px;">
+                    <button type="button" class="button button-primary" id="hmwevents-modal-save"><?php esc_html_e('Save Field', 'hmw-events'); ?></button>
+                    <button type="button" class="button" onclick="tb_remove(); return false;"><?php esc_html_e('Cancel', 'hmw-events'); ?></button>
+                    <button type="button" class="button button-link-delete" id="hmwevents-modal-delete" style="float:right;color:#b32d2e;"><?php esc_html_e('Delete Field', 'hmw-events'); ?></button>
+                </p>
+            </div>
+        </div>
         <?php
     }
 
@@ -228,10 +279,23 @@ class EventTemplates
         $presets = $this->get_registry_presets_for_editor();
 
         wp_localize_script('hmwevents-event-templates', 'hmwEventTemplates', [
-            'acfEventFields'      => $acf_fields,
-            'registrationFields'  => $reg_fields,
-            'registryPresets'     => $presets,
+            'acfEventFields'       => $acf_fields,
+            'registrationFields'   => $reg_fields,
+            'registryPresets'      => $presets,
+            'sectionLabels'        => $this->get_section_labels(),
+            'registrationPresets'  => \HMWEvents\Registry\RegistrationFieldRegistry::presets(),
         ]);
+    }
+
+    private function get_section_labels(): array
+    {
+        return [
+            'contact'           => __('Contact', 'hmw-events'),
+            'address'           => __('Address', 'hmw-events'),
+            'professional'      => __('Professional', 'hmw-events'),
+            'documents'         => __('Documents', 'hmw-events'),
+            'additional'        => __('Additional', 'hmw-events'),
+        ];
     }
 
     private function get_acf_event_fields(): array
@@ -320,11 +384,14 @@ class EventTemplates
             }
 
             $fields[] = [
-                'key'               => sanitize_key((string) $key),
-                'label'             => $def['label'] ?? $key,
-                'type'              => $def['type'] ?? 'text',
-                'section'           => $def['section'] ?? '',
-                'audience_variants' => array_values($audience),
+                'key'                 => sanitize_key((string) $key),
+                'label'               => $def['label'] ?? $key,
+                'type'                => $def['type'] ?? 'text',
+                'section'             => $def['section'] ?? '',
+                'default_section'     => $def['section'] ?? '',
+                'default_width'       => $def['width'] ?? 'full',
+                'default_placeholder' => $def['placeholder'] ?? '',
+                'audience_variants'   => array_values($audience),
             ];
         }
 
@@ -472,7 +539,7 @@ class EventTemplates
     private function get_default_template_data(): array
     {
         return [
-            'schema_version'      => 1,
+            'schema_version'      => 2,
             'template_version'    => 1,
             'post'                => [
                 'title_pattern' => '',
@@ -484,9 +551,11 @@ class EventTemplates
                 'hidden'   => [],
             ],
             'registration_fields' => [
-                'required' => ['first_name', 'last_name', 'email', 'phone'],
-                'optional' => [],
-                'hidden'   => [],
+                'required'        => ['first_name', 'last_name', 'email', 'phone'],
+                'optional'        => [],
+                'hidden'          => [],
+                'order'           => [],
+                'field_overrides' => new \stdClass(),
             ],
             'defaults'            => [
                 'event_meta'         => [

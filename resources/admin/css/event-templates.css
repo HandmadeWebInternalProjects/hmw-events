@@ -1,0 +1,51 @@
+.hmwevents-dnd-container { display: flex; gap: 20px; margin-top: 12px; }
+.hmwevents-dnd-panel { flex: 1; min-height: 100px; background: #f6f7f7; border: 1px solid #c3c4c7; border-radius: 4px; padding: 8px; }
+.hmwevents-dnd-panel h4 { margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; color: #3c434a; }
+.hmwevents-dnd-sortable { list-style: none; margin: 0; padding: 0; min-height: 30px; }
+.hmwevents-dnd-available .hmwevents-dnd-item { opacity: 0.5; background: #f0f0f1; }
+.hmwevents-dnd-included .hmwevents-dnd-item { background: #fff; }
+.hmwevents-dnd-item { display: flex; align-items: center; padding: 6px 8px; margin-bottom: 4px; border: 1px solid #dcdcde; border-radius: 3px; background: #fff; cursor: default; user-select: none; }
+.hmwevents-dnd-item.ui-sortable-helper { opacity: 0.8; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.hmwevents-dnd-handle { cursor: grab; color: #8c8f94; margin-right: 8px; font-size: 14px; }
+.hmwevents-dnd-handle:active { cursor: grabbing; }
+.hmwevents-dnd-label { flex: 1; font-size: 13px; }
+.hmwevents-dnd-label strong { font-weight: 600; }
+.hmwevents-dnd-label code { font-size: 11px; color: #646970; margin-left: 4px; }
+.hmwevents-dnd-required { margin-left: auto; white-space: nowrap; }
+.hmwevents-dnd-required input { margin-right: 3px; }
+.hmwevents-dnd-placeholder { border: 2px dashed #2271b1; background: #f0f6fc; min-height: 36px; margin-bottom: 4px; border-radius: 3px; }
+
+.hmwevents-fb-section { border: 1px solid #c3c4c7; border-radius: 4px; margin-bottom: 12px; background: #fff; }
+.hmwevents-fb-section-header { display: flex; align-items: center; padding: 8px 12px; background: #f0f0f1; border-bottom: 1px solid #c3c4c7; gap: 8px; }
+.hmwevents-fb-section-header .hmwevents-dnd-handle { cursor: grab; }
+.hmwevents-fb-delete-section { cursor: pointer; background: none; border: none; color: #b32d2e; font-size: 18px; padding: 0 4px; }
+.hmwevents-fb-delete-section:hover { color: #d63638; }
+.hmwevents-fb-section-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; min-height: 40px; }
+.hmwevents-fb-field-card { border: 1px solid #dcdcde; border-radius: 3px; background: #fff; cursor: pointer; user-select: none; }
+.hmwevents-fb-field-card:hover { border-color: #2271b1; }
+.hmwevents-fb-field-card.ui-sortable-helper { opacity: 0.8; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.hmwevents-fb-field-card-inner { display: flex; align-items: center; padding: 6px 8px; gap: 6px; }
+.hmwevents-fb-field-card .hmwevents-dnd-handle { cursor: grab; color: #8c8f94; flex-shrink: 0; }
+.hmwevents-fb-field-label { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hmwevents-fb-field-req { color: #b32d2e; }
+.hmwevents-fb-field-type { font-size: 10px; color: #787c82; background: #f0f0f1; padding: 1px 5px; border-radius: 2px; text-transform: uppercase; flex-shrink: 0; }
+.hmwevents-fb-field-per-attendee { font-size: 12px; color: #2271b1; flex-shrink: 0; }
+.hmwevents-fb-field--full { grid-column: span 2; }
+.hmwevents-fb-add-field { margin: 0 8px 8px; }
+.hmwevents-fb-grid-placeholder { border: 2px dashed #2271b1; border-radius: 3px; min-height: 36px; background: #f0f6fc; grid-column: span 1; }
+.hmwevents-fb-grid-placeholder.hmwevents-fb-field--full { grid-column: span 2; }
+
+.hmwevents-modal-body { padding: 16px; }
+.hmwevents-modal-body .form-table th { width: 120px; padding: 8px 10px 8px 0; }
+.hmwevents-modal-body .form-table td { padding: 8px 0; }
+.hmwevents-modal-presets { margin-bottom: 12px; }
+.hmwevents-preset-btn { margin-right: 4px; margin-bottom: 4px; cursor: pointer; }
+
+.hmwevents-section { margin-bottom: 24px; background: #fff; border: 1px solid #c3c4c7; padding: 16px; }
+.hmwevents-section h3 { margin-top: 0; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+.hmwevents-editor-notice { padding: 8px 12px; margin: 0 0 12px; background: #f0f6fc; border-left: 4px solid #2271b1; }
+#hmwevents-json-preview { background: #f6f7f7; padding: 12px; overflow-x: auto; max-height: 350px; display: none; margin-top: 8px; }
+#hmwevents-advanced-edit { display: none; margin-top: 8px; }
+#hmwevents-template-save-status { margin: 8px 0; }
+.hmwevents-toggle-row { margin: 8px 0; font-size: 12px; }
+.hmwevents-toggle-row a { text-decoration: none; }

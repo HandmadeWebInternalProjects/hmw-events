@@ -91,7 +91,7 @@ class StatusChangeHandler extends AbstractEmailHandler
         }
 
         // Get course details
-        $course = get_post($booking->course_post_id);
+        $course = get_post($booking->event_post_id);
         if (!$course) {
             error_log('Course not found for status change: ' . $booking_id);
             return false;
@@ -294,7 +294,7 @@ class StatusChangeHandler extends AbstractEmailHandler
         );
 
         // Get fresh course details
-        $course = get_post($booking->course_post_id);
+        $course = get_post($booking->event_post_id);
         if (!$course) {
             error_log('Course not found for booking: ' . $booking_id);
             return [];

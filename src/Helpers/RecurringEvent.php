@@ -195,7 +195,7 @@ class RecurringEvent
                 $wpdb->replace(
                     $wpdb->prefix . 'educator_course_availability',
                     [
-                        'course_post_id' => $instance_id,
+                        'event_post_id' => $instance_id,
                         'capacity' => $capacity,
                         'booked_count' => 0,
                         'available_count' => $capacity,
@@ -499,7 +499,7 @@ class RecurringEvent
 
                 // Check if this instance has bookings
                 $has_bookings = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->prefix}hmwevents_bookings WHERE course_post_id = %d",
+                    "SELECT COUNT(*) FROM {$wpdb->prefix}hmwevents_bookings WHERE event_post_id = %d",
                     $instance_id
                 ));
 

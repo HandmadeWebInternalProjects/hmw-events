@@ -611,6 +611,8 @@ class SessionService
             '_event_recurrence_end_type',
             '_event_recurrence_end_date',
             '_event_recurrence_max_occurrences',
+            '_event_template_override',
+            '_event_template_override_apply_to_children',
         ];
         foreach ($parent_meta as $key => $values) {
             if (in_array($key, $skip_keys, true)) {
@@ -634,6 +636,13 @@ class SessionService
         $thumbnail_id = get_post_thumbnail_id($parent->ID);
         if ($thumbnail_id) {
             set_post_thumbnail($child_id, $thumbnail_id);
+        }
+
+        $template_override = get_post_meta($parent->ID, '_event_template_override', true);
+        $apply_to_children = get_post_meta($parent->ID, '_event_template_override_apply_to_children', true);
+        if ($template_override && $apply_to_children) {
+            update_post_meta($child_id, '_event_template_override', $template_override);
+            update_post_meta($child_id, '_event_template_override_apply_to_children', $apply_to_children);
         }
 
         return $child_id;

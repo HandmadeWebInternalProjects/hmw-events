@@ -216,7 +216,7 @@ class PaymentGateway
         $metadata_array['recovery_token_expires'] = $expires;
 
         $wpdb->update(
-            $wpdb->prefix . 'educator_booking_groups',
+            $wpdb->prefix . 'hmwevents_booking_groups',
             ['metadata' => json_encode($metadata_array)],
             ['id' => $booking_group_id],
             ['%s'],
@@ -264,7 +264,7 @@ class PaymentGateway
         $booking = $wpdb->get_row($wpdb->prepare(
             "SELECT b.*, c.post_title as course_name 
             FROM {$wpdb->prefix}hmwevents_bookings b
-            LEFT JOIN {$wpdb->prefix}posts c ON b.course_post_id = c.ID
+            LEFT JOIN {$wpdb->prefix}posts c ON b.event_post_id = c.ID
             WHERE b.booking_group_id = %d
             LIMIT 1",
             $booking_group_id

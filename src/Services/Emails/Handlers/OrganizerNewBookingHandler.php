@@ -51,11 +51,11 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
             $educator_id = (int) $booking_data['educator_id'];
         } else {
             $row = $wpdb->get_row($wpdb->prepare(
-                "SELECT b.course_post_id FROM {$wpdb->prefix}hmwevents_bookings b WHERE b.id = %d",
+                "SELECT b.event_post_id FROM {$wpdb->prefix}hmwevents_bookings b WHERE b.id = %d",
                 $booking_id
             ));
             if ($row) {
-                $course = get_post($row->course_post_id);
+                $course = get_post($row->event_post_id);
                 if ($course) {
                     $educator_id = (int) $course->post_author;
                 }
@@ -126,7 +126,7 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
         }
 
         // Course details.
-        $course = get_post($booking_data['course_post_id'] ?? null);
+        $course = get_post($booking_data['event_post_id'] ?? null);
         if (!$course) {
             error_log('EducatorNewBookingHandler: Course not found for booking: ' . $booking_id);
             return [];

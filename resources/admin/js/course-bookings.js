@@ -146,7 +146,7 @@ jQuery(document).ready(function($) {
 
     // Basic required-field validation
     var missing = false;
-    $container.find('[required]').each(function() {
+    $container.find('[data-required]').each(function() {
       if (!$(this).val().trim()) { missing = true; $(this).focus(); return false; }
     });
     if (missing) {
@@ -340,6 +340,44 @@ jQuery(document).ready(function($) {
         var errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : cmsBookings.i18n.error;
         alert(errorMsg);
         $link.text('Send Payment Link');
+      }
+    });
+  });
+
+  $(document).on('click', '.hmwevents-mark-as-paid', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var $link     = $(this);
+    var bookingId = $link.attr('data-booking-id');
+    var confirmMsg = cmsBookings.i18n.confirmMarkAsPaid || 'Mark this booking as paid?';
+
+    if (!bookingId) {
+      alert('Error: No booking ID found.');
+      return;
+    }
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    $link.text(cmsBookings.i18n.saving || 'Saving\u2026');
+
+    $.ajax({
+      url: restUrl + '/booking/mark-as-paid',
+      type: 'POST',
+      beforeSend: function(xhr) {
+        xhr.setRequestHeader('X-WP-Nonce', restNonce);
+      },
+      data: JSON.stringify({ booking_id: parseInt(bookingId, 10) }),
+      contentType: 'application/json',
+      success: function(response) {
+        alert(response.message || cmsBookings.i18n.markAsPaidSuccess || 'Payment marked as paid successfully.');
+        location.reload();
+      },
+      error: function(xhr) {
+        var errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : cmsBookings.i18n.error;
+        alert(errorMsg);
+        $link.text('Mark as Paid');
       }
     });
   });

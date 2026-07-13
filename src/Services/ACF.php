@@ -208,12 +208,17 @@ class ACF
   /**
    * @return array<string,array>|null
    */
-  private function get_event_field_config(int $post_id): ?array
-  {
-    $snapshot = get_post_meta($post_id, '_event_field_config', true);
-    if (is_array($snapshot) && isset($snapshot['event_fields']) && is_array($snapshot['event_fields'])) {
-      return $snapshot['event_fields'];
-    }
+    private function get_event_field_config(int $post_id): ?array
+    {
+        $override = get_post_meta($post_id, '_event_template_override', true);
+        if (is_array($override) && isset($override['event_fields']) && is_array($override['event_fields'])) {
+            return $override['event_fields'];
+        }
+
+        $snapshot = get_post_meta($post_id, '_event_field_config', true);
+        if (is_array($snapshot) && isset($snapshot['event_fields']) && is_array($snapshot['event_fields'])) {
+            return $snapshot['event_fields'];
+        }
 
     $terms = wp_get_object_terms($post_id, 'hmw_event_type', ['fields' => 'slugs']);
     if (is_wp_error($terms) || empty($terms)) {

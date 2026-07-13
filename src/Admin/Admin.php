@@ -13,6 +13,7 @@ use HMWEvents\Helpers\Encryption;
 use HMWEvents\Services\Emails\EmailQueueRepository;
 use HMWEvents\Services\Emails\EmailService;
 use HMWEvents\Services\Emails\EmailTemplateRepository;
+use HMWEvents\Registry\RegistrationFieldRegistry;
 
 use function get_current_screen;
 
@@ -68,6 +69,7 @@ class Admin
     new EmailQueue();
     new EmailTemplates();
     new EventTemplates();
+    new EventTemplateOverride();
     new Reporting();
 
     // Add filter to encrypt Stripe keys before saving
@@ -185,6 +187,35 @@ class Admin
           'id'    => 'hmwevents_email_logo',
           'type'    => 'image',
           'title'   => 'Email Logo',
+        ],
+
+        [
+          'type'    => 'content',
+          'content' => '<h3>Email Template Assets</h3>',
+        ],
+
+        [
+          'id'          => 'hmwevents_audio_download_url',
+          'type'        => 'text',
+          'title'       => 'Audio Download URL',
+          'placeholder' => 'https://www.dropbox.com/s/...',
+          'desc'        => 'URL to the course audio file. Used in {{download_audio_track}} template variable.',
+        ],
+
+        [
+          'id'          => 'hmwevents_free_pre_course_audio_url',
+          'type'        => 'text',
+          'title'       => 'Free Pre-Course Audio Track URL',
+          'placeholder' => 'https://www.dropbox.com/s/...',
+          'desc'        => 'URL to the free pre-course audio track. Used in {{free_pre_course_audio_track}} template variable.',
+        ],
+
+        [
+          'id'          => 'hmwevents_feedback_form_url',
+          'type'        => 'text',
+          'title'       => 'Feedback Form URL',
+          'placeholder' => 'https://example.com/feedback/',
+          'desc'        => 'Base URL for feedback form links. Used in {{feedback_url}} template variable; booking ID is appended automatically.',
         ],
 
       ],
@@ -344,39 +375,131 @@ class Admin
     ];
 
     $fields[] = [
-      'name'   => 'educator_defaults',
-      'title'  => 'Educator Defaults',
-      'icon'   => 'dashicons-awards',
+      'name'   => 'theming',
+      'title'  => 'Theming',
+      'icon'   => 'dashicons-admin-appearance',
       'fields' => [
 
         [
           'type'    => 'notice',
           'class'   => 'info',
-          'content' => '<h3>Educator Default Settings</h3><p>Configure default audio files and other resources that educators can use in their email templates.</p>',
+          'content' => '<h3>Theme Settings</h3><p>Customise the appearance of booking forms, event cards, and filter bars.</p>',
+        ],
+
+        // ── Colors ──
+
+        [
+          'type'    => 'content',
+          'content' => '<h3>Colours</h3>',
         ],
 
         [
-          'id'          => 'hmwevents_audio_download_url',
-          'type'        => 'text',
-          'title'       => 'Audio Download URL',
-          'placeholder' => 'https://www.dropbox.com/s/...',
-          'desc'        => 'URL to the course audio file (e.g., Dropbox link). Used in {{download_audio_track}} template variable.',
+          'id'          => 'hmwevents_theme_primary_color',
+          'type'        => 'color',
+          'title'       => 'Primary Colour',
+          'default'     => '#2563eb',
         ],
 
         [
-          'id'          => 'hmwevents_free_pre_course_audio_url',
-          'type'        => 'text',
-          'title'       => 'Free Pre-Course Audio Track URL',
-          'placeholder' => 'https://www.dropbox.com/s/...',
-          'desc'        => 'URL to the free pre-course audio track (e.g., Dropbox link). Used in {{free_pre_course_audio_track}} template variable.',
+          'id'          => 'hmwevents_theme_primary_hover',
+          'type'        => 'color',
+          'title'       => 'Primary Hover Colour',
+          'default'     => '#1d4ed8',
         ],
 
         [
-          'id'          => 'hmwevents_feedback_form_url',
+          'id'          => 'hmwevents_theme_text_color',
+          'type'        => 'color',
+          'title'       => 'Text Colour',
+          'default'     => '#1e293b',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_text_muted',
+          'type'        => 'color',
+          'title'       => 'Muted Text Colour',
+          'default'     => '#64748b',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_border_color',
+          'type'        => 'color',
+          'title'       => 'Border Colour',
+          'default'     => '#e2e8f0',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_border_focus',
+          'type'        => 'color',
+          'title'       => 'Border Focus Colour',
+          'default'     => '#93c5fd',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_bg_section',
+          'type'        => 'color',
+          'title'       => 'Section Background',
+          'default'     => '#f8fafc',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_error_color',
+          'type'        => 'color',
+          'title'       => 'Error Colour',
+          'default'     => '#dc2626',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_success_color',
+          'type'        => 'color',
+          'title'       => 'Success Colour',
+          'default'     => '#16a34a',
+        ],
+
+        // ── Typography ──
+
+        [
+          'type'    => 'content',
+          'content' => '<h3>Typography</h3>',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_font_family',
           'type'        => 'text',
-          'title'       => 'Feedback Form URL',
-          'placeholder' => 'https://example.com/feedback/',
-          'desc'        => 'Base URL for feedback form links. Used in {{feedback_url}} template variable; booking ID is appended automatically.',
+          'title'       => 'Font Family',
+          'default'     => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          'desc'        => 'CSS font-family value. Applied to booking forms and event cards.',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_font_size_base',
+          'type'        => 'text',
+          'title'       => 'Base Font Size',
+          'default'     => '16px',
+          'desc'        => 'Base font size for booking forms and event cards (e.g. 16px, 1rem).',
+        ],
+
+        // ── Spacing & Borders ──
+
+        [
+          'type'    => 'content',
+          'content' => '<h3>Spacing &amp; Borders</h3>',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_radius',
+          'type'        => 'text',
+          'title'       => 'Border Radius',
+          'default'     => '8px',
+          'desc'        => 'Default border radius for cards, buttons, and form fields.',
+        ],
+
+        [
+          'id'          => 'hmwevents_theme_gap',
+          'type'        => 'text',
+          'title'       => 'Grid Gap / Spacing',
+          'default'     => '16px',
+          'desc'        => 'Default gap between grid items and form sections.',
         ],
 
       ],
@@ -780,11 +903,40 @@ class Admin
 
     // Event templates GUI editor JS
     if (strpos($screen_id, 'hmwevents-event-templates') !== false) {
-      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['jquery'], HMWEvents_VERSION, true);
+      add_thickbox();
+      wp_enqueue_script('jquery-ui-sortable');
+      wp_enqueue_style('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/css/event-templates.css', [], HMWEvents_VERSION);
+      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
     }
 
-    // Course bookings meta box assets (only on course edit screen)
-    if ($screen && $screen->id === 'educator_course') {
+    // Event template override meta box (on hmw_event edit screen)
+    if ($screen && ($screen->id === 'hmw_event' || $screen->post_type === 'hmw_event')) {
+      add_thickbox();
+      $acf_fields = $this->get_override_acf_fields();
+      $reg_fields  = $this->get_override_reg_fields();
+
+      wp_enqueue_script('jquery-ui-sortable');
+      wp_enqueue_script('hmwevents-event-template-override', HMWEvents::plugin_url() . '/resources/admin/js/event-template-override.js', ['jquery', 'jquery-ui-sortable'], HMWEvents_VERSION, true);
+      wp_localize_script('hmwevents-event-template-override', 'hmwEventOverride', [
+        'ajaxUrl'            => admin_url('admin-ajax.php'),
+        'nonce'              => wp_create_nonce('hmwevents_event_override'),
+        'acfEventFields'     => $acf_fields,
+        'registrationFields' => $reg_fields,
+        'sectionLabels'      => [
+            'contact'           => __('Contact', 'hmw-events'),
+            'address'           => __('Address', 'hmw-events'),
+            'professional'      => __('Professional', 'hmw-events'),
+            'documents'         => __('Documents', 'hmw-events'),
+            'additional'        => __('Additional', 'hmw-events'),
+        ],
+      ]);
+    }
+
+    // Course bookings meta box assets (on course/edit screen)
+    if ($screen && ($screen->id === 'educator_course' || $screen->post_type === 'hmw_event')) {
+      wp_enqueue_style('thickbox');
+      wp_enqueue_script('thickbox');
+
       wp_enqueue_style(
         'hmwevents-course-bookings',
         HMWEvents::plugin_url() . '/resources/admin/css/course-bookings.css',
@@ -833,6 +985,8 @@ class Admin
           'bookingUpdated' => __('Booking updated successfully.', 'hmw-events'),
           'confirmSendPaymentLink' => __('Send a payment link to this customer for the remaining course amount?', 'hmw-events'),
           'paymentLinkSent' => __('Payment link sent successfully.', 'hmw-events'),
+'confirmMarkAsPaid'  => __('Mark this booking as paid? This will confirm payment and trigger confirmation workflows.', 'hmw-events'),
+'markAsPaidSuccess'  => __('Payment marked as paid successfully.', 'hmw-events'),
         ],
       ]);
     }
@@ -892,5 +1046,102 @@ class Admin
       </div>
     </div>
 <?php
+  }
+
+  private function get_override_acf_fields(): array
+  {
+    if (!function_exists('acf_get_field_groups') || !function_exists('acf_get_fields')) {
+      return $this->get_acf_fields_from_json();
+    }
+
+    $groups = acf_get_field_groups(['post_type' => 'hmw_event']);
+    $fields = [];
+
+    foreach ($groups as $group) {
+      $group_fields = acf_get_fields($group['key']);
+      if (!is_array($group_fields)) {
+        continue;
+      }
+
+      foreach ($group_fields as $field) {
+        $meta_name = $field['name'] ?? '';
+        if ($meta_name === '' || (!str_starts_with($meta_name, '_event_') && !str_starts_with($meta_name, 'event_'))) {
+          continue;
+        }
+
+        $normalized = $meta_name;
+        if (str_starts_with($normalized, '_event_')) {
+          $normalized = substr($normalized, 1);
+        }
+
+        $fields[] = [
+          'key'   => $normalized,
+          'label' => $field['label'] ?? $normalized,
+          'type'  => $field['type'] ?? 'text',
+          'name'  => $meta_name,
+        ];
+      }
+    }
+
+    return empty($fields) ? $this->get_acf_fields_from_json() : $fields;
+  }
+
+  private function get_acf_fields_from_json(): array
+  {
+    $json_file = HMWEvents_ABSPATH . 'acf-json/group_hmw_event_details.json';
+    if (!file_exists($json_file)) {
+      return [];
+    }
+
+    $contents = file_get_contents($json_file);
+    $data = json_decode((string) $contents, true);
+    if (!is_array($data) || empty($data['fields'])) {
+      return [];
+    }
+
+    $fields = [];
+    foreach ($data['fields'] as $field) {
+      $meta_name = $field['name'] ?? '';
+      if ($meta_name === '' || (!str_starts_with($meta_name, '_event_') && !str_starts_with($meta_name, 'event_'))) {
+        continue;
+      }
+
+      $normalized = $meta_name;
+      if (str_starts_with($normalized, '_event_')) {
+        $normalized = substr($normalized, 1);
+      }
+
+      $fields[] = [
+        'key'   => $normalized,
+        'label' => $field['label'] ?? $normalized,
+        'type'  => $field['type'] ?? 'text',
+        'name'  => $meta_name,
+      ];
+    }
+
+    return $fields;
+  }
+
+  private function get_override_reg_fields(): array
+  {
+    $all = RegistrationFieldRegistry::all();
+    $fields = [];
+
+    foreach ($all as $key => $def) {
+      $audience = $def['audience_variants'] ?? ['*'];
+      if (in_array('*', $audience, true)) {
+        $audience = [];
+      }
+
+      $fields[] = [
+        'key'               => sanitize_key((string) $key),
+        'label'             => $def['label'] ?? $key,
+        'type'              => $def['type'] ?? 'text',
+        'section'           => $def['section'] ?? '',
+        'audience_variants' => array_values($audience),
+      ];
+    }
+
+    return $fields;
   }
 }

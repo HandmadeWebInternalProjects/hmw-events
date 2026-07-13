@@ -13,6 +13,6 @@ class RegisterRoutes
     {
         new Routes\ProcessPayment();
         new Routes\BookingActions();
-        new Routes\Courses();
+        new Routes\Events();
     }
 }

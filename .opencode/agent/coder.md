@@ -1,16 +1,6 @@
 ---
 description: Focused coder for the HMW Events WordPress plugin. Implements features, fixes bugs, and refactors source code following existing plugin conventions. Delegates test writing to the test-writer sub-agent when new features need coverage.
 mode: subagent
-model: z-ai/glm-5.2
-permission:
-  edit: allow
-  bash: allow
----
-
----
-description: Focused coder for the HMW Events WordPress plugin. Implements features, fixes bugs, and refactors source code following existing plugin conventions. Delegates test writing to the test-writer sub-agent when new features need coverage.
-mode: subagent
-model: z-ai/glm-5.2
 permission:
   edit: allow
   bash: allow

@@ -1,7 +1,6 @@
 ---
 description: Professional test writer for the HMW Events WordPress plugin. Writes and maintains the PHPUnit test suite only. Never modifies source code files when tests fail — reports the issue and asks before touching non-test files.
 mode: subagent
-model: z-ai/glm-5.2
 permission:
   edit:
     "*/**": deny

@@ -24,24 +24,10 @@ class RegistrationFieldRegistry
      */
     public const EVERYONE = '*';
 
-    /**
-     * Field variant: shown only to parent/couple registrations.
-     */
-    public const PARENT_ONLY = 'parent';
-
-    /**
-     * Field variant: shown only to professional registrations.
-     */
     public const PROFESSIONAL_ONLY = 'professional';
 
-    /**
-     * Field data source: stored as registrant post meta.
-     */
     public const SOURCE_REGISTRANT_META = 'registrant_meta';
 
-    /**
-     * Field data source: stored in booking_details.form_data JSON.
-     */
     public const SOURCE_BOOKING_DETAILS = 'booking_details';
 
     /**
@@ -85,13 +71,11 @@ class RegistrationFieldRegistry
     public static function get_sections(): array
     {
         return [
-            'contact'         => __('Contact Information', 'hmw-events'),
-            'address'         => __('Address', 'hmw-events'),
-            'attendee_details' => __('Attendee Details', 'hmw-events'),
-            'professional'    => __('Professional Details', 'hmw-events'),
-            'parent_details'  => __('Parent / Pregnancy Details', 'hmw-events'),
-            'documents'       => __('Documents', 'hmw-events'),
-            'additional'      => __('Additional Information', 'hmw-events'),
+            'contact'      => __('Contact Information', 'hmw-events'),
+            'address'      => __('Address', 'hmw-events'),
+            'professional' => __('Professional Details', 'hmw-events'),
+            'documents'    => __('Documents', 'hmw-events'),
+            'additional'   => __('Additional Information', 'hmw-events'),
         ];
     }
 
@@ -152,17 +136,11 @@ class RegistrationFieldRegistry
             "suburb"               => "city",
             "state"                => "state",
             "postcode"             => "postcode",
-            "partner_name"         => "partner_name",
-            "due_date"             => "due_date",
-            "first_baby"           => "first_baby",
-            "health_fund"          => "health_fund",
             "dietary_requirements" => "dietary_requirements",
             "special_requirements" => "special_considerations",
             "organisation"         => "organisation",
             "job_title"            => "job_title",
             "professional_body"    => "professional_body",
-            "child_name"           => null,
-            "child_age"            => null,
             "heard_about"          => null,
             "document_upload"      => null,
             "mailing_agreement"    => "mailing_agreement",
@@ -198,6 +176,52 @@ class RegistrationFieldRegistry
     public static function get_field(string $key): ?array
     {
         return self::all()[$key] ?? null;
+    }
+
+    public static function presets(): array
+    {
+        return [
+            'first_name' => [
+                'key'         => 'first_name',
+                'label'       => __('First Name', 'hmw-events'),
+                'type'        => 'text',
+                'source'      => self::SOURCE_REGISTRANT_META,
+                'meta_key'    => 'registrant_first_name',
+                'width'       => 'half',
+                'required'    => true,
+                'placeholder' => '',
+            ],
+            'last_name'  => [
+                'key'         => 'last_name',
+                'label'       => __('Last Name', 'hmw-events'),
+                'type'        => 'text',
+                'source'      => self::SOURCE_REGISTRANT_META,
+                'meta_key'    => 'registrant_last_name',
+                'width'       => 'half',
+                'required'    => true,
+                'placeholder' => '',
+            ],
+            'email'      => [
+                'key'         => 'email',
+                'label'       => __('Email', 'hmw-events'),
+                'type'        => 'email',
+                'source'      => self::SOURCE_REGISTRANT_META,
+                'meta_key'    => 'registrant_email',
+                'width'       => 'full',
+                'required'    => true,
+                'placeholder' => '',
+            ],
+            'phone'      => [
+                'key'         => 'phone',
+                'label'       => __('Phone', 'hmw-events'),
+                'type'        => 'tel',
+                'source'      => self::SOURCE_REGISTRANT_META,
+                'meta_key'    => 'registrant_phone',
+                'width'       => 'full',
+                'required'    => true,
+                'placeholder' => '',
+            ],
+        ];
     }
 
     /**
@@ -316,47 +340,6 @@ class RegistrationFieldRegistry
                 'placeholder'        => '',
             ],
 
-            // ──── Attendee-specific fields ────────────────────────
-            'partner_name' => [
-                'label'              => __('Partner / Support Person', 'hmw-events'),
-                'type'               => 'text',
-                'source'             => self::SOURCE_BOOKING_DETAILS,
-                'meta_key'           => null,
-                'audience_variants'  => [self::PARENT_ONLY, 'couple'],
-                'section'            => 'attendee_details',
-                'width'              => 'full',
-                'required'           => false,
-                'in_csv'             => true,
-                'in_email'           => true,
-                'placeholder'        => '',
-            ],
-            'child_name' => [
-                'label'              => __('Child\'s Name', 'hmw-events'),
-                'type'               => 'text',
-                'source'             => self::SOURCE_BOOKING_DETAILS,
-                'meta_key'           => null,
-                'audience_variants'  => ['parent_child'],
-                'section'            => 'attendee_details',
-                'width'              => 'half',
-                'required'           => false,
-                'in_csv'             => false,
-                'in_email'           => false,
-                'placeholder'        => '',
-            ],
-            'child_age' => [
-                'label'              => __('Child\'s Age', 'hmw-events'),
-                'type'               => 'text',
-                'source'             => self::SOURCE_BOOKING_DETAILS,
-                'meta_key'           => null,
-                'audience_variants'  => ['parent_child'],
-                'section'            => 'attendee_details',
-                'width'              => 'half',
-                'required'           => false,
-                'in_csv'             => false,
-                'in_email'           => false,
-                'placeholder'        => '',
-            ],
-
             // ──── Professional-specific fields ────────────────────
             'organisation' => [
                 'label'              => __('Organisation', 'hmw-events'),
@@ -395,48 +378,6 @@ class RegistrationFieldRegistry
                 'required'           => false,
                 'in_csv'             => true,
                 'in_email'           => false,
-                'placeholder'        => '',
-            ],
-
-            // ──── Parent-specific fields ──────────────────────────
-            'due_date' => [
-                'label'              => __('Due Date / Expected Delivery', 'hmw-events'),
-                'type'               => 'date',
-                'source'             => self::SOURCE_BOOKING_DETAILS,
-                'meta_key'           => null,
-                'audience_variants'  => [self::PARENT_ONLY, 'couple'],
-                'section'            => 'parent_details',
-                'width'              => 'half',
-                'required'           => false,
-                'in_csv'             => true,
-                'in_email'           => true,
-                'placeholder'        => '',
-            ],
-            'first_baby' => [
-                'label'              => __('First Baby?', 'hmw-events'),
-                'type'               => 'select',
-                'source'             => self::SOURCE_BOOKING_DETAILS,
-                'meta_key'           => null,
-                'audience_variants'  => [self::PARENT_ONLY, 'couple'],
-                'section'            => 'parent_details',
-                'width'              => 'full',
-                'required'           => false,
-                'in_csv'             => true,
-                'in_email'           => true,
-                'options'            => ['' => '— Select —', 'yes' => 'Yes', 'no' => 'No'],
-                'placeholder'        => '',
-            ],
-            'health_fund' => [
-                'label'              => __('Health Fund', 'hmw-events'),
-                'type'               => 'text',
-                'source'             => self::SOURCE_BOOKING_DETAILS,
-                'meta_key'           => null,
-                'audience_variants'  => [self::PARENT_ONLY, 'couple'],
-                'section'            => 'parent_details',
-                'width'              => 'half',
-                'required'           => false,
-                'in_csv'             => true,
-                'in_email'           => true,
                 'placeholder'        => '',
             ],
 

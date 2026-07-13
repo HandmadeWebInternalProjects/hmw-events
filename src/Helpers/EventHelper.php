@@ -53,7 +53,7 @@ class EventHelper
      */
     private static function post_id_column(string $post_type): string
     {
-        return $post_type === 'hmw_event' ? 'event_post_id' : 'course_post_id';
+        return $post_type === 'hmw_event' ? 'event_post_id' : 'event_post_id';
     }
 
     /**

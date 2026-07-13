@@ -130,7 +130,7 @@ class OrganizerPaymentsDashboard
             SELECT COUNT(*)
             FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
             WHERE {$where_sql}
             AND b.deleted_at IS NULL
@@ -182,7 +182,7 @@ class OrganizerPaymentsDashboard
                 ), 0) as remaining_paid
             FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
             LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
             LEFT JOIN {$wpdb->prefix}hmwevents_voucher_usage vu ON b.id = vu.booking_id
@@ -223,7 +223,7 @@ class OrganizerPaymentsDashboard
                 SUM(CASE WHEN b.payment_status = 'refunded' THEN b.booking_amount ELSE 0 END) as refunded_amount
             FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
             WHERE {$where_sql}
             AND b.deleted_at IS NULL
@@ -275,7 +275,7 @@ class OrganizerPaymentsDashboard
                 cuu.discount_amount as coupon_amount
             FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
             LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
             LEFT JOIN {$wpdb->prefix}hmwevents_voucher_usage vu ON b.id = vu.booking_id
@@ -379,7 +379,7 @@ class OrganizerPaymentsDashboard
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author
             FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d
             AND c.post_author = %d
             AND b.deleted_at IS NULL
@@ -429,8 +429,8 @@ class OrganizerPaymentsDashboard
             UPDATE {$wpdb->prefix}hmwevents_course_availability
             SET booked_count = IF(booked_count > 0, booked_count - 1, 0),
                 available_count = available_count + 1
-            WHERE course_post_id = %d
-        ", $booking->course_post_id));
+            WHERE event_post_id = %d
+        ", $booking->event_post_id));
 
         // Trigger cancellation hooks (cancel pending emails + queue status email)
         do_action('hmwevents_booking_cancelled', $booking_id, 'Cancelled by educator', (array) $booking);
@@ -473,7 +473,7 @@ class OrganizerPaymentsDashboard
                 pt.gateway,
                 pt.id as transaction_id
             FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
             LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
             WHERE b.id = %d
@@ -553,8 +553,8 @@ class OrganizerPaymentsDashboard
             UPDATE {$wpdb->prefix}hmwevents_course_availability
             SET booked_count = IF(booked_count > 0, booked_count - 1, 0),
                 available_count = available_count + 1
-            WHERE course_post_id = %d
-        ", $booking->course_post_id));
+            WHERE event_post_id = %d
+        ", $booking->event_post_id));
 
         // Trigger refund hooks (cancel pending emails + queue refund email)
         do_action('hmwevents_refund_issued', $booking_id, $refund_amount, 'Refunded by educator');
@@ -597,7 +597,7 @@ class OrganizerPaymentsDashboard
                 b.booking_number,
                 b.payment_status,
                 b.currency,
-                b.course_post_id,
+                b.event_post_id,
                 b.deleted_at,
                 bg.id as booking_group_id,
                 bg.customer_post_id,
@@ -607,7 +607,7 @@ class OrganizerPaymentsDashboard
                 c.post_title as course_name
             FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d
             AND c.post_author = %d
             AND b.deleted_at IS NULL

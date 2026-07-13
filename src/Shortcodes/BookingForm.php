@@ -78,6 +78,12 @@ class BookingForm
       return '<p class="hmwevents-error">Sorry, this course is fully booked.</p>';
     }
 
+    $v3_config = $this->get_v3_config($course_id);
+    if ($v3_config) {
+      $renderer = new \HMWEvents\Services\RegistrationFormRenderer();
+      return $renderer->render_form(['event_id' => (string) $course_id, 'attendance_type' => 'individual']);
+    }
+
     // Get pricing
     $full_cost = get_field('_event_price', $course_id);
     $deposit_cost = get_field('_event_deposit', $course_id);
@@ -374,71 +380,115 @@ class BookingForm
       }
     }
 
-    // Try to read template snapshot registration_field config
-    $snapshot = get_post_meta($event_id, '_event_field_config', true);
-    $registration_config = null;
-    if (is_array($snapshot) && isset($snapshot['registration_fields']) && is_array($snapshot['registration_fields'])) {
-      $registration_config = $snapshot['registration_fields'];
-    }
-
-    $snapshot_defaults = get_post_meta($event_id, '_event_default_values', true);
-    $field_overrides = [];
-    if (is_array($snapshot_defaults) && isset($snapshot_defaults['registration']['field_overrides'])) {
-      $field_overrides = $snapshot_defaults['registration']['field_overrides'];
-    }
-
-    if (!$registration_config) {
-      return $all;
-    }
-
-    $hidden   = (array) ($registration_config['hidden'] ?? []);
-    $required = (array) ($registration_config['required'] ?? []);
-    $optional = (array) ($registration_config['optional'] ?? []);
-
-    // If no fields are configured at all, treat as unconfigured — show all
-    $has_config = !empty($hidden) || !empty($required) || !empty($optional);
-    if (!$has_config) {
-      return $all;
-    }
-
-    $hidden_set   = array_flip($hidden);
-    $required_set = array_flip($required);
-    $optional_set = array_flip($optional);
-
-    // Remove hidden fields
-    foreach (array_keys($all) as $key) {
-      if (isset($hidden_set[$key])) {
-        unset($all[$key]);
-      }
-    }
-
-    // Templated mode: only show fields that are in required OR optional buckets.
-    // Fields not in either bucket are silently removed (not configured).
-    foreach (array_keys($all) as $key) {
-      if (!isset($required_set[$key]) && !isset($optional_set[$key])) {
-        unset($all[$key]);
-      }
-    }
-
-    foreach ($all as $key => &$field) {
-      if (isset($required_set[$key])) {
-        $field['required'] = true;
-      } elseif (isset($optional_set[$key])) {
-        $field['required'] = false;
-      }
-
-      if (isset($field_overrides[$key]) && is_array($field_overrides[$key])) {
-        if (!empty($field_overrides[$key]['label'])) {
-          $field['label'] = $field_overrides[$key]['label'];
+        $template_override = get_post_meta($event_id, '_event_template_override', true);
+        $template_registration = null;
+        if (is_array($template_override) && isset($template_override['registration_fields']) && is_array($template_override['registration_fields'])) {
+            $template_registration = $template_override['registration_fields'];
         }
-        if (array_key_exists('placeholder', $field_overrides[$key])) {
-          $field['placeholder'] = $field_overrides[$key]['placeholder'];
-        }
-      }
-    }
-    unset($field);
 
-    return $all;
+        $snapshot = get_post_meta($event_id, '_event_field_config', true);
+        $registration_config = null;
+        if (is_array($snapshot) && isset($snapshot['registration_fields']) && is_array($snapshot['registration_fields'])) {
+            $registration_config = $snapshot['registration_fields'];
+        }
+
+        $snapshot_defaults = get_post_meta($event_id, '_event_default_values', true);
+        $field_overrides = [];
+        if (is_array($snapshot_defaults) && isset($snapshot_defaults['registration']['field_overrides'])) {
+            $field_overrides = $snapshot_defaults['registration']['field_overrides'];
+        }
+
+        $active_config = $template_registration ?? $registration_config;
+        $is_template = $template_registration !== null;
+
+        if (!$active_config) {
+            return $all;
+        }
+
+        $hidden   = (array) ($active_config['hidden'] ?? []);
+        $required = (array) ($active_config['required'] ?? []);
+        $optional = (array) ($active_config['optional'] ?? []);
+
+        $has_config = !empty($hidden) || !empty($required) || !empty($optional);
+        if (!$has_config) {
+            return $all;
+        }
+
+        $hidden_set   = array_flip($hidden);
+        $required_set = array_flip($required);
+        $optional_set = array_flip($optional);
+
+        foreach (array_keys($all) as $key) {
+            if (isset($hidden_set[$key])) {
+                unset($all[$key]);
+            }
+        }
+
+        foreach (array_keys($all) as $key) {
+            if (!isset($required_set[$key]) && !isset($optional_set[$key])) {
+                unset($all[$key]);
+            }
+        }
+
+        foreach ($all as $key => &$field) {
+            if (isset($required_set[$key])) {
+                $field['required'] = true;
+            } elseif (isset($optional_set[$key])) {
+                $field['required'] = false;
+            }
+
+            if (isset($field_overrides[$key]) && is_array($field_overrides[$key])) {
+                if (!empty($field_overrides[$key]['label'])) {
+                    $field['label'] = $field_overrides[$key]['label'];
+                }
+                if (array_key_exists('placeholder', $field_overrides[$key])) {
+                    $field['placeholder'] = $field_overrides[$key]['placeholder'];
+                }
+                if (!empty($field_overrides[$key]['width'])) {
+                    $field['width'] = $field_overrides[$key]['width'];
+                }
+                if (!empty($field_overrides[$key]['section'])) {
+                    $field['section'] = $field_overrides[$key]['section'];
+                }
+            }
+
+            if ($is_template && isset($active_config['field_overrides'][$key]) && is_array($active_config['field_overrides'][$key])) {
+                $tpl_override = $active_config['field_overrides'][$key];
+                if (!empty($tpl_override['label'])) {
+                    $field['label'] = $tpl_override['label'];
+                }
+                if (array_key_exists('placeholder', $tpl_override)) {
+                    $field['placeholder'] = $tpl_override['placeholder'];
+                }
+                if (!empty($tpl_override['width'])) {
+                    $field['width'] = $tpl_override['width'];
+                }
+                if (!empty($tpl_override['section'])) {
+                    $field['section'] = $tpl_override['section'];
+                }
+            }
+        }
+        unset($field);
+
+        if ($is_template) {
+            $order = $active_config['order'] ?? [];
+            if (is_array($order) && !empty($order)) {
+                $ordered = [];
+                foreach ($order as $field_key) {
+                    $field_key = sanitize_key((string) $field_key);
+                    if (isset($all[$field_key])) {
+                        $ordered[$field_key] = $all[$field_key];
+                        unset($all[$field_key]);
+                    }
+                }
+                foreach ($all as $field_key => $field) {
+                    $ordered[$field_key] = $field;
+                }
+                $all = $ordered;
+            }
+        }
+
+        return $all;
   }
 
   /**
@@ -474,5 +524,20 @@ class BookingForm
     }
 
     return $list;
+  }
+
+  private function get_v3_config(int $event_id): ?array
+  {
+    $override = get_post_meta($event_id, '_event_template_override', true);
+    if (is_array($override) && !empty($override['registration_fields']['sections'])) {
+      return $override['registration_fields'];
+    }
+
+    $config = get_post_meta($event_id, '_event_field_config', true);
+    if (is_array($config) && !empty($config['registration_fields']['sections'])) {
+      return $config['registration_fields'];
+    }
+
+    return null;
   }
 }

@@ -67,9 +67,9 @@ class CommsAndReportingTest extends TestCase
         $this->assertSame('booking_confirmed', CommunicationTriggerMatrix::resolve('booking_confirmed'));
     }
 
-    public function test_resolve_with_parent_education_type(): void
+    public function test_resolve_with_parent_course_type(): void
     {
-        $key = CommunicationTriggerMatrix::resolve('booking_confirmed', 'parent-education');
+        $key = CommunicationTriggerMatrix::resolve('booking_confirmed', 'parent-course');
         $this->assertSame('parent_booking_confirmed', $key);
     }
 
@@ -153,7 +153,7 @@ class CommsAndReportingTest extends TestCase
     {
         $service = new EventListingService();
         $args = $service->build_query([
-            'event_type' => 'workshop',
+            'event_type' => 'parent-one-off-free',
             'free_only'  => true,
         ]);
 

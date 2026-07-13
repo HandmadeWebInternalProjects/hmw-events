@@ -76,7 +76,7 @@ class ReminderHandler extends AbstractEmailHandler
         }
 
         // Get course details
-        $course = get_post($booking_data['course_post_id'] ?? null);
+        $course = get_post($booking_data['event_post_id'] ?? null);
         if (!$course) {
             error_log('Course not found for reminder: ' . $booking_id);
             return false;
@@ -261,7 +261,7 @@ class ReminderHandler extends AbstractEmailHandler
         );
 
         // Get fresh course details
-        $course = get_post($booking_data['course_post_id'] ?? null);
+        $course = get_post($booking_data['event_post_id'] ?? null);
         if (!$course) {
             error_log('Course not found for booking: ' . $booking_id);
             return [];

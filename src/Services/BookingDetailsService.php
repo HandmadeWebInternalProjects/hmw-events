@@ -27,9 +27,6 @@ class BookingDetailsService {
    * @var array
    */
   private $searchable_fields = [
-    'due_date',
-    'health_fund',
-    'first_baby'
   ];
   
   public function __construct() {

@@ -174,7 +174,7 @@ class EmailEventHooks
         // Get all bookings for this course
         $bookings = $wpdb->get_results($wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}hmwevents_bookings 
-             WHERE course_post_id = %d AND status IN ('pending', 'confirmed')",
+             WHERE event_post_id = %d AND status IN ('pending', 'confirmed')",
             $course_id
         ));
 

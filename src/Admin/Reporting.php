@@ -194,7 +194,7 @@ class Reporting
 
         // Build booking ON-clause conditions dynamically so LEFT JOIN
         // still returns educators with zero bookings in the period.
-        $booking_on = "b.course_post_id = c.ID AND b.deleted_at IS NULL AND b.payment_status = 'paid'";
+        $booking_on = "b.event_post_id = c.ID AND b.deleted_at IS NULL AND b.payment_status = 'paid'";
         $values     = ['%educator%'];
 
         if ($date_from) {
@@ -276,19 +276,19 @@ class Reporting
                 b.created_at                AS booking_date
             FROM {$wpdb->prefix}hmwevents_bookings b
             INNER JOIN {$wpdb->posts} c
-                ON  c.ID = b.course_post_id
+                ON  c.ID = b.event_post_id
                 AND c.post_status != 'trash'
             LEFT JOIN {$wpdb->postmeta} pm_start
-                ON  pm_start.post_id  = b.course_post_id
+                ON  pm_start.post_id  = b.event_post_id
                 AND pm_start.meta_key = 'course_start_date'
             LEFT JOIN {$wpdb->postmeta} pm_end
-                ON  pm_end.post_id  = b.course_post_id
+                ON  pm_end.post_id  = b.event_post_id
                 AND pm_end.meta_key = 'course_end_date'
             LEFT JOIN {$wpdb->postmeta} pm_suburb
-                ON  pm_suburb.post_id  = b.course_post_id
+                ON  pm_suburb.post_id  = b.event_post_id
                 AND pm_suburb.meta_key = 'course_location_suburb'
             LEFT JOIN {$wpdb->postmeta} pm_state
-                ON  pm_state.post_id  = b.course_post_id
+                ON  pm_state.post_id  = b.event_post_id
                 AND pm_state.meta_key = 'course_location_state'
             LEFT JOIN {$wpdb->postmeta} pm_email
                 ON  pm_email.post_id  = b.customer_post_id

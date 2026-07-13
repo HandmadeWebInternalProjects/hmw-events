@@ -235,7 +235,7 @@ class BookingCleanupTest extends TestCase
         $bookings_group_1 = [
             (object) [
                 'id' => 10,
-                'course_post_id' => 200,
+                'event_post_id' => 200,
                 'ticket_quantity' => 2,
                 'status' => 'pending',
             ],
@@ -245,7 +245,7 @@ class BookingCleanupTest extends TestCase
         $bookings_group_2 = [
             (object) [
                 'id' => 11,
-                'course_post_id' => 201,
+                'event_post_id' => 201,
                 'ticket_quantity' => 1,
                 'status' => 'pending',
             ],
@@ -296,7 +296,7 @@ class BookingCleanupTest extends TestCase
         $bookings = [
             (object) [
                 'id' => 10,
-                'course_post_id' => 200,
+                'event_post_id' => 200,
                 'ticket_quantity' => 2,
                 'status' => 'pending',
             ],
@@ -310,7 +310,7 @@ class BookingCleanupTest extends TestCase
         $this->wpdb->shouldReceive('update')
             ->once()
             ->with(
-                'wp_educator_booking_groups',
+                'wp_hmwevents_booking_groups',
                 ['payment_status' => 'cancelled'],
                 ['id' => 1],
                 ['%s'],
@@ -352,7 +352,7 @@ class BookingCleanupTest extends TestCase
         $bookings = [
             (object) [
                 'id' => 10,
-                'course_post_id' => 200,
+                'event_post_id' => 200,
                 'ticket_quantity' => 3,
                 'status' => 'pending',
             ],
@@ -398,7 +398,7 @@ class BookingCleanupTest extends TestCase
         $bookings = [
             (object) [
                 'id' => 10,
-                'course_post_id' => 200,
+                'event_post_id' => 200,
                 'ticket_quantity' => 2,
                 'status' => 'pending',
             ],
@@ -415,7 +415,7 @@ class BookingCleanupTest extends TestCase
         $this->wpdb->shouldReceive('insert')
             ->once()
             ->with(
-                'wp_educator_booking_history',
+                'wp_hmwevents_booking_history',
                 [
                     'booking_id' => 10,
                     'previous_status' => 'pending',

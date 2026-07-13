@@ -107,7 +107,7 @@ class BookingCleanup
 
             // Update booking group status
             $wpdb->update(
-                $wpdb->prefix . 'educator_booking_groups',
+                $wpdb->prefix . 'hmwevents_booking_groups',
                 ['payment_status' => 'cancelled'],
                 ['id' => $group->id],
                 ['%s'],
@@ -133,12 +133,12 @@ class BookingCleanup
                     UPDATE {$wpdb->prefix}hmwevents_course_availability
                     SET booked_count = GREATEST(0, booked_count - %d),
                         available_count = available_count + %d
-                    WHERE course_post_id = %d
-                ", $booking->ticket_quantity, $booking->ticket_quantity, $booking->course_post_id));
+                    WHERE event_post_id = %d
+                ", $booking->ticket_quantity, $booking->ticket_quantity, $booking->event_post_id));
 
                 // Add to booking history
                 $wpdb->insert(
-                    $wpdb->prefix . 'educator_booking_history',
+                    $wpdb->prefix . 'hmwevents_booking_history',
                     [
                         'booking_id' => $booking->id,
                         'previous_status' => $booking->status,

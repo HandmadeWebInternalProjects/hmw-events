@@ -96,8 +96,8 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
   protected function get_or_create_customer_post($data)
   {
     // Check if customer exists by email
-    $existing = get_posts([
-      'post_type' => 'edu_customer',
+      $existing = get_posts([
+      'post_type' => 'hmw_registrant',
       'meta_key' => 'registrant_email',
       'meta_value' => $data['registrant_email'],
       'posts_per_page' => 1,
@@ -113,7 +113,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
 
     // Create new customer
     $customer_id = wp_insert_post([
-      'post_type' => 'edu_customer',
+      'post_type' => 'hmw_registrant',
       'post_title' => $data['customer_name'],
       'post_status' => 'publish',
     ]);
@@ -190,10 +190,10 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->query($wpdb->prepare("
-            UPDATE {$wpdb->prefix}hmwevents_course_availability
+            UPDATE {$wpdb->prefix}hmwevents_event_availability
             SET booked_count = GREATEST(0, booked_count + %d),
                 available_count = GREATEST(0, available_count - %d)
-            WHERE course_post_id = %d
+            WHERE event_post_id = %d
         ", $change, $change, $course_id));
   }
 
@@ -234,13 +234,13 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     }
 
     $wpdb->insert(
-      $wpdb->prefix . 'educator_booking_groups',
+      $wpdb->prefix . 'hmwevents_booking_groups',
       [
         'booking_reference' => $data['booking_reference'],
-        'customer_post_id' => $data['customer_post_id'],
+        'registrant_post_id' => $data['customer_post_id'],
         'booking_type' => $data['booking_type'] ?? 'single',
         'payment_type' => $data['payment_type'],
-        'total_courses' => $data['total_courses'] ?? 1,
+        'total_bookings' => $data['total_courses'] ?? 1,
         'total_amount' => $data['total_amount'],
         'payment_status' => $data['payment_status'] ?? 'pending',
         'metadata' => $metadata,
@@ -271,8 +271,8 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
       [
         'booking_group_id' => $data['booking_group_id'],
         'booking_number' => $data['booking_number'],
-        'course_post_id' => $data['course_post_id'],
-        'customer_post_id' => $data['customer_post_id'],
+        'event_post_id' => $data['event_post_id'],
+        'registrant_post_id' => $data['customer_post_id'],
         'ticket_type' => $data['ticket_type'],
         'ticket_quantity' => $data['ticket_quantity'] ?? 1,
         'booking_amount' => $data['booking_amount'],
@@ -339,7 +339,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $wpdb->insert(
-      $wpdb->prefix . 'educator_payment_transactions',
+      $wpdb->prefix . 'hmwevents_payment_transactions',
       [
         'booking_group_id' => $data['booking_group_id'],
         'transaction_type' => $data['transaction_type'] ?? 'charge',
@@ -377,15 +377,17 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->insert(
-      $wpdb->prefix . 'educator_booking_history',
+      $wpdb->prefix . 'hmwevents_booking_history',
       [
         'booking_id' => $booking_id,
-        'previous_status' => $previous_status,
-        'new_status' => $new_status,
+        'field_changed' => 'status',
+        'old_value' => (string) $previous_status,
+        'new_value' => (string) $new_status,
+        'changed_by' => get_current_user_id(),
         'change_reason' => $reason,
         'created_at' => current_time('mysql'),
       ],
-      ['%d', '%s', '%s', '%s', '%s']
+      ['%d', '%s', '%s', '%s', '%d', '%s', '%s']
     );
   }
 
@@ -455,7 +457,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->update(
-      $wpdb->prefix . 'educator_booking_groups',
+      $wpdb->prefix . 'hmwevents_booking_groups',
       ['payment_status' => $payment_status],
       ['id' => $booking_group_id],
       ['%s'],
@@ -475,7 +477,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->update(
-      $wpdb->prefix . 'educator_payment_transactions',
+      $wpdb->prefix . 'hmwevents_payment_transactions',
       ['status' => $status],
       ['gateway_transaction_id' => $transaction_id],
       ['%s'],

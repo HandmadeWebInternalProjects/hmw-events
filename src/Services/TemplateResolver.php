@@ -136,10 +136,14 @@ class TemplateResolver
     }
 
     /**
-     * @return array{required:string[], optional:string[], hidden:string[]}
+     * @return array{required:string[], optional:string[], hidden:string[], order:string[], field_overrides:array<string, array{label:string, placeholder:string, width:string, section:string}>}
      */
     private function resolve_registration_field_config(array $normalized): array
     {
+        if (($normalized['schema_version'] ?? 0) >= 3 && isset($normalized['registration_fields']['sections'])) {
+            return $normalized['registration_fields'];
+        }
+
         $base_required = [];
         foreach (RegistrationFieldRegistry::all() as $key => $field) {
             if (!empty($field['required'])) {
@@ -153,18 +157,34 @@ class TemplateResolver
         $optional = array_values(array_unique($template['optional']));
         $hidden = array_values(array_unique($template['hidden']));
 
-        // Hidden wins.
         $required = array_values(array_diff($required, $hidden));
         $optional = array_values(array_diff($optional, $hidden));
-
-        // Required wins.
         $optional = array_values(array_diff($optional, $required));
 
         return [
-            'required' => $required,
-            'optional' => $optional,
-            'hidden'   => $hidden,
+            'required'        => $required,
+            'optional'        => $optional,
+            'hidden'          => $hidden,
+            'order'           => $template['order'] ?? [],
+            'field_overrides' => $template['field_overrides'] ?? [],
         ];
+    }
+
+    public function resolve_with_override(array $resolved_config, array $event_override): array
+    {
+        if (!empty($event_override['event_fields']) && is_array($event_override['event_fields'])) {
+            $resolved_config['field_config']['event_fields'] = $event_override['event_fields'];
+        }
+
+        if (!empty($event_override['registration_fields']) && is_array($event_override['registration_fields'])) {
+            if (isset($event_override['registration_fields']['sections'])) {
+                $resolved_config['field_config']['registration_fields'] = $event_override['registration_fields'];
+                return $resolved_config;
+            }
+            $resolved_config['field_config']['registration_fields'] = $event_override['registration_fields'];
+        }
+
+        return $resolved_config;
     }
 
     /**

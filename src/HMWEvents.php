@@ -103,6 +103,8 @@ final class HMWEvents
           Services\Hooks::class,
           Services\ACF::class,
           Services\EventTemplateService::class,
+          Services\EventTemplateOverrideService::class,
+          Services\FormSubmissionService::class,
           Services\EventTypeDefaultsService::class,
           Services\RegistrationFormPreset::class,
           Services\RegistrationFormRenderer::class,
@@ -146,6 +148,7 @@ final class HMWEvents
 
           // Admin Handlers
           Admin\RecurringEventHandler::class,
+          Admin\EventBookings::class,
           Admin\OrganizerPaymentsDashboard::class,
 
           // Mailing / CRM integrations

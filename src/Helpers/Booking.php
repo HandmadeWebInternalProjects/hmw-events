@@ -88,7 +88,7 @@ class Booking
      *
      * @since 1.0.0
      * @param object $booking        Booking row with id, booking_number, currency,
-     *                               course_post_id, booking_group_id, customer_post_id,
+     *                               event_post_id, booking_group_id, customer_post_id,
      *                               total_amount, post_author, course_name.
      * @param bool   $is_remaining   Use remaining-balance email variant.
      * @return bool|\WP_Error True if queued, WP_Error on failure.
@@ -96,7 +96,7 @@ class Booking
     public static function send_payment_link_email($booking, bool $is_remaining = false)
     {
         $booking_id       = (int) ($booking->id ?? 0);
-        $course_id        = (int) ($booking->course_post_id ?? 0);
+        $course_id        = (int) ($booking->event_post_id ?? 0);
         $booking_group_id = (int) ($booking->booking_group_id ?? 0);
 
         $registrant_email = get_post_meta((int) $booking->customer_post_id, 'registrant_email', true);

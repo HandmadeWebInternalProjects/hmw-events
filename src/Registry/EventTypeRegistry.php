@@ -7,7 +7,8 @@
  * and communication template keys for each event type archetype.
  *
  * 7 required archetypes:
- *   webinar, workshop, course, seminar, conference, parent-education, professional-dev
+ *   parenting-webinar, professional-webinar, parent-one-off-free,
+ *   parent-walk-in, parent-course, professional-online, professional-in-person
  *
  * @package HMWEvents\Registry
  * @since 2.0.0
@@ -143,155 +144,269 @@ class EventTypeRegistry
         ];
     }
 
-    /**
-     * Build the complete archetype registry.
-     */
-    private static function build(): array
-    {
-        $defaults = self::defaults();
+/**
+ * Build the complete archetype registry.
+ */
+private static function build(): array
+{
+    $defaults = self::defaults();
 
-        return [
+    return [
 
-            // ─────────────────────────────────────────────
-            // 1. Webinar
-            // ─────────────────────────────────────────────
-            'webinar' => array_replace_recursive($defaults, [
-                'hidden_fields' => [
-                    'event_venue_name',
-                    'event_venue_address',
-                    'event_venue_capacity',
-                    'event_venue_room',
-                    'event_catering',
-                ],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_webinar_url'],
-                'attendance_option_presets' => [
-                    ['label' => 'Individual', 'price' => 0, 'option_type' => 'individual'],
-                ],
-                'default_meta' => [
-                    'event_delivery_mode' => 'online',
-                    'event_capacity'      => 500,
-                ],
-            ]),
+        // ─────────────────────────────────────────────
+        // 1. Parenting Webinar (free, external reg)
+        // ─────────────────────────────────────────────
+        'parenting-webinar' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_venue_name',
+                'event_venue_address',
+                'event_price',
+                'event_deposit',
+                'event_allow_net_terms',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_webinar_url'],
+            'attendance_option_presets' => [
+                ['label' => 'Individual', 'price' => 0, 'option_type' => 'individual'],
+            ],
+            'default_meta' => [
+                'event_delivery_mode'    => 'online',
+                'event_capacity'         => 500,
+                'event_is_free'          => 1,
+            ],
+            'external_registration' => true,
+            'comm_templates' => [
+                'booking_confirmed'  => 'parent_booking_confirmed',
+                'booking_cancelled'  => 'parent_booking_cancelled',
+                'reminder_7_days'    => 'parent_reminder_7_days',
+                'reminder_1_day'     => 'parent_reminder_1_day',
+                'post_event'         => 'parent_post_event',
+                'waitlist_promotion' => 'parent_waitlist_promotion',
+            ],
+        ]),
 
-            // ─────────────────────────────────────────────
-            // 2. Workshop
-            // ─────────────────────────────────────────────
-            'workshop' => array_replace_recursive($defaults, [
-                'hidden_fields' => [
-                    'event_webinar_url',
-                ],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
-                'attendance_option_presets' => [
-                    ['label' => 'Individual',       'price' => 0,    'option_type' => 'individual'],
-                    ['label' => 'Parent + Child',   'price' => 0,    'option_type' => 'parent_child'],
-                    ['label' => 'Couple',           'price' => 0,    'option_type' => 'couple'],
-                ],
-                'default_meta' => [
-                    'event_capacity' => 30,
-                ],
-            ]),
+        // ─────────────────────────────────────────────
+        // 2. Professional Webinar (free, external reg)
+        // ─────────────────────────────────────────────
+        'professional-webinar' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_venue_name',
+                'event_venue_address',
+                'event_price',
+                'event_deposit',
+                'event_allow_net_terms',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_webinar_url'],
+            'attendance_option_presets' => [
+                ['label' => 'Individual', 'price' => 0, 'option_type' => 'individual'],
+            ],
+            'default_meta' => [
+                'event_delivery_mode'    => 'online',
+                'event_capacity'         => 500,
+                'event_is_free'          => 1,
+            ],
+            'external_registration' => true,
+            'comm_templates' => [
+                'booking_confirmed'  => 'prodev_booking_confirmed',
+                'booking_cancelled'  => 'prodev_booking_cancelled',
+                'reminder_7_days'    => 'prodev_reminder_7_days',
+                'reminder_1_day'     => 'prodev_reminder_1_day',
+                'post_event'         => 'prodev_certificate',
+                'waitlist_promotion' => 'prodev_waitlist_promotion',
+            ],
+        ]),
 
-            // ─────────────────────────────────────────────
-            // 3. Course
-            // ─────────────────────────────────────────────
-            'course' => array_replace_recursive($defaults, [
-                'hidden_fields' => [
-                    'event_webinar_url',
-                ],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
-                'attendance_option_presets' => [
-                    ['label' => 'Individual',     'price' => 350, 'option_type' => 'individual'],
-                    ['label' => 'Couple',         'price' => 650, 'option_type' => 'couple'],
-                    ['label' => 'Professional',   'price' => 450, 'option_type' => 'professional'],
-                ],
-                'default_meta' => [
-                    'event_capacity'     => 12,
-                    'event_is_recurring' => 1,
-                ],
-            ]),
+        // ─────────────────────────────────────────────
+        // 3. Parent One-Off Free Event
+        // ─────────────────────────────────────────────
+        'parent-one-off-free' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_webinar_url',
+                'event_price',
+                'event_deposit',
+                'event_allow_net_terms',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
+            'attendance_option_presets' => [
+                ['label' => 'Parent',         'price' => 0,    'option_type' => 'parent'],
+                ['label' => 'Parent + Child', 'price' => 0,    'option_type' => 'parent_child'],
+                ['label' => 'Couple',         'price' => 0,    'option_type' => 'couple'],
+            ],
+            'default_meta' => [
+                'event_capacity' => 30,
+                'event_is_free'  => 1,
+            ],
+            'comm_templates' => [
+                'booking_confirmed'  => 'parent_booking_confirmed',
+                'booking_cancelled'  => 'parent_booking_cancelled',
+                'reminder_7_days'    => 'parent_reminder_7_days',
+                'reminder_1_day'     => 'parent_reminder_1_day',
+                'post_event'         => 'parent_post_event',
+                'waitlist_promotion' => 'parent_waitlist_promotion',
+            ],
+        ]),
 
-            // ─────────────────────────────────────────────
-            // 4. Seminar
-            // ─────────────────────────────────────────────
-            'seminar' => array_replace_recursive($defaults, [
-                'hidden_fields' => [
-                    'event_webinar_url',
-                ],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
-                'attendance_option_presets' => [
-                    ['label' => 'Individual',  'price' => 0,   'option_type' => 'individual'],
-                    ['label' => 'Professional', 'price' => 0,  'option_type' => 'professional'],
-                ],
-                'default_meta' => [
-                    'event_capacity' => 100,
-                ],
-            ]),
+        // ─────────────────────────────────────────────
+        // 4. Parent Recurring Walk-In Event
+        // ─────────────────────────────────────────────
+        'parent-walk-in' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_webinar_url',
+                'event_capacity',
+                'event_price',
+                'event_deposit',
+                'event_allow_net_terms',
+                'event_is_free',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
+            'attendance_option_presets' => [
+                ['label' => 'Walk-In', 'price' => 0, 'option_type' => 'individual'],
+            ],
+            'default_meta' => [
+                'event_is_recurring' => 1,
+            ],
+            'registration_disabled' => true,
+            'comm_templates' => [
+                'booking_confirmed'  => 'parent_booking_confirmed',
+                'booking_cancelled'  => 'parent_booking_cancelled',
+                'reminder_7_days'    => 'parent_reminder_7_days',
+                'reminder_1_day'     => 'parent_reminder_1_day',
+                'post_event'         => 'parent_post_event',
+                'waitlist_promotion' => 'parent_waitlist_promotion',
+            ],
+        ]),
 
-            // ─────────────────────────────────────────────
-            // 5. Conference
-            // ─────────────────────────────────────────────
-            'conference' => array_replace_recursive($defaults, [
-                'hidden_fields' => [],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_name', 'event_venue_address'],
-                'attendance_option_presets' => [
-                    ['label' => 'Individual',     'price' => 200, 'option_type' => 'individual'],
-                    ['label' => 'Professional',   'price' => 350, 'option_type' => 'professional'],
-                    ['label' => 'Student',        'price' => 100, 'option_type' => 'individual'],
-                ],
-                'default_meta' => [
-                    'event_capacity' => 500,
-                ],
-            ]),
+        // ─────────────────────────────────────────────
+        // 5. Parent Multi-Week Commitment Course
+        // ─────────────────────────────────────────────
+        'parent-course' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_webinar_url',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
+            'attendance_option_presets' => [
+                ['label' => 'Parent',         'price' => 350, 'option_type' => 'parent'],
+                ['label' => 'Parent + Child', 'price' => 450, 'option_type' => 'parent_child'],
+                ['label' => 'Couple',         'price' => 650, 'option_type' => 'couple'],
+            ],
+            'default_meta' => [
+                'event_capacity'     => 12,
+                'event_is_recurring' => 1,
+            ],
+            'comm_templates' => [
+                'booking_confirmed'  => 'parent_booking_confirmed',
+                'booking_cancelled'  => 'parent_booking_cancelled',
+                'reminder_7_days'    => 'parent_reminder_7_days',
+                'reminder_1_day'     => 'parent_reminder_1_day',
+                'post_event'         => 'parent_post_event',
+                'waitlist_promotion' => 'parent_waitlist_promotion',
+            ],
+        ]),
 
-            // ─────────────────────────────────────────────
-            // 6. Parent Education
-            // ─────────────────────────────────────────────
-            'parent-education' => array_replace_recursive($defaults, [
-                'hidden_fields' => [
-                    'event_webinar_url',
-                ],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
-                'attendance_option_presets' => [
-                    ['label' => 'Parent',         'price' => 50,  'option_type' => 'parent'],
-                    ['label' => 'Parent + Child', 'price' => 75,  'option_type' => 'parent_child'],
-                    ['label' => 'Couple',         'price' => 90,  'option_type' => 'couple'],
-                ],
-                'default_meta' => [
-                    'event_capacity' => 20,
-                ],
-                'comm_templates' => [
-                    'booking_confirmed'  => 'parent_booking_confirmed',
-                    'booking_cancelled'  => 'parent_booking_cancelled',
-                    'reminder_7_days'    => 'parent_reminder_7_days',
-                    'reminder_1_day'     => 'parent_reminder_1_day',
-                    'post_event'         => 'parent_post_event',
-                    'waitlist_promotion' => 'parent_waitlist_promotion',
-                ],
-            ]),
+        // ─────────────────────────────────────────────
+        // 6. Professional Paid Online Event
+        // ─────────────────────────────────────────────
+        'professional-online' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_venue_name',
+                'event_venue_address',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date'],
+            'attendance_option_presets' => [
+                ['label' => 'Professional',   'price' => 250, 'option_type' => 'professional'],
+                ['label' => 'Early Bird',     'price' => 200, 'option_type' => 'professional'],
+                ['label' => 'Group (3+)',     'price' => 600, 'option_type' => 'professional'],
+            ],
+            'default_meta' => [
+                'event_delivery_mode' => 'online',
+                'event_capacity'      => 100,
+            ],
+            'comm_templates' => [
+                'booking_confirmed'  => 'prodev_booking_confirmed',
+                'booking_cancelled'  => 'prodev_booking_cancelled',
+                'reminder_7_days'    => 'prodev_reminder_7_days',
+                'reminder_1_day'     => 'prodev_reminder_1_day',
+                'post_event'         => 'prodev_certificate',
+                'waitlist_promotion' => 'prodev_waitlist_promotion',
+            ],
+        ]),
 
-            // ─────────────────────────────────────────────
-            // 7. Professional Development
-            // ─────────────────────────────────────────────
-            'professional-dev' => array_replace_recursive($defaults, [
-                'hidden_fields' => [],
-                'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
-                'attendance_option_presets' => [
-                    ['label' => 'Professional',   'price' => 250, 'option_type' => 'professional'],
-                    ['label' => 'Early Bird',     'price' => 200, 'option_type' => 'professional'],
-                    ['label' => 'Group (3+)',     'price' => 500, 'option_type' => 'professional'],
-                ],
-                'default_meta' => [
-                    'event_capacity' => 50,
-                ],
-                'comm_templates' => [
-                    'booking_confirmed'  => 'prodev_booking_confirmed',
-                    'booking_cancelled'  => 'prodev_booking_cancelled',
-                    'reminder_7_days'    => 'prodev_reminder_7_days',
-                    'reminder_1_day'     => 'prodev_reminder_1_day',
-                    'post_event'         => 'prodev_certificate',
-                    'waitlist_promotion' => 'prodev_waitlist_promotion',
-                ],
-            ]),
-        ];
+        // ─────────────────────────────────────────────
+        // 7. Professional Paid In-Person Event
+        // ─────────────────────────────────────────────
+        'professional-in-person' => array_replace_recursive($defaults, [
+            'hidden_fields' => [
+                'event_webinar_url',
+            ],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_name', 'event_venue_address'],
+            'attendance_option_presets' => [
+                ['label' => 'Professional',   'price' => 250, 'option_type' => 'professional'],
+                ['label' => 'Early Bird',     'price' => 200, 'option_type' => 'professional'],
+                ['label' => 'Group (3+)',     'price' => 600, 'option_type' => 'professional'],
+            ],
+            'default_meta' => [
+                'event_capacity' => 50,
+            ],
+            'comm_templates' => [
+                'booking_confirmed'  => 'prodev_booking_confirmed',
+                'booking_cancelled'  => 'prodev_booking_cancelled',
+                'reminder_7_days'    => 'prodev_reminder_7_days',
+                'reminder_1_day'     => 'prodev_reminder_1_day',
+                'post_event'         => 'prodev_certificate',
+                'waitlist_promotion' => 'prodev_waitlist_promotion',
+            ],
+        ]),
+    ];
+}
+
+/**
+ * Check if an event type uses external registration (bypasses internal booking form).
+ */
+public static function is_external_registration(string $type_slug): bool
+{
+    $config = self::get($type_slug);
+    return (bool) ($config['external_registration'] ?? false);
+}
+
+/**
+ * Check if an event type has public registration disabled (manual bookings only).
+ */
+public static function is_registration_disabled(string $type_slug): bool
+{
+    $config = self::get($type_slug);
+    return (bool) ($config['registration_disabled'] ?? false);
+}
+
+/**
+ * Build a type-slug => hidden-fields mapping for all archetypes.
+ *
+ * @return array<string, string[]>
+ */
+public static function get_hidden_fields_map(): array
+{
+    $map = [];
+    foreach (self::all() as $slug => $config) {
+        $map[$slug] = array_values((array) ($config['hidden_fields'] ?? []));
     }
+
+    return $map;
+}
+
+/**
+ * Collect every unique hideable field across all archetypes.
+ *
+ * @return string[]
+ */
+public static function get_all_hideable_fields(): array
+{
+    $all = [];
+    foreach (self::all() as $config) {
+        foreach ($config['hidden_fields'] ?? [] as $field) {
+            if (is_string($field) && $field !== '') {
+                $all[] = $field;
+            }
+        }
+    }
+
+    return array_values(array_unique($all));
+}
 }

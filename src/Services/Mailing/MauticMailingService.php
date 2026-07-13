@@ -113,12 +113,12 @@ class MauticMailingService implements MailingServiceInterface
             SELECT
                 b.id,
                 b.customer_post_id,
-                b.course_post_id,
+                b.event_post_id,
                 c.post_title   AS course_name,
                 c.post_author  AS educator_id,
                 bd.form_data
             FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->posts} c  ON c.ID = b.course_post_id
+            INNER JOIN {$wpdb->posts} c  ON c.ID = b.event_post_id
             LEFT  JOIN {$wpdb->prefix}hmwevents_booking_details bd ON bd.booking_id = b.id
             WHERE b.id = %d
               AND b.deleted_at IS NULL
@@ -139,11 +139,10 @@ class MauticMailingService implements MailingServiceInterface
         $first_name       = $form_data['mothers_first_name'] ?? get_the_title($customer_post_id);
         $last_name        = $form_data['mothers_last_name'] ?? '';
         $postcode         = $form_data['postcode'] ?? '';
-        $due_date         = $form_data['due_date'] ?? '';
         $mailing_ok       = !empty($form_data['mailing_agreement']);
 
         // Course end date (stored as ACF field on the course post)
-        $course_end_date  = get_field('course_end_date', (int) $row->course_post_id) ?: '';
+        $course_end_date  = get_field('course_end_date', (int) $row->event_post_id) ?: '';
 
         // Educator display name
         $educator        = get_userdata((int) $row->educator_id);
@@ -180,15 +179,6 @@ class MauticMailingService implements MailingServiceInterface
         }
         if (!empty($educator_name)) {
             $contact_data['educator_name'] = $educator_name;
-        }
-        if (!empty($due_date)) {
-            $ts = strtotime($due_date);
-            if ($ts !== false) {
-                $contact_data['expected_birth_date'] = gmdate('Y-m-d', $ts);
-                $contact_data['birth_month_year']     = gmdate('m/Y',   $ts);
-            } else {
-                error_log("HMWEvents Mautic: could not parse due_date '{$due_date}' for booking {$booking_id}.");
-            }
         }
 
         error_log("HMWEvents Mautic: sync attempt for booking {$booking_id}: " . json_encode($contact_data));

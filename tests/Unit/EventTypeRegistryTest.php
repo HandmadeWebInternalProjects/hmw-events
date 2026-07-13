@@ -47,13 +47,13 @@ class EventTypeRegistryTest extends TestCase
     {
         $all = EventTypeRegistry::all();
         $expected = [
-            'webinar',
-            'workshop',
-            'course',
-            'seminar',
-            'conference',
-            'parent-education',
-            'professional-dev',
+            'parenting-webinar',
+            'professional-webinar',
+            'parent-one-off-free',
+            'parent-walk-in',
+            'parent-course',
+            'professional-online',
+            'professional-in-person',
         ];
 
         foreach ($expected as $slug) {
@@ -65,23 +65,23 @@ class EventTypeRegistryTest extends TestCase
     // Field visibility
     // ============================================================
 
-    public function test_webinar_hides_venue_fields(): void
+    public function test_parenting_webinar_hides_venue_fields(): void
     {
-        $config = EventTypeRegistry::get('webinar');
+        $config = EventTypeRegistry::get('parenting-webinar');
         $this->assertContains('event_venue_name', $config['hidden_fields']);
         $this->assertContains('event_venue_address', $config['hidden_fields']);
         $this->assertNotContains('event_webinar_url', $config['hidden_fields']);
     }
 
-    public function test_is_field_visible_for_webinar(): void
+    public function test_is_field_visible_for_parenting_webinar(): void
     {
-        $this->assertFalse(EventTypeRegistry::is_field_visible('webinar', 'event_venue_name'));
-        $this->assertTrue(EventTypeRegistry::is_field_visible('webinar', 'event_start_date'));
+        $this->assertFalse(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_venue_name'));
+        $this->assertTrue(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_start_date'));
     }
 
-    public function test_workshop_does_not_hide_online_fields(): void
+    public function test_parent_one_off_free_does_not_hide_venue(): void
     {
-        $this->assertTrue(EventTypeRegistry::is_field_visible('workshop', 'event_venue_address'));
+        $this->assertTrue(EventTypeRegistry::is_field_visible('parent-one-off-free', 'event_venue_address'));
     }
 
     // ============================================================
@@ -90,14 +90,14 @@ class EventTypeRegistryTest extends TestCase
 
     public function test_is_field_required(): void
     {
-        $this->assertTrue(EventTypeRegistry::is_field_required('webinar', 'event_start_date'));
-        $this->assertTrue(EventTypeRegistry::is_field_required('webinar', 'event_webinar_url'));
-        $this->assertFalse(EventTypeRegistry::is_field_required('webinar', 'event_venue_name'));
+        $this->assertTrue(EventTypeRegistry::is_field_required('parenting-webinar', 'event_start_date'));
+        $this->assertTrue(EventTypeRegistry::is_field_required('parenting-webinar', 'event_webinar_url'));
+        $this->assertFalse(EventTypeRegistry::is_field_required('parenting-webinar', 'event_venue_name'));
     }
 
-    public function test_conference_requires_venue(): void
+    public function test_professional_in_person_requires_venue(): void
     {
-        $this->assertTrue(EventTypeRegistry::is_field_required('conference', 'event_venue_name'));
+        $this->assertTrue(EventTypeRegistry::is_field_required('professional-in-person', 'event_venue_name'));
     }
 
     // ============================================================
@@ -106,7 +106,7 @@ class EventTypeRegistryTest extends TestCase
 
     public function test_workflow_has_sensible_transitions(): void
     {
-        $workflow = EventTypeRegistry::get_workflow('course');
+        $workflow = EventTypeRegistry::get_workflow('parent-course');
 
         $this->assertArrayHasKey('draft', $workflow);
         $this->assertArrayHasKey('publish', $workflow);
@@ -124,18 +124,18 @@ class EventTypeRegistryTest extends TestCase
     // Attendance option presets
     // ============================================================
 
-    public function test_course_has_couple_and_individual_presets(): void
+    public function test_parent_course_has_parent_and_couple_presets(): void
     {
-        $presets = EventTypeRegistry::get_attendance_option_presets('course');
+        $presets = EventTypeRegistry::get_attendance_option_presets('parent-course');
         $types = array_column($presets, 'option_type');
         $this->assertContains('couple', $types);
-        $this->assertContains('individual', $types);
-        $this->assertContains('professional', $types);
+        $this->assertContains('parent', $types);
+        $this->assertContains('parent_child', $types);
     }
 
-    public function test_parent_education_has_parent_preset(): void
+    public function test_parent_course_has_parent_preset(): void
     {
-        $presets = EventTypeRegistry::get_attendance_option_presets('parent-education');
+        $presets = EventTypeRegistry::get_attendance_option_presets('parent-course');
         $types = array_column($presets, 'option_type');
         $this->assertContains('parent', $types);
         $this->assertContains('parent_child', $types);
@@ -149,7 +149,7 @@ class EventTypeRegistryTest extends TestCase
     {
         $this->assertSame(
             'parent_booking_confirmed',
-            EventTypeRegistry::get_comm_template('parent-education', 'booking_confirmed')
+            EventTypeRegistry::get_comm_template('parent-course', 'booking_confirmed')
         );
     }
 
@@ -157,7 +157,7 @@ class EventTypeRegistryTest extends TestCase
     {
         $this->assertSame(
             'booking_confirmed',
-            EventTypeRegistry::get_comm_template('workshop', 'booking_confirmed')
+            EventTypeRegistry::get_comm_template('nonexistent-type', 'booking_confirmed')
         );
     }
 
@@ -165,16 +165,68 @@ class EventTypeRegistryTest extends TestCase
     // Default meta
     // ============================================================
 
-    public function test_course_default_capacity_is_12(): void
+    public function test_parent_course_default_capacity_is_12(): void
     {
-        $meta = EventTypeRegistry::get_default_meta('course');
+        $meta = EventTypeRegistry::get_default_meta('parent-course');
         $this->assertSame(12, $meta['event_capacity']);
     }
 
-    public function test_webinar_default_capacity_is_500(): void
+    public function test_parenting_webinar_default_capacity_is_500(): void
     {
-        $meta = EventTypeRegistry::get_default_meta('webinar');
+        $meta = EventTypeRegistry::get_default_meta('parenting-webinar');
         $this->assertSame(500, $meta['event_capacity']);
+    }
+
+    // ============================================================
+    // External registration
+    // ============================================================
+
+    public function test_parenting_webinar_has_external_registration(): void
+    {
+        $this->assertTrue(EventTypeRegistry::is_external_registration('parenting-webinar'));
+    }
+
+    public function test_professional_webinar_has_external_registration(): void
+    {
+        $this->assertTrue(EventTypeRegistry::is_external_registration('professional-webinar'));
+    }
+
+    public function test_parent_course_does_not_have_external_registration(): void
+    {
+        $this->assertFalse(EventTypeRegistry::is_external_registration('parent-course'));
+    }
+
+    // ============================================================
+    // Registration disabled
+    // ============================================================
+
+    public function test_walk_in_has_registration_disabled(): void
+    {
+        $this->assertTrue(EventTypeRegistry::is_registration_disabled('parent-walk-in'));
+    }
+
+    public function test_parent_course_does_not_have_registration_disabled(): void
+    {
+        $this->assertFalse(EventTypeRegistry::is_registration_disabled('parent-course'));
+    }
+
+    // ============================================================
+    // Hidden fields map
+    // ============================================================
+
+    public function test_get_hidden_fields_map_returns_all_types(): void
+    {
+        $map = EventTypeRegistry::get_hidden_fields_map();
+        $this->assertCount(7, $map);
+        $this->assertArrayHasKey('parenting-webinar', $map);
+        $this->assertArrayHasKey('parent-walk-in', $map);
+    }
+
+    public function test_get_all_hideable_fields_returns_unique(): void
+    {
+        $fields = EventTypeRegistry::get_all_hideable_fields();
+        $this->assertNotEmpty($fields);
+        $this->assertSame($fields, array_values(array_unique($fields)));
     }
 
     // ============================================================

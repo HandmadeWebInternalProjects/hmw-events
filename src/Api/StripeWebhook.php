@@ -135,7 +135,7 @@ class StripeWebhook
         global $wpdb;
 
         $wpdb->update(
-            $wpdb->prefix . 'educator_payment_transactions',
+            $wpdb->prefix . 'hmwevents_payment_transactions',
             [
                 'status' => 'failed',
                 'error_message' => $payment_intent->last_payment_error->message ?? 'Payment failed',
@@ -196,7 +196,7 @@ class StripeWebhook
 
         // Update transaction
         $wpdb->update(
-            $wpdb->prefix . 'educator_payment_transactions',
+            $wpdb->prefix . 'hmwevents_payment_transactions',
             [
                 'status' => 'refunded',
                 'refund_id' => $charge->refunds->data[0]->id ?? null,
@@ -236,7 +236,7 @@ class StripeWebhook
 
         // Log dispute
         $wpdb->insert(
-            $wpdb->prefix . 'educator_booking_history',
+            $wpdb->prefix . 'hmwevents_booking_history',
             [
                 'booking_id' => 0, // We'd need to look this up
                 'old_status' => null,

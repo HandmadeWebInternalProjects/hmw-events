@@ -267,7 +267,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
 
             // 2. Validate course availability
             $course_id = intval($booking_data['course_id']);
-            $available = Course::check_course_availability($course_id);
+            $available = EventHelper::check_course_availability($course_id);
 
             if (!$available) {
                 throw new \Exception('Course is fully booked');
@@ -304,7 +304,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             $booking_id = $this->create_booking([
                 'booking_group_id' => $booking_group_id,
                 'booking_number' => $booking_number,
-                'course_post_id' => $course_id,
+                'event_post_id' => $course_id,
                 'customer_post_id' => $customer_id,
                 'ticket_type' => $payment_type,
                 'booking_amount' => $amount,
@@ -394,7 +394,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             }
 
             // Get course details
-            $course = Course::get_course_details($booking_data['course_id']);
+            $course = EventHelper::get_course_details($booking_data['course_id']);
             if (!$course) {
                 throw new \Exception('Course not found');
             }
@@ -508,7 +508,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             $booking_id = $this->create_booking([
                 'booking_group_id' => $booking_group_id,
                 'booking_number' => $booking_number,
-                'course_post_id' => $booking_data['course_id'],
+                'event_post_id' => $booking_data['course_id'],
                 'customer_post_id' => $customer_id,
                 'ticket_type' => $payment_type,
                 'booking_amount' => $amount,
@@ -602,7 +602,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
                     
                     // Track voucher usage in database
                     $insert_result = $wpdb->insert(
-                        $wpdb->prefix . 'educator_voucher_usage',
+                        $wpdb->prefix . 'hmwevents_voucher_usage',
                         [
                             'booking_id' => $booking_id,
                             'voucher_code' => $booking_data['voucher_code'],
@@ -689,7 +689,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             $educator_id = $wpdb->get_var($wpdb->prepare(
                 "SELECT c.post_author
                  FROM {$wpdb->prefix}hmwevents_bookings b
-                 INNER JOIN {$wpdb->posts} c ON b.course_post_id = c.ID
+                  INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
                  WHERE b.booking_group_id = %d
                  LIMIT 1",
                 $transaction->booking_group_id
@@ -732,7 +732,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
 
                 if (!$is_remaining_payment) {
                     // Update availability only on first/primary booking payment, not remaining-balance top-ups.
-                    $this->update_course_availability($booking->course_post_id, 1);
+                    $this->update_course_availability($booking->event_post_id, 1);
 
                     // Add to history for initial payment confirmation.
                     $this->add_booking_history(

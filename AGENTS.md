@@ -366,6 +366,149 @@ not attempt to fix it unless specifically asked.
 - Composer autoloader is required: `composer install`
 - Node dependencies: `pnpm install`
 
+## V3 Form Builder System
+
+The v3 form builder replaces the old hardcoded registration field system with
+user-defined sections, custom fields, and multi-attendee booking. It's a three-layer
+system: admin template editor → template storage → frontend form rendering + payment.
+
+### Data model (schema v3)
+
+Stored in the `template_data` JSON column of `hmwevents_event_templates` and in the
+`_event_field_config` post meta on `hmw_event` posts:
+
+```json
+{
+  "schema_version": 3,
+  "registration_fields": {
+    "sections": [
+      {
+        "id": "sec_abc123",
+        "label": "Contact Details",
+        "fields": [
+          {
+            "key": "first_name",
+            "label": "First Name",
+            "type": "text",
+            "required": true,
+            "placeholder": "",
+            "width": "half",
+            "source": "registrant_meta",
+            "meta_key": "registrant_first_name",
+            "preset": true,
+            "per_attendee": true,
+            "options": []
+          }
+        ]
+      }
+    ],
+    "multi_booking": {
+      "enabled": true,
+      "min": 1,
+      "max": 10
+    }
+  }
+}
+```
+
+Allowed field types: `text, email, tel, textarea, select, checkbox, radio, date, number, file`.
+
+**Field sources:**
+- `registrant_meta` — stored as `wp_postmeta` on `hmw_registrant` posts (presets only: first_name, last_name, email, phone)
+- `booking_details` — stored as JSON in the booking record (all custom fields)
+
+**Field card data attributes** (for the template editor JS):
+- `data-source`, `data-meta-key`, `data-preset` — set when using Quick Presets in the modal
+
+### Key files
+
+| File | Purpose |
+|---|---|
+| `src/Services/FormSubmissionService.php` | Validates v3 form POST data, separates source fields, creates registrants, initiates payment. Entry methods: `submit_and_pay()` (PHP AJAX) and `handle_v3_submission()` (REST). |
+| `src/Services/RegistrationFormRenderer.php` | Renders frontend form from v3 sections config. Methods: `render_form()`, `render_v3_form()`, `render_field_v3()`. New shortcode `[hmw_registration_form]`. |
+| `src/Services/TemplateSchemaValidator.php` | `SCHEMA_VERSION=3`. Validates sections/fields/multi_booking structure. Auto-migrates v2→v3. |
+| `src/Services/TemplateResolver.php` | Emits v3 sections+multi_booking in resolved template output. |
+| `src/Registry/RegistrationFieldRegistry.php` | `presets()` method returns 4 system fields (first_name, last_name, email, phone) with source/meta_key mappings. |
+| `assets/js/v3-booking.js` | Frontend JS for v3 form: Stripe Elements, multi-attendee add/remove, AJAX submission. |
+| `assets/css/v3-booking.css` | Modern CSS with custom properties, CSS nesting, logical properties, grid layout. |
+| `resources/admin/js/event-templates.js` | Admin form builder UI: sections management, drag-to-split, ThickBox field settings modal, quick presets. |
+
+### Post meta keys on hmw_event
+
+| Key | Contents | Set by |
+|---|---|---|
+| `_event_field_config` | Full `registration_fields` + `event_fields` config from template | `EventTemplateService::persist_event_snapshot()` |
+| `_event_template_override` | Per-event overrides for field visibility/config | `EventTemplateOverrideService::save_override()` |
+| `_event_template_override_apply_to_children` | bool — cascade override to child sessions | Same |
+| `_created_from_template_id` | Template ID the event was created from | `EventTemplateService` |
+| `_template_snapshot` | Full resolved payload at creation time | `EventTemplateService` |
+
+### Form submission pipeline
+
+```
+Frontend form → v3-booking.js → admin-ajax.php (action: hmwevents_submit_registration)
+                                    ↓
+                        RegistrationFormRenderer::handle_submission()
+                                    ↓ (v3 detected)
+                        FormSubmissionService::submit_and_pay($form_data, $event_id)
+                                    ↓
+                        1. normalize_from_post() — parses attendees[] array
+                        2. validate_submission() — per-field type/required checks
+                        3. create_registrant() — one hmw_registrant CPT per attendee
+                        4. save_registrant_meta() — preset fields written to registrant postmeta
+                        5. extract_booking_details() — custom fields → booking_details JSON
+                        6. PaymentGateway::process_new_booking()
+                                    ↓
+                        Returns {booking_id, registrant_ids, total, client_secret}
+```
+
+### Multi-booking UX
+
+- Main form fields render once for attendee 0 (the primary registrant)
+- "+ Add Attendee" button clones per-attendee fields from a `<template>` element
+- `__INDEX__` placeholder in the template is replaced with the attendee index
+- Remove button deletes block and re-indexes remaining attendees
+- Hidden `attendee_count` input is updated by JS on each add/remove
+- Total = unit_price × attendee_count, updated dynamically via JS
+
+### Shortcodes
+
+| Shortcode | Purpose | v3 support |
+|---|---|---|
+| `[hmwevents_booking_form event_id="123"]` | Main booking form (legacy name). Auto-detects v3 config and delegates to `RegistrationFormRenderer::render_v3_form()`. | Auto-detect |
+| `[hmw_registration_form event_id="123"]` | Pure v3 renderer. Same output but requires v3 config. | Always v3 |
+
+### REST API
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/hmwevents/v1/registration/v3-submit` | POST | JSON-based v3 form submission with multi-attendee support |
+
+### Per-event template overrides
+
+The "Template Override" meta box on the `hmw_event` edit screen allows overriding
+the field config for a single event (and its recurring children). Changes are stored
+in `_event_template_override` and take priority over `_event_field_config`.
+
+Override cascade: when the parent event has `_event_template_override_apply_to_children`
+set to true, child sessions inherit the override automatically (both existing children
+and future generated sessions).
+
+### Theme / Stripe config
+
+Stripe keys are stored via the Exopite Simple Options Framework under a single
+`hmw-events` WP option with an `en` key nesting. Always use `ConfigHelper::get_option('key_name')`
+or `StripeHelper::get_publishable_key()` to read them. Never use `get_option()` directly.
+
+### CSS architecture
+
+The v3 booking form uses `assets/css/v3-booking.css` with:
+- CSS custom properties via `:root` — 20+ variables for colors, spacing, fonts
+- Native CSS nesting (`& label`, `&:hover`)
+- Logical properties (`inline-size`, `margin-inline`)
+- 2-column CSS grid for field layout
+- Responsive: single column at 600px breakpoint
+
 ## Things to watch out for
 
 - The `educator_course` post type is **legacy**. New code should target
