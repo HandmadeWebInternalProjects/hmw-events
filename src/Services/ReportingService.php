@@ -36,6 +36,7 @@ class ReportingService
         add_action('hmwevents_daily_compliance_check', [$this, 'run_compliance_jobs']);
         add_action('wp_ajax_hmwevents_export_csv', [$this, 'ajax_export']);
         add_action('wp_ajax_hmwevents_save_report_filter', [$this, 'ajax_save_filter']);
+        add_action('wp_ajax_hmwevents_remove_test_data', [$this, 'ajax_remove_test_data']);
         add_action('pre_get_posts', [$this, 'exclude_archived_events_from_frontend']);
 
         // Schedule compliance cron if not already scheduled
@@ -80,6 +81,37 @@ class ReportingService
             $params[] = $filters['date_to'] . ' 23:59:59';
         }
 
+        if (!empty($filters['payment_status'])) {
+            $where[] = '(b.payment_status = %s OR bg.payment_status = %s)';
+            $params[] = $filters['payment_status'];
+            $params[] = $filters['payment_status'];
+        }
+
+        if (!empty($filters['attendance_status'])) {
+            $where[] = 'b.attendance_status = %s';
+            $params[] = $filters['attendance_status'];
+        }
+
+        $event_type_join = '';
+        $audience_join = '';
+        $join_params = [];
+
+        if (!empty($filters['event_type'])) {
+            $event_type_join = "INNER JOIN {$wpdb->term_relationships} tr_et ON b.event_post_id = tr_et.object_id
+                        INNER JOIN {$wpdb->term_taxonomy} tt_et ON tr_et.term_taxonomy_id = tt_et.term_taxonomy_id AND tt_et.taxonomy = 'hmw_event_type'
+                        INNER JOIN {$wpdb->terms} t_et ON tt_et.term_id = t_et.term_id AND t_et.slug = %s";
+            $join_params[] = $filters['event_type'];
+        }
+
+        if (!empty($filters['audience'])) {
+            $audience_join = "INNER JOIN {$wpdb->term_relationships} tr_aud ON b.event_post_id = tr_aud.object_id
+                      INNER JOIN {$wpdb->term_taxonomy} tt_aud ON tr_aud.term_taxonomy_id = tt_aud.term_taxonomy_id AND tt_aud.taxonomy = 'hmw_event_audience'
+                      INNER JOIN {$wpdb->terms} t_aud ON tt_aud.term_id = t_aud.term_id AND t_aud.slug = %s";
+            $join_params[] = $filters['audience'];
+        }
+
+        $params = array_merge($join_params, $params);
+
         $where_clause = implode(' AND ', $where);
 
         $sql = "
@@ -87,6 +119,8 @@ class ReportingService
             FROM {$bookings_table} b
             LEFT JOIN {$groups_table} bg ON b.booking_group_id = bg.id
             LEFT JOIN {$details_table} bd ON b.id = bd.booking_id
+            {$event_type_join}
+            {$audience_join}
             WHERE {$where_clause}
             ORDER BY b.created_at DESC
         ";
@@ -352,12 +386,24 @@ class ReportingService
             wp_die(-1);
         }
 
-        $export_type = sanitize_text_field($_POST['export_type'] ?? 'registrations');
-        $event_id    = (int) ($_POST['event_id'] ?? 0);
-        $date_from   = sanitize_text_field($_POST['date_from'] ?? '');
-        $date_to     = sanitize_text_field($_POST['date_to'] ?? '');
+        $export_type       = sanitize_text_field($_POST['export_type'] ?? 'registrations');
+        $event_id          = (int) ($_POST['event_id'] ?? 0);
+        $date_from         = sanitize_text_field($_POST['date_from'] ?? '');
+        $date_to           = sanitize_text_field($_POST['date_to'] ?? '');
+        $payment_status    = sanitize_text_field($_POST['payment_status'] ?? '');
+        $attendance_status = sanitize_text_field($_POST['attendance_status'] ?? '');
+        $event_type        = sanitize_text_field($_POST['event_type'] ?? '');
+        $audience          = sanitize_text_field($_POST['audience'] ?? '');
 
-        $filters = ['date_from' => $date_from, 'date_to' => $date_to];
+        $filters = [
+            'date_from'         => $date_from,
+            'date_to'           => $date_to,
+            'payment_status'    => $payment_status,
+            'attendance_status' => $attendance_status,
+            'event_type'        => $event_type,
+            'audience'          => $audience,
+        ];
+
         if ($event_id) {
             $filters['event_id'] = $event_id;
         }
@@ -391,6 +437,34 @@ class ReportingService
         $id = $this->save_filter($user_id, $label, $report_type, $filter_data, $is_default);
 
         wp_send_json_success(['id' => $id]);
+    }
+
+    /**
+     * AJAX handler to remove stale pending (abandoned) test bookings.
+     */
+    public function ajax_remove_test_data(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'hmw-events')]);
+        }
+
+        global $wpdb;
+        $bookings_table = DatabaseService::get_table_name('bookings');
+
+        $deleted = $wpdb->query("
+            DELETE FROM {$bookings_table}
+            WHERE status = 'pending'
+            AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+            AND deleted_at IS NULL
+        ");
+
+        wp_send_json_success([
+            'message' => sprintf(
+                _n('Removed %d pending test/abandoned booking.', 'Removed %d pending test/abandoned bookings.', $deleted, 'hmw-events'),
+                $deleted
+            ),
+            'count' => $deleted,
+        ]);
     }
 
     // ================================================================

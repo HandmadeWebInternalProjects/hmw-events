@@ -273,6 +273,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
         'booking_number' => $data['booking_number'],
         'event_post_id' => $data['event_post_id'],
         'registrant_post_id' => $data['customer_post_id'],
+        'attendance_option_id' => $data['attendance_option_id'] ?? null,
         'ticket_type' => $data['ticket_type'],
         'ticket_quantity' => $data['ticket_quantity'] ?? 1,
         'booking_amount' => $data['booking_amount'],
@@ -281,7 +282,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
         'booking_source' => $data['booking_source'] ?? 'website',
         'created_at' => current_time('mysql'),
       ],
-      ['%d', '%s', '%d', '%d', '%s', '%d', '%f', '%s', '%s', '%s', '%s']
+      ['%d', '%s', '%d', '%d', '%d', '%s', '%d', '%f', '%s', '%s', '%s', '%s']
     );
 
     if ($wpdb->last_error) {
@@ -537,33 +538,26 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
    */
   protected function calculate_amount($course_id, $is_deposit = false)
   {
-    // Use get_field() for ACF fields, not get_post_meta()
     $course_cost = get_field('_event_price', $course_id);
     $deposit_cost = get_field('_event_deposit', $course_id);
+    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
     $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
 
-    error_log('Calculate Amount - Course ID: ' . $course_id);
-    error_log('Calculate Amount - Course Cost: ' . var_export($course_cost, true));
-    error_log('Calculate Amount - Deposit Cost: ' . var_export($deposit_cost, true));
-    error_log('Calculate Amount - Currency: ' . $currency);
-    error_log('Calculate Amount - Is Deposit Request: ' . var_export($is_deposit, true));
-
     if (empty($course_cost)) {
-      error_log('Calculate Amount - ERROR: Course cost is empty/not set for course ID: ' . $course_id);
       return new \WP_Error('invalid_course', 'Course cost not set');
     }
 
     $is_deposit = $is_deposit && !empty($deposit_cost);
-    $amount = $is_deposit ? floatval($deposit_cost) : floatval($course_cost);
+    $base_amount = $is_deposit ? floatval($deposit_cost) : floatval($course_cost);
+    $amount = $base_amount + $surcharge;
     $payment_type = $is_deposit ? 'deposit' : 'full';
 
-    error_log('Calculate Amount - Final Amount: ' . $amount);
-    error_log('Calculate Amount - Payment Type: ' . $payment_type);
-
     return [
-      'amount' => $amount,
+      'amount'       => $amount,
+      'base_amount'  => $base_amount,
+      'surcharge'    => $surcharge,
       'payment_type' => $payment_type,
-      'currency' => $currency,
+      'currency'     => $currency,
     ];
   }
 

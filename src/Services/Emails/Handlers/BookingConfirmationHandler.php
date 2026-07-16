@@ -104,6 +104,17 @@ class BookingConfirmationHandler extends AbstractEmailHandler
             ]
         ));
 
+        $event_id     = (int) ($booking_data['event_post_id'] ?? 0);
+        $is_free_event = $event_id && (
+            get_post_meta($event_id, '_event_is_free', true) ||
+            (float) get_post_meta($event_id, '_event_price', true) <= 0
+        );
+
+        if ($is_free_event) {
+            $cancel_service = new \HMWEvents\Services\BookingSelfCancelService();
+            $template_data['cancel_link'] = $cancel_service->generate_cancel_token((int) $booking_id);
+        }
+
         // Queue the email
         return $this->queue([
             'booking_id'      => $booking_id,
@@ -297,7 +308,7 @@ class BookingConfirmationHandler extends AbstractEmailHandler
         }
 
         // Return fresh template data
-        return $this->prepare_template_data(array_merge(
+        $template_data = $this->prepare_template_data(array_merge(
             $this->build_universal_variables($booking_id, $course_location),
             [
                 'booking_id'         => $booking_id,
@@ -311,6 +322,19 @@ class BookingConfirmationHandler extends AbstractEmailHandler
                 'payment_status'     => $payment_status,
             ]
         ));
+
+        $event_id     = (int) ($booking_data['event_post_id'] ?? 0);
+        $is_free_event = $event_id && (
+            get_post_meta($event_id, '_event_is_free', true) ||
+            (float) get_post_meta($event_id, '_event_price', true) <= 0
+        );
+
+        if ($is_free_event) {
+            $cancel_service = new \HMWEvents\Services\BookingSelfCancelService();
+            $template_data['cancel_link'] = $cancel_service->generate_cancel_token((int) $booking_id);
+        }
+
+        return $template_data;
     }
 
     /**

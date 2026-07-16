@@ -382,6 +382,78 @@ jQuery(document).ready(function($) {
     });
   });
 
+  $(document).on('click', '#hmwevents-generate-token', function(e) {
+    e.preventDefault();
+    var $btn = $(this);
+    var eventId = $btn.data('event-id');
+    var nonce = $btn.data('nonce');
+    var email = $('#hmw-token-email').val().trim();
+    var $result = $('#hmwevents-token-result');
+
+    if (!email) {
+      $result.removeClass('notice-success').addClass('notice notice-error').html('<p>Please enter a recipient email.</p>').show();
+      return;
+    }
+
+    $btn.prop('disabled', true).text('Generating...');
+
+    $.post(ajaxurl, {
+      action: 'hmwevents_generate_token',
+      _wpnonce: nonce,
+      event_id: eventId,
+      email: email
+    }, function(response) {
+      if (response && response.success) {
+        $result.removeClass('notice-error').addClass('notice notice-success')
+          .html('<p>' + response.data.message + '</p><p><input type="text" readonly value="' + escAttr(response.data.registration_url) + '" class="regular-text" onclick="this.select()"></p>')
+          .show();
+      } else {
+        var msg = (response && response.data && response.data.message) ? response.data.message : 'Failed to generate token.';
+        $result.removeClass('notice-success').addClass('notice notice-error').html('<p>' + msg + '</p>').show();
+      }
+      $btn.prop('disabled', false).text('Generate Registration Link');
+    }).fail(function() {
+      $result.removeClass('notice-success').addClass('notice notice-error').html('<p>Request failed.</p>').show();
+      $btn.prop('disabled', false).text('Generate Registration Link');
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Waitlist Promote
+  // ------------------------------------------------------------------
+  $(document).on('click', '.hmwevents-promote-waitlist', function(e) {
+    e.preventDefault();
+    var $btn = $(this);
+    var entryId = $btn.data('entry-id');
+    var eventId = $btn.data('event-id');
+    var nonce = $btn.data('nonce');
+
+    if (!confirm('Promote this person from the waitlist? An invitation email will be sent with a private registration link.')) {
+      return;
+    }
+
+    $btn.prop('disabled', true).text('Promoting\u2026');
+
+    $.post(ajaxurl, {
+      action: 'hmwevents_promote_waitlist',
+      _wpnonce: nonce,
+      entry_id: entryId,
+      event_id: eventId
+    }, function(response) {
+      if (response && response.success) {
+        $btn.text('Invited');
+        setTimeout(function() { location.reload(); }, 1000);
+      } else {
+        var msg = (response && response.data && response.data.message) ? response.data.message : 'Failed to promote.';
+        alert(msg);
+        $btn.prop('disabled', false).text('Promote');
+      }
+    }).fail(function() {
+      alert('Request failed.');
+      $btn.prop('disabled', false).text('Promote');
+    });
+  });
+
   // ------------------------------------------------------------------
   // Edit form row helpers
   // ------------------------------------------------------------------

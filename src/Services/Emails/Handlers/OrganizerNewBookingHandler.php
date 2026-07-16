@@ -44,8 +44,8 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
     {
         global $wpdb;
 
-        // Resolve the educator for this booking.
         $educator_id = null;
+        $event_post_id = !empty($booking_data['event_post_id']) ? (int) $booking_data['event_post_id'] : 0;
 
         if (!empty($booking_data['educator_id'])) {
             $educator_id = (int) $booking_data['educator_id'];
@@ -55,6 +55,7 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
                 $booking_id
             ));
             if ($row) {
+                $event_post_id = (int) $row->event_post_id;
                 $course = get_post($row->event_post_id);
                 if ($course) {
                     $educator_id = (int) $course->post_author;
@@ -75,6 +76,13 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
 
         $educator_email = $educator_user->user_email;
         $educator_name  = $educator_user->display_name ?: $educator_user->user_login;
+
+        if ($event_post_id) {
+            $override = get_post_meta($event_post_id, '_event_notification_email', true);
+            if ($override && is_email($override)) {
+                $educator_email = $override;
+            }
+        }
 
         return $this->queue([
             'booking_id'      => $booking_id,

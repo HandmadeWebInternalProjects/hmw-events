@@ -136,6 +136,12 @@ class FormSubmissionService
             update_post_meta($id, '_booking_id', $payment_result['booking_id'] ?? 0);
         }
 
+        $invite_token = $_GET['token'] ?? $_POST['token'] ?? '';
+        if ($invite_token) {
+            $token_service = new \HMWEvents\Services\InvitationTokenService();
+            $token_service->consume($invite_token, $event_id);
+        }
+
         return [
             'success'         => true,
             'booking_id'      => $payment_result['booking_id'] ?? 0,
@@ -191,7 +197,11 @@ class FormSubmissionService
 
         $config = get_post_meta($event_id, '_event_field_config', true);
         if (is_array($config) && !empty($config['registration_fields']['sections'])) {
-            return $config['registration_fields'];
+            $reg = $config['registration_fields'];
+            if (is_array($override) && !empty($override['registration_fields']['multi_booking'])) {
+                $reg['multi_booking'] = $override['registration_fields']['multi_booking'];
+            }
+            return $reg;
         }
 
         return ['sections' => [], 'multi_booking' => ['enabled' => false, 'min' => 1, 'max' => 10]];

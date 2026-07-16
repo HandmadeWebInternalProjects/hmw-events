@@ -73,9 +73,17 @@ class BookingForm
       return '<p class="hmwevents-info">To book this course, please click the button below to visit this Educator\'s external booking website</p><p><a href="' . esc_url($external_link) . '" target="_blank" class="button-atom button-atom--primary bde-button__button"><span class="button-atom__text">Book Now</span></a></p>';
     }
 
-    // Hide the form if the course is fully booked
-    if (!\HMWEvents\Helpers\EventHelper::check_course_availability($course_id)) {
-      return '<p class="hmwevents-error">Sorry, this course is fully booked.</p>';
+    if ($course->post_status === 'by_invitation') {
+      $token = $_GET['token'] ?? '';
+      $token_service = new \HMWEvents\Services\InvitationTokenService();
+      $validation = $token_service->validate($token, $course_id);
+      if (is_wp_error($validation)) {
+        return '<p class="hmwevents-notice">' . esc_html__('This event is by invitation only. Registrations require a valid invitation link.', 'hmw-events') . '</p>';
+      }
+    } else {
+      if (!\HMWEvents\Helpers\EventHelper::check_course_availability($course_id)) {
+        return '<p class="hmwevents-error">Sorry, this course is fully booked.</p>';
+      }
     }
 
     $v3_config = $this->get_v3_config($course_id);
@@ -87,9 +95,16 @@ class BookingForm
     // Get pricing
     $full_cost = get_field('_event_price', $course_id);
     $deposit_cost = get_field('_event_deposit', $course_id);
+    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
     $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
     $organizer_id = $course->post_author;
+
+    $display_full = floatval($full_cost) + $surcharge;
+    $display_deposit = floatval($deposit_cost) + $surcharge;
+
+    $is_private_access = ($course->post_status === 'by_invitation');
+    $show_net_terms = (bool) get_post_meta($course_id, '_event_allow_net_terms', true) && $is_private_access;
 
     // Enqueue Stripe
     wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
@@ -140,6 +155,7 @@ class BookingForm
       'nonce' => wp_create_nonce('wp_rest'),
       'fullCost' => floatval($full_cost),
       'depositCost' => floatval($deposit_cost),
+      'surcharge' => $surcharge,
       'currency' => $currency,
       'currencySymbol' => $currency_symbol,
       'recaptchaSiteKey' => $recaptcha_site_key,
@@ -194,7 +210,7 @@ class BookingForm
                   <div class="hmwevents-payment-option-header">
                     <strong>Full Payment</strong>
                     <span class="hmwevents-payment-price" data-original="<?php echo esc_attr($full_cost); ?>">
-                      <?php echo esc_html($currency_symbol); ?><?php echo number_format($full_cost, 2); ?>
+                      <?php echo esc_html($currency_symbol); ?><?php echo number_format($display_full, 2); ?>
                     </span>
                   </div>
                   <p>Pay the full course fee upfront and secure your spot.</p>
@@ -207,14 +223,53 @@ class BookingForm
                   <div class="hmwevents-payment-option-header">
                     <strong>Deposit Payment</strong>
                     <span class="hmwevents-payment-price" data-original="<?php echo esc_attr($deposit_cost); ?>">
-                      <?php echo esc_html($currency_symbol); ?><?php echo number_format($deposit_cost, 2); ?>
+                      <?php echo esc_html($currency_symbol); ?><?php echo number_format($display_deposit, 2); ?>
                     </span>
                   </div>
                   <p>Pay a deposit now and the remainder later.</p>
                 </div>
               </label>
+
+              <?php if ($show_net_terms): ?>
+              <label class="hmwevents-payment-option" data-type="net_terms">
+                <input type="radio" name="payment_type" value="net_terms" id="payment_net_terms">
+                <div class="hmwevents-payment-option-content">
+                  <div class="hmwevents-payment-option-header">
+                    <strong>Pay by Invoice</strong>
+                    <span class="hmwevents-payment-price">—</span>
+                  </div>
+                  <p>An invoice will be sent to you after registration.</p>
+                </div>
+              </label>
+              <?php endif; ?>
             </div>
           <?php else: ?>
+            <?php if ($show_net_terms): ?>
+            <div class="hmwevents-payment-options">
+              <label class="hmwevents-payment-option" data-type="full">
+                <input type="radio" name="payment_type" value="full" id="payment_full" checked>
+                <div class="hmwevents-payment-option-content">
+                  <div class="hmwevents-payment-option-header">
+                    <strong>Full Payment</strong>
+                    <span class="hmwevents-payment-price" data-original="<?php echo esc_attr($full_cost); ?>">
+                      <?php echo esc_html($currency_symbol); ?><?php echo number_format($full_cost, 2); ?>
+                    </span>
+                  </div>
+                  <p>Pay the full course fee upfront and secure your spot.</p>
+                </div>
+              </label>
+              <label class="hmwevents-payment-option" data-type="net_terms">
+                <input type="radio" name="payment_type" value="net_terms" id="payment_net_terms">
+                <div class="hmwevents-payment-option-content">
+                  <div class="hmwevents-payment-option-header">
+                    <strong>Pay by Invoice</strong>
+                    <span class="hmwevents-payment-price">—</span>
+                  </div>
+                  <p>An invoice will be sent to you after registration.</p>
+                </div>
+              </label>
+            </div>
+            <?php else: ?>
             <input type="hidden" name="payment_type" value="full">
             <div class="hmwevents-payment-amount">
               <strong>Course Fee:</strong>
@@ -222,7 +277,8 @@ class BookingForm
                 <?php echo esc_html($currency_symbol); ?><?php echo number_format($full_cost, 2); ?>
               </span>
             </div>
-          <?php endif; ?>
+            <?php endif; ?>
+            <?php endif; ?>
         </div>
 
         <!-- Stripe Payment -->

@@ -70,6 +70,7 @@ class EventTypeRegistryTest extends TestCase
         $config = EventTypeRegistry::get('parenting-webinar');
         $this->assertContains('event_venue_name', $config['hidden_fields']);
         $this->assertContains('event_venue_address', $config['hidden_fields']);
+        $this->assertContains('event_surcharge', $config['hidden_fields']);
         $this->assertNotContains('event_webinar_url', $config['hidden_fields']);
     }
 
@@ -82,6 +83,40 @@ class EventTypeRegistryTest extends TestCase
     public function test_parent_one_off_free_does_not_hide_venue(): void
     {
         $this->assertTrue(EventTypeRegistry::is_field_visible('parent-one-off-free', 'event_venue_address'));
+    }
+
+    // ============================================================
+    // Surcharge visibility
+    // ============================================================
+
+    public function test_professional_webinar_hides_surcharge(): void
+    {
+        $config = EventTypeRegistry::get('professional-webinar');
+        $this->assertContains('event_surcharge', $config['hidden_fields']);
+    }
+
+    public function test_parent_one_off_free_hides_surcharge(): void
+    {
+        $config = EventTypeRegistry::get('parent-one-off-free');
+        $this->assertContains('event_surcharge', $config['hidden_fields']);
+    }
+
+    public function test_parent_walk_in_hides_surcharge(): void
+    {
+        $config = EventTypeRegistry::get('parent-walk-in');
+        $this->assertContains('event_surcharge', $config['hidden_fields']);
+    }
+
+    public function test_surcharge_is_visible_on_paid_event_types(): void
+    {
+        $config = EventTypeRegistry::get('professional-in-person');
+        $this->assertNotContains('event_surcharge', $config['hidden_fields']);
+    }
+
+    public function test_surcharge_is_visible_on_parent_course(): void
+    {
+        $config = EventTypeRegistry::get('parent-course');
+        $this->assertNotContains('event_surcharge', $config['hidden_fields']);
     }
 
     // ============================================================

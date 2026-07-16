@@ -8,7 +8,7 @@ class ACF
 {
   public function register()
   {
-    if (!class_exists('ACF_Pro')) {
+    if (!class_exists('ACF')) {
       add_action('admin_notices', function () {
         echo '<div class="error"><p>ACF is not installed. Please install it to use this plugin.</p></div>';
       });

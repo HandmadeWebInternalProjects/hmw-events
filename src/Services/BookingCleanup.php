@@ -24,6 +24,8 @@ class BookingCleanup
      */
     const CRON_HOOK = 'hmwevents_cleanup_abandoned_bookings';
 
+    const PII_CRON_HOOK = 'hmwevents_pii_retention_cleanup';
+
     /**
      * Initialize the service.
      *
@@ -39,6 +41,8 @@ class BookingCleanup
         
         // Hook into the cron event
         add_action(self::CRON_HOOK, [$this, 'cleanup_abandoned_bookings']);
+
+        add_action(self::PII_CRON_HOOK, [$this, 'purge_archived_pii']);
     }
 
     /**
@@ -49,8 +53,11 @@ class BookingCleanup
     public function schedule_cleanup()
     {
         if (!wp_next_scheduled(self::CRON_HOOK)) {
-            // Schedule to run daily at 3 AM
             wp_schedule_event(strtotime('tomorrow 3:00 AM'), 'daily', self::CRON_HOOK);
+        }
+
+        if (!wp_next_scheduled(self::PII_CRON_HOOK)) {
+            wp_schedule_event(strtotime('tomorrow 4:00 AM'), 'daily', self::PII_CRON_HOOK);
         }
     }
 
@@ -64,6 +71,11 @@ class BookingCleanup
         $timestamp = wp_next_scheduled(self::CRON_HOOK);
         if ($timestamp) {
             wp_unschedule_event($timestamp, self::CRON_HOOK);
+        }
+
+        $pii_timestamp = wp_next_scheduled(self::PII_CRON_HOOK);
+        if ($pii_timestamp) {
+            wp_unschedule_event($pii_timestamp, self::PII_CRON_HOOK);
         }
     }
 
@@ -169,5 +181,55 @@ class BookingCleanup
     public function manual_cleanup()
     {
         $this->cleanup_abandoned_bookings();
+    }
+
+    public function purge_archived_pii(): void
+    {
+        global $wpdb;
+        $retention_days = apply_filters('hmwevents_pii_retention_days', 90);
+        $cutoff = date('Y-m-d H:i:s', strtotime("-{$retention_days} days"));
+
+        $archived_events = $wpdb->get_col($wpdb->prepare("
+            SELECT ID FROM {$wpdb->posts}
+            WHERE post_type = 'hmw_event'
+              AND post_status = 'archived'
+              AND post_modified < %s
+        ", $cutoff));
+
+        if (empty($archived_events)) {
+            return;
+        }
+
+        $bookings_table = DatabaseService::get_table_name('bookings');
+        $event_ids = array_map('intval', $archived_events);
+        $placeholders = implode(',', array_fill(0, count($event_ids), '%d'));
+
+        $registrant_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT registrant_post_id FROM {$bookings_table}
+            WHERE event_post_id IN ({$placeholders}) AND deleted_at IS NULL",
+            ...$event_ids
+        ));
+
+        if (empty($registrant_ids)) {
+            return;
+        }
+
+        $pii_meta_keys = [
+            'registrant_first_name', 'registrant_last_name',
+            'registrant_email', 'registrant_phone',
+            'registrant_address', 'registrant_suburb',
+            'registrant_state', 'registrant_postcode',
+        ];
+
+        foreach ($registrant_ids as $r_id) {
+            foreach ($pii_meta_keys as $key) {
+                delete_post_meta($r_id, $key);
+            }
+
+            wp_update_post([
+                'ID' => $r_id,
+                'post_title' => __('[Expired]', 'hmw-events'),
+            ]);
+        }
     }
 }

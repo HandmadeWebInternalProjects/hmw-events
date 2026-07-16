@@ -27,6 +27,17 @@ class Admin
   use \HMWEvents\Traits\HasComponents;
   protected $options_panel;
 
+  private const RECURRENCE_CHILD_KEYS = [
+    'event_is_recurring',
+    'event_recurrence_interval',
+    'event_recurrence_unit',
+    'event_recurrence_days',
+    'event_recurrence_end_type',
+    'event_recurrence_end_date',
+    'event_recurrence_max_occurrences',
+    'event_recurrence_custom_dates',
+  ];
+
   /**
    * Fields that need encryption.
    *
@@ -905,8 +916,9 @@ class Admin
     if (strpos($screen_id, 'hmwevents-event-templates') !== false) {
       add_thickbox();
       wp_enqueue_script('jquery-ui-sortable');
+      wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
       wp_enqueue_style('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/css/event-templates.css', [], HMWEvents_VERSION);
-      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
+      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['hmwevents-form-builder-shared'], HMWEvents_VERSION, true);
     }
 
     // Event template override meta box (on hmw_event edit screen)
@@ -916,12 +928,14 @@ class Admin
       $reg_fields  = $this->get_override_reg_fields();
 
       wp_enqueue_script('jquery-ui-sortable');
-      wp_enqueue_script('hmwevents-event-template-override', HMWEvents::plugin_url() . '/resources/admin/js/event-template-override.js', ['jquery', 'jquery-ui-sortable'], HMWEvents_VERSION, true);
+      wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
+      wp_enqueue_script('hmwevents-event-template-override', HMWEvents::plugin_url() . '/resources/admin/js/event-template-override.js', ['hmwevents-form-builder-shared'], HMWEvents_VERSION, true);
       wp_localize_script('hmwevents-event-template-override', 'hmwEventOverride', [
         'ajaxUrl'            => admin_url('admin-ajax.php'),
         'nonce'              => wp_create_nonce('hmwevents_event_override'),
         'acfEventFields'     => $acf_fields,
         'registrationFields' => $reg_fields,
+        'registrationPresets'=> \HMWEvents\Registry\RegistrationFieldRegistry::presets(),
         'sectionLabels'      => [
             'contact'           => __('Contact', 'hmw-events'),
             'address'           => __('Address', 'hmw-events'),
@@ -930,6 +944,44 @@ class Admin
             'additional'        => __('Additional', 'hmw-events'),
         ],
       ]);
+      wp_add_inline_style('common', '
+        .hmwevents-override-dnd-container { display: flex; gap: 10px; margin-top: 4px; }
+        .hmwevents-override-dnd-panel { flex: 1; min-width: 0; }
+        .hmwevents-override-dnd-panel h5 { margin: 4px 0 6px; font-size: 13px; }
+        .hmwevents-override-dnd-list { min-height: 40px; background: #f6f7f7; border: 1px dashed #c3c4c7; padding: 6px; margin: 0; list-style: none; }
+        .hmwevents-override-dnd-item { background: #fff; border: 1px solid #dcdcde; padding: 4px 8px; margin: 3px 0; cursor: move; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+        .hmwevents-dnd-handle { color: #999; cursor: grab; font-size: 14px; flex-shrink: 0; }
+        .hmwevents-dnd-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hmwevents-dnd-label strong { font-size: 12px; }
+        .hmwevents-dnd-label code { font-size: 10px; color: #666; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hmwevents-dnd-placeholder { background: #e5f0fa; border: 1px dashed #2271b1; min-height: 28px; }
+        .hmwevents-req-toggle { font-size: 10px; white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 2px; }
+        .hmwevents-req-toggle input { margin: 0; }
+        .hmwevents-override-reg-section { margin-bottom: 10px; }
+        .hmwevents-override-reg-section h5 { margin: 4px 0; font-size: 12px; color: #50575e; }
+        #TB_window .hmwevents-override-dnd-item { font-size: 13px; }
+        #TB_window .hmwevents-override-dnd-label strong { font-size: 13px; }
+        #TB_window .hmwevents-override-dnd-label code { font-size: 11px; }
+        .hmwevents-fb-field-card { border: 1px solid #dcdcde; border-radius: 3px; background: #fff; cursor: pointer; user-select: none; }
+        .hmwevents-fb-field-card:hover { border-color: #2271b1; }
+        .hmwevents-fb-field-card.ui-sortable-helper { opacity: 0.8; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .hmwevents-fb-field-card-inner { display: flex; align-items: center; padding: 6px 8px; gap: 6px; }
+        .hmwevents-fb-field-card .hmwevents-dnd-handle { cursor: grab; color: #8c8f94; flex-shrink: 0; }
+        .hmwevents-fb-field-label { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hmwevents-fb-field-req { color: #b32d2e; }
+        .hmwevents-fb-field-type { font-size: 10px; color: #787c82; background: #f0f0f1; padding: 1px 5px; border-radius: 2px; text-transform: uppercase; flex-shrink: 0; }
+        .hmwevents-fb-field-per-attendee { font-size: 12px; color: #2271b1; flex-shrink: 0; }
+        .hmwevents-fb-field--full { grid-column: span 2; }
+        .hmwevents-fb-grid-placeholder { border: 2px dashed #2271b1; border-radius: 3px; min-height: 36px; background: #f0f6fc; grid-column: span 1; }
+        .hmwevents-fb-grid-placeholder.hmwevents-fb-field--full { grid-column: span 2; }
+        .hmwevents-modal-body { padding: 16px; }
+        .hmwevents-modal-body .form-table th { width: 120px; padding: 8px 10px 8px 0; }
+        .hmwevents-modal-body .form-table td { padding: 8px 0; }
+        .hmwevents-modal-presets { margin-bottom: 12px; }
+        .hmwevents-preset-btn { margin-right: 4px; margin-bottom: 4px; cursor: pointer; }
+        .hmwevents-override-section { border: 1px solid #c3c4c7; border-radius: 4px; padding: 8px; background: #fff; }
+        .hmwevents-override-section.ui-sortable-helper { opacity: 0.85; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+      ');
     }
 
     // Course bookings meta box assets (on course/edit screen)
@@ -1083,7 +1135,9 @@ class Admin
       }
     }
 
-    return empty($fields) ? $this->get_acf_fields_from_json() : $fields;
+    $fields = empty($fields) ? $this->get_acf_fields_from_json() : $fields;
+
+    return $this->group_recurrence_fields($fields);
   }
 
   private function get_acf_fields_from_json(): array
@@ -1120,6 +1174,46 @@ class Admin
     }
 
     return $fields;
+  }
+
+  private function group_recurrence_fields(array $fields): array
+  {
+    $child_keys = self::RECURRENCE_CHILD_KEYS;
+    $child_set = array_flip($child_keys);
+
+    $has_children = false;
+    foreach ($fields as $f) {
+      if (isset($child_set[$f['key']])) {
+        $has_children = true;
+        break;
+      }
+    }
+
+    if (!$has_children) {
+      return $fields;
+    }
+
+    $grouped = [];
+    $group_inserted = false;
+
+    foreach ($fields as $f) {
+      if (isset($child_set[$f['key']])) {
+        if (!$group_inserted) {
+          $grouped[] = [
+            'key'      => 'event_recurrence',
+            'label'    => __('Recurrence Settings', 'hmw-events'),
+            'type'     => 'group',
+            'children' => $child_keys,
+          ];
+          $group_inserted = true;
+        }
+        continue;
+      }
+
+      $grouped[] = $f;
+    }
+
+    return $grouped;
   }
 
   private function get_override_reg_fields(): array

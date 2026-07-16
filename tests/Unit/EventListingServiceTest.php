@@ -77,7 +77,7 @@ class EventListingServiceTest extends TestCase
         $args = $this->service->build_query([]);
 
         $this->assertEquals('hmw_event', $args['post_type']);
-        $this->assertEquals(['publish', 'fully_booked'], $args['post_status']);
+        $this->assertEquals(['publish', 'fully_booked', 'by_invitation'], $args['post_status']);
         $this->assertEquals(12, $args['posts_per_page']);
         $this->assertEquals(0, $args['post_parent']);
         $this->assertEquals('_event_start_date', $args['meta_key']);
@@ -252,6 +252,15 @@ class EventListingServiceTest extends TestCase
         $this->assertEquals('hmw_event_audience', $args['tax_query'][0]['taxonomy']);
     }
 
+    public function test_build_query_topic_filter(): void
+    {
+        $args = $this->service->build_query(['topic' => ['parenting', 'sleep']]);
+        $this->assertEquals(1, $this->tax_query_count($args));
+        $this->assertEquals('hmw_event_topic', $args['tax_query'][0]['taxonomy']);
+        $this->assertEquals('slug', $args['tax_query'][0]['field']);
+        $this->assertEquals(['parenting', 'sleep'], $args['tax_query'][0]['terms']);
+    }
+
     public function test_build_query_search(): void
     {
         $args = $this->service->build_query(['search' => 'birth preparation']);
@@ -424,6 +433,98 @@ class EventListingServiceTest extends TestCase
             }
             $this->assertTrue($has_badge);
         }
+    }
+
+    // ============================================================
+    // get_event_card — multi-session badge
+    // ============================================================
+
+    public function test_get_event_card_includes_multi_session_badge(): void
+    {
+        // IDs 100 & 101 are child sessions, ID 1 is the parent event.
+        // The Multi-Session badge requires session_count > 1.
+        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
+            if ($id === 100 || $id === 101) {
+                return $key === '_event_start_date' ? '2026-07-15 09:00:00' : '';
+            }
+            return match ($key) {
+                '_event_start_date' => '2026-07-01 09:00:00',
+                '_event_end_date'   => '',
+                '_event_price'      => '150.00',
+                '_event_is_free'    => '0',
+                default             => '',
+            };
+        });
+
+        Functions\when('wp_get_object_terms')->justReturn([]);
+
+        $children = [
+            (object) ['ID' => 100, 'post_type' => 'hmw_event', 'post_parent' => 1],
+            (object) ['ID' => 101, 'post_type' => 'hmw_event', 'post_parent' => 1],
+        ];
+        Functions\when('get_posts')->alias(function ($args) use ($children) {
+            if (($args['post_parent'] ?? 0) === 1) {
+                return $children;
+            }
+            return [];
+        });
+
+        $post = (object) [
+            'ID'           => 1,
+            'post_title'   => 'Multi Session Event',
+            'post_excerpt' => 'Has sessions.',
+            'post_content' => 'Content.',
+            'post_status'  => 'publish',
+        ];
+
+        $card = $this->service->get_event_card($post);
+
+        $has_multi = false;
+        foreach ($card['badges'] as $badge) {
+            if ($badge['label'] === 'Multi-Session') {
+                $has_multi = true;
+                break;
+            }
+        }
+        $this->assertTrue($has_multi, 'Multi-Session badge should be present');
+        $this->assertTrue($card['is_multi_session']);
+        $this->assertEquals(2, $card['session_count']);
+    }
+
+    public function test_get_event_card_excludes_multi_session_badge_for_single(): void
+    {
+        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
+            return match ($key) {
+                '_event_start_date' => '2026-07-01 09:00:00',
+                '_event_end_date'   => '',
+                '_event_price'      => '150.00',
+                '_event_is_free'    => '0',
+                default             => '',
+            };
+        });
+
+        Functions\when('wp_get_object_terms')->justReturn([]);
+
+        $post = (object) [
+            'ID'           => 2,
+            'post_title'   => 'Single Event',
+            'post_excerpt' => 'No sessions.',
+            'post_content' => 'Content.',
+            'post_status'  => 'publish',
+        ];
+
+        $card = $this->service->get_event_card($post);
+
+        $has_multi = false;
+        foreach ($card['badges'] as $badge) {
+            if ($badge['label'] === 'Multi-Session') {
+                $has_multi = true;
+                break;
+            }
+        }
+        $this->assertFalse($has_multi, 'Multi-Session badge should not be present');
+        $this->assertFalse($card['is_multi_session']);
+        $this->assertEquals(0, $card['session_count']);
     }
 
     // ============================================================

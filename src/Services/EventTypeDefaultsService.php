@@ -202,18 +202,25 @@ class EventTypeDefaultsService
 
     private function resolve_event_fields(int $post_id, string $type_slug): array
     {
+        $template = null;
+
         $template_id = (int) get_post_meta($post_id, '_created_from_template_id', true);
         if ($template_id) {
             $template = $this->template_service()->get($template_id);
-            if ($template) {
-                $resolver = new TemplateResolver(new TemplateSchemaValidator());
-                $resolved = $resolver->resolve(
-                    $template->event_type_slug ?: $type_slug,
-                    (array) $template->template_data
-                );
-                if (!is_wp_error($resolved) && isset($resolved['field_config']['event_fields'])) {
-                    return $resolved['field_config']['event_fields'];
-                }
+        }
+
+        if (!$template) {
+            $template = $this->find_template_by_event_type($type_slug);
+        }
+
+        if ($template) {
+            $resolver = new TemplateResolver(new TemplateSchemaValidator());
+            $resolved = $resolver->resolve(
+                $template->event_type_slug ?: $type_slug,
+                (array) $template->template_data
+            );
+            if (!is_wp_error($resolved) && isset($resolved['field_config']['event_fields'])) {
+                return $resolved['field_config']['event_fields'];
             }
         }
 
@@ -223,6 +230,16 @@ class EventTypeDefaultsService
             'optional' => [],
             'hidden'   => array_values(array_map('sanitize_key', (array) ($type_config['hidden_fields'] ?? []))),
         ];
+    }
+
+    private function find_template_by_event_type(string $type_slug): ?object
+    {
+        $templates = $this->template_service()->get_all(['event_type_slug' => $type_slug, 'is_active' => true]);
+        if (!empty($templates)) {
+            return $templates[0];
+        }
+
+        return null;
     }
 
     private function build_default_registration_fields(): array
@@ -363,6 +380,10 @@ class EventTypeDefaultsService
             var hiddenFields = window.hmwEventTypeDefaults.hiddenFields;
             var allFields = window.hmwEventTypeDefaults.allHideableFields;
 
+            function hasActiveOverride(){
+                return \$('#hmwevents-override-container').data('has-override') === 1;
+            }
+
             function showAllTypeFields(){
                 \$.each(allFields, function(i, fieldName){
                     \$('.acf-field[data-name=\"_' + fieldName + '\"]').show();
@@ -370,6 +391,7 @@ class EventTypeDefaultsService
             }
 
             function hideFieldsForType(typeSlug){
+                if(hasActiveOverride()) return;
                 if(!typeSlug || !hiddenFields[typeSlug]) return;
                 \$.each(hiddenFields[typeSlug], function(i, fieldName){
                     \$('.acf-field[data-name=\"_' + fieldName + '\"]').hide();
@@ -439,7 +461,9 @@ class EventTypeDefaultsService
             });
 
             \$(function(){
-                hideFieldsForType(getSelectedTypeSlug());
+                if(!hasActiveOverride()){
+                    hideFieldsForType(getSelectedTypeSlug());
+                }
                 updateButtonState();
             });
         })(jQuery);";

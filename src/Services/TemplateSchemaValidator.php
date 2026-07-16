@@ -18,6 +18,19 @@ class TemplateSchemaValidator
 
     const ALLOWED_SOURCES = ['registrant_meta', 'booking_details'];
 
+    private const GROUP_EXPANSIONS = [
+        'event_recurrence' => [
+            'event_is_recurring',
+            'event_recurrence_interval',
+            'event_recurrence_unit',
+            'event_recurrence_days',
+            'event_recurrence_end_type',
+            'event_recurrence_end_date',
+            'event_recurrence_max_occurrences',
+            'event_recurrence_custom_dates',
+        ],
+    ];
+
     public function normalize(array $template_data): array|\WP_Error
     {
         $normalized = $this->normalize_shape($template_data);
@@ -318,8 +331,12 @@ class TemplateSchemaValidator
         }
 
         $known_event_fields = $this->get_known_event_field_keys();
+        $known_group_keys = array_keys(self::GROUP_EXPANSIONS);
         foreach (['required', 'optional', 'hidden'] as $bucket) {
             foreach ($data['event_fields'][$bucket] as $key) {
+                if (in_array($key, $known_group_keys, true)) {
+                    continue;
+                }
                 if (!in_array($key, $known_event_fields, true)) {
                     $errors[] = sprintf('Unknown event field: %s.', $key);
                 }
@@ -528,7 +545,20 @@ class TemplateSchemaValidator
             $normalized[] = $key;
         }
 
-        return array_values(array_unique($normalized));
+        $normalized = array_values(array_unique($normalized));
+
+        $expanded = [];
+        foreach ($normalized as $key) {
+            if (isset(self::GROUP_EXPANSIONS[$key])) {
+                foreach (self::GROUP_EXPANSIONS[$key] as $child) {
+                    $expanded[] = $child;
+                }
+            } else {
+                $expanded[] = $key;
+            }
+        }
+
+        return array_values(array_unique($expanded));
     }
 
     private function normalize_registration_defaults(array $registration): array

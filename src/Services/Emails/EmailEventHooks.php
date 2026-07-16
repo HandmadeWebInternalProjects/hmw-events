@@ -60,6 +60,9 @@ class EmailEventHooks
         add_action('hmwevents_waitlist_promoted', [$this, 'on_v2_waitlist_promoted'], 10, 2);
         add_action('hmwevents_invoice_created', [$this, 'on_v2_invoice_created'], 10, 3);
         add_action('hmwevents_invitation_token_created', [$this, 'on_v2_invitation_token_created'], 10, 1);
+
+        // Payment gateway — auto-queue receipt when payment status transitions to paid
+        add_action('hmwevents_payment_received', [$this, 'on_payment_received'], 10, 2);
     }
 
     /**
@@ -71,17 +74,14 @@ class EmailEventHooks
      */
     public function on_booking_created($booking_id, $booking_data = [])
     {
-        // Queue booking confirmation email (to customer)
-        $this->email_service->queue_booking_confirmation($booking_id, $booking_data);
+        if ($this->is_email_enabled('booking_confirmation')) {
+            $this->email_service->queue_booking_confirmation($booking_id, $booking_data);
+        }
 
-        // Queue new-booking notification (to educator)
-        $this->email_service->queue_educator_new_booking($booking_id, $booking_data);
+        if ($this->is_email_enabled('new_booking_notify')) {
+            $this->email_service->queue_educator_new_booking($booking_id, $booking_data);
+        }
 
-        /**
-         * Schedule reminder emails:
-         * - 7 days before course
-         * - 1 day before course
-         */
         if (function_exists('as_enqueue_async_action')) {
             as_enqueue_async_action(
                 'hmwevents_email_schedule_reminders',
@@ -91,7 +91,6 @@ class EmailEventHooks
             $this->schedule_reminders($booking_id);
         }
 
-        // Log email action
         do_action('hmwevents_email_event', 'booking_created', $booking_id);
     }
 
@@ -105,18 +104,19 @@ class EmailEventHooks
      */
     public function on_booking_cancelled($booking_id, $reason = '', $booking_data = [])
     {
-        // Cancel any pending emails that no longer apply
         $this->email_service->cancel_pending_emails(
             $booking_id,
             ['booking_cancelled'],
             'Booking cancelled'
         );
 
-        $this->email_service->queue_status_change_email(
-            $booking_id,
-            StatusChangeHandler::TYPE_BOOKING_CANCELLED,
-            ['reason' => $reason]
-        );
+        if ($this->is_email_enabled('booking_cancelled')) {
+            $this->email_service->queue_status_change_email(
+                $booking_id,
+                StatusChangeHandler::TYPE_BOOKING_CANCELLED,
+                ['reason' => $reason]
+            );
+        }
 
         do_action('hmwevents_email_event', 'booking_cancelled', $booking_id);
     }
@@ -206,13 +206,17 @@ class EmailEventHooks
             return;
         }
 
-        // Queue reminders (scheduled_at calculated based on course date)
-        $this->email_service->queue_course_reminder($booking_id, 7);
-        $this->email_service->queue_course_reminder($booking_id, 1);
+        if ($this->is_email_enabled('reminder_7_days')) {
+            $this->email_service->queue_course_reminder($booking_id, 7);
+        }
 
-        // Queue post-course emails (scheduled_at calculated based on course date)
-        $this->email_service->queue_post_course_email($booking_id, 1);
-        // $this->email_service->queue_post_course_email($booking_id, 30);
+        if ($this->is_email_enabled('reminder_1_day')) {
+            $this->email_service->queue_course_reminder($booking_id, 1);
+        }
+
+        if ($this->is_email_enabled('post_event')) {
+            $this->email_service->queue_post_course_email($booking_id, 1);
+        }
     }
 
     /**
@@ -246,6 +250,10 @@ class EmailEventHooks
      */
     public function on_v2_payment_confirmed($intent, int $booking_group_id, int $transaction_id): void
     {
+        if (!$this->is_email_enabled('payment_received')) {
+            return;
+        }
+
         $dispatch = new EmailDispatchService();
 
         $dispatch->enqueue([
@@ -275,6 +283,10 @@ class EmailEventHooks
      */
     public function on_v2_waitlist_promoted(object $entry, int $event_post_id): void
     {
+        if (!$this->is_email_enabled('invitation_sent')) {
+            return;
+        }
+
         $dispatch = new EmailDispatchService();
 
         $dispatch->enqueue([
@@ -315,6 +327,10 @@ class EmailEventHooks
      */
     public function on_v2_invitation_token_created(array $token_data): void
     {
+        if (!$this->is_email_enabled('invitation_sent')) {
+            return;
+        }
+
         $dispatch = new EmailDispatchService();
 
         $dispatch->enqueue([
@@ -330,6 +346,21 @@ class EmailEventHooks
     }
 
     /**
+     * Handle payment received event from payment gateway.
+     *
+     * Fires when a booking's payment_status transitions to 'paid'.
+     * Automatically queues a tax invoice / payment receipt email.
+     */
+    public function on_payment_received(int $booking_id, array $data): void
+    {
+        if (!$this->is_email_enabled('payment_received')) {
+            return;
+        }
+
+        $this->email_service->queue_booking_confirmation($booking_id);
+    }
+
+    /**
      * Get the registrant email for a booking group.
      */
     private function get_booking_email(int $booking_group_id): string
@@ -339,6 +370,18 @@ class EmailEventHooks
             return get_post_meta($post->ID, 'registrant_email', true) ?: '';
         }
         return '';
+    }
+
+    /**
+     * Check if a specific email type is enabled.
+     *
+     * @param string $email_type The email type key.
+     * @return bool
+     */
+    private function is_email_enabled(string $email_type): bool
+    {
+        $disabled = get_option('hmwevents_disabled_emails', []);
+        return !in_array($email_type, (array) $disabled, true);
     }
 }
 

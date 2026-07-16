@@ -106,6 +106,14 @@ class ManualBookingGateway extends AbstractPaymentGateway
             return new \WP_Error('missing_field', 'course_id is required');
         }
 
+        $email = $booking_data['registrant_email'] ?? '';
+        if ($email) {
+            $cap_check = \HMWEvents\Helpers\EventHelper::check_registrant_cap($course_id, $email);
+            if (is_wp_error($cap_check)) {
+                return $cap_check;
+            }
+        }
+
         $wpdb->query('START TRANSACTION');
 
         try {
@@ -144,6 +152,15 @@ class ManualBookingGateway extends AbstractPaymentGateway
                 throw new \Exception($amount_data->get_error_message());
             }
 
+            $attendance_type = $booking_data['attendance_type'] ?? 'individual';
+            $attendance_option_id = EventHelper::resolve_attendance_option_id($course_id, $attendance_type);
+            if ($attendance_option_id) {
+                $option_check = EventHelper::check_attendance_option_capacity($attendance_option_id);
+                if (is_wp_error($option_check)) {
+                    throw new \Exception($option_check->get_error_message());
+                }
+            }
+
             $booking_reference = $this->generate_booking_reference();
             $booking_number    = $this->generate_booking_number();
 
@@ -169,9 +186,10 @@ class ManualBookingGateway extends AbstractPaymentGateway
             // 6. Create the booking — confirmed immediately, payment pending
             $booking_id = $this->create_booking([
                 'booking_group_id' => $booking_group_id,
-                'booking_number'   => $booking_number,
+                'booking_number' => $booking_number,
                 'event_post_id'   => $course_id,
                 'customer_post_id' => $customer_id,
+                'attendance_option_id' => $attendance_option_id,
                 'ticket_type'      => 'full',
                 'ticket_quantity'  => 1,
                 'booking_amount'   => $amount_data['amount'],
@@ -205,6 +223,12 @@ class ManualBookingGateway extends AbstractPaymentGateway
             $this->add_booking_history($booking_id, null, 'confirmed', 'Manual booking created by admin/educator');
 
             $wpdb->query('COMMIT');
+
+            $invite_token = $booking_data['token'] ?? '';
+            if ($invite_token) {
+                $token_service = new \HMWEvents\Services\InvitationTokenService();
+                $token_service->consume($invite_token, $course_id);
+            }
 
             // hmwevents_booking_created is fired automatically by AbstractPaymentGateway::create_booking().
             // hmwevents_booking_confirmed (mailing list sync) is not needed for manual bookings

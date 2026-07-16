@@ -56,7 +56,17 @@ class Reporting
         $date_from = isset($_GET['date_from']) ? sanitize_text_field($_GET['date_from']) : $default_from;
         $date_to   = isset($_GET['date_to'])   ? sanitize_text_field($_GET['date_to'])   : $default_to;
 
-        $educators = $this->get_educator_sales($date_from, $date_to);
+        $payment_status    = sanitize_text_field($_GET['payment_status'] ?? '');
+        $attendance_status = sanitize_text_field($_GET['attendance_status'] ?? '');
+        $event_type        = sanitize_text_field($_GET['event_type'] ?? '');
+        $audience          = sanitize_text_field($_GET['audience'] ?? '');
+
+        $educators = $this->get_educator_sales($date_from, $date_to, [
+            'payment_status'    => $payment_status,
+            'attendance_status' => $attendance_status,
+            'event_type'        => $event_type,
+            'audience'          => $audience,
+        ]);
 
         $grand_total_sales    = 0.0;
         $grand_total_bookings = 0;
@@ -90,7 +100,19 @@ class Reporting
         $date_from = isset($_GET['date_from']) ? sanitize_text_field($_GET['date_from']) : '';
         $date_to   = isset($_GET['date_to'])   ? sanitize_text_field($_GET['date_to'])   : '';
 
-        $educators = $this->get_educator_sales($date_from, $date_to);
+        $payment_status    = sanitize_text_field($_GET['payment_status'] ?? '');
+        $attendance_status = sanitize_text_field($_GET['attendance_status'] ?? '');
+        $event_type        = sanitize_text_field($_GET['event_type'] ?? '');
+        $audience          = sanitize_text_field($_GET['audience'] ?? '');
+
+        $filters = [
+            'payment_status'    => $payment_status,
+            'attendance_status' => $attendance_status,
+            'event_type'        => $event_type,
+            'audience'          => $audience,
+        ];
+
+        $educators = $this->get_educator_sales($date_from, $date_to, $filters);
 
         $grand_total_sales    = 0.0;
         $grand_total_bookings = 0;
@@ -138,7 +160,7 @@ class Reporting
 
         // Per-educator detail sections
         foreach ($educators as $educator) {
-            $rows = $this->get_educator_booking_rows((int) $educator->educator_id, $date_from, $date_to);
+            $rows = $this->get_educator_booking_rows((int) $educator->educator_id, $date_from, $date_to, $filters);
 
             if (empty($rows)) {
                 continue;
@@ -188,7 +210,7 @@ class Reporting
      * @param string $date_to   Optional end date (Y-m-d).
      * @return array Array of stdClass rows.
      */
-    private function get_educator_sales(string $date_from = '', string $date_to = ''): array
+    private function get_educator_sales(string $date_from = '', string $date_to = '', array $filters = []): array
     {
         global $wpdb;
 
@@ -205,6 +227,36 @@ class Reporting
         if ($date_to) {
             $booking_on .= ' AND b.created_at <= %s';
             $values[]    = $date_to . ' 23:59:59';
+        }
+
+        if (!empty($filters['payment_status'])) {
+            $booking_on .= ' AND b.payment_status = %s';
+            $values[]    = $filters['payment_status'];
+        }
+
+        if (!empty($filters['attendance_status'])) {
+            $booking_on .= ' AND b.attendance_status = %s';
+            $values[]    = $filters['attendance_status'];
+        }
+
+        $extra_joins = '';
+
+        if (!empty($filters['event_type'])) {
+            $extra_joins .= $wpdb->prepare(
+                " INNER JOIN {$wpdb->term_relationships} tr_et ON c.ID = tr_et.object_id"
+                . " INNER JOIN {$wpdb->term_taxonomy} tt_et ON tr_et.term_taxonomy_id = tt_et.term_taxonomy_id AND tt_et.taxonomy = 'hmw_event_type'"
+                . " INNER JOIN {$wpdb->terms} t_et ON tt_et.term_id = t_et.term_id AND t_et.slug = %s",
+                $filters['event_type']
+            );
+        }
+
+        if (!empty($filters['audience'])) {
+            $extra_joins .= $wpdb->prepare(
+                " INNER JOIN {$wpdb->term_relationships} tr_aud ON c.ID = tr_aud.object_id"
+                . " INNER JOIN {$wpdb->term_taxonomy} tt_aud ON tr_aud.term_taxonomy_id = tt_aud.term_taxonomy_id AND tt_aud.taxonomy = 'hmw_event_audience'"
+                . " INNER JOIN {$wpdb->terms} t_aud ON tt_aud.term_id = t_aud.term_id AND t_aud.slug = %s",
+                $filters['audience']
+            );
         }
 
         $capabilities_key = $wpdb->prefix . 'capabilities';
@@ -227,6 +279,7 @@ class Reporting
                 AND c.post_status != 'trash'
             LEFT JOIN {$wpdb->prefix}hmwevents_bookings b
                 ON  {$booking_on}
+            {$extra_joins}
             GROUP BY u.ID, u.display_name, u.user_email
             ORDER BY total_sales DESC, total_bookings DESC
         ";
@@ -245,7 +298,7 @@ class Reporting
      * @param string $date_to     Optional end date (Y-m-d).
      * @return array Array of stdClass rows.
      */
-    private function get_educator_booking_rows(int $educator_id, string $date_from = '', string $date_to = ''): array
+    private function get_educator_booking_rows(int $educator_id, string $date_from = '', string $date_to = '', array $filters = []): array
     {
         global $wpdb;
 
@@ -259,6 +312,31 @@ class Reporting
         if ($date_to) {
             $where   .= ' AND b.created_at <= %s';
             $values[] = $date_to . ' 23:59:59';
+        }
+
+        if (!empty($filters['attendance_status'])) {
+            $where   .= ' AND b.attendance_status = %s';
+            $values[] = $filters['attendance_status'];
+        }
+
+        $extra_joins = '';
+
+        if (!empty($filters['event_type'])) {
+            $extra_joins .= $wpdb->prepare(
+                " INNER JOIN {$wpdb->term_relationships} tr_et ON b.event_post_id = tr_et.object_id"
+                . " INNER JOIN {$wpdb->term_taxonomy} tt_et ON tr_et.term_taxonomy_id = tt_et.term_taxonomy_id AND tt_et.taxonomy = 'hmw_event_type'"
+                . " INNER JOIN {$wpdb->terms} t_et ON tt_et.term_id = t_et.term_id AND t_et.slug = %s",
+                $filters['event_type']
+            );
+        }
+
+        if (!empty($filters['audience'])) {
+            $extra_joins .= $wpdb->prepare(
+                " INNER JOIN {$wpdb->term_relationships} tr_aud ON b.event_post_id = tr_aud.object_id"
+                . " INNER JOIN {$wpdb->term_taxonomy} tt_aud ON tr_aud.term_taxonomy_id = tt_aud.term_taxonomy_id AND tt_aud.taxonomy = 'hmw_event_audience'"
+                . " INNER JOIN {$wpdb->terms} t_aud ON tt_aud.term_id = t_aud.term_id AND t_aud.slug = %s",
+                $filters['audience']
+            );
         }
 
         $sql = "
@@ -295,6 +373,7 @@ class Reporting
                 AND pm_email.meta_key = 'registrant_email'
             LEFT JOIN {$wpdb->prefix}hmwevents_booking_details bd
                 ON  bd.booking_id = b.id
+            {$extra_joins}
             WHERE {$where}
             ORDER BY c.post_title ASC, b.created_at ASC
         ";

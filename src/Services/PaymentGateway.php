@@ -60,6 +60,14 @@ class PaymentGateway
         $attendance_type = $booking_data['attendance_type'] ?? 'individual';
         $organizer_id    = $this->resolve_organizer_id($event_id);
 
+        $email = $booking_data['email'] ?? $booking_data['registrant_email'] ?? '';
+        if ($email) {
+            $cap_check = \HMWEvents\Helpers\EventHelper::check_registrant_cap($event_id, $email);
+            if (is_wp_error($cap_check)) {
+                return $cap_check;
+            }
+        }
+
         $payment_service = new PaymentService($organizer_id);
 
         return $payment_service->create_payment_intent(

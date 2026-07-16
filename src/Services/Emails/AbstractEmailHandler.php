@@ -220,6 +220,20 @@ abstract class AbstractEmailHandler
                 }
             }
 
+            if (!empty($email->booking_id)) {
+                global $wpdb;
+                $event_post_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT event_post_id FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+                    $email->booking_id
+                ));
+                if ($event_post_id) {
+                    $override = get_post_meta((int) $event_post_id, '_event_notification_email', true);
+                    if ($override && is_email($override)) {
+                        $educator_email = $override;
+                    }
+                }
+            }
+
             $sent = wp_mail(
                 $email->recipient_email,
                 $rendered['subject'],

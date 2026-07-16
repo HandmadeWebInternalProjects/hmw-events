@@ -382,7 +382,11 @@ class RegistrationFormRenderer
 
         $config = get_post_meta($event_id, '_event_field_config', true);
         if (is_array($config) && !empty($config['registration_fields']['sections'])) {
-            return $config['registration_fields'];
+            $reg = $config['registration_fields'];
+            if (is_array($override) && !empty($override['registration_fields']['multi_booking'])) {
+                $reg['multi_booking'] = $override['registration_fields']['multi_booking'];
+            }
+            return $reg;
         }
 
         return null;
@@ -396,6 +400,10 @@ class RegistrationFormRenderer
 
         $price = (float) get_post_meta($event_id, '_event_price', true) ?: 0;
         $requires_payment = $price > 0;
+
+        $course = get_post($event_id);
+        $is_private_access = $course && $course->post_status === 'by_invitation';
+        $show_net_terms = $is_private_access && (bool) get_post_meta($event_id, '_event_allow_net_terms', true);
 
         wp_enqueue_style(
             'hmwevents-v3-booking',
@@ -491,6 +499,20 @@ class RegistrationFormRenderer
                     <div class="hmw-reg-payment-summary">
                         <p><?php printf(esc_html__('Total: %s', 'hmw-events'), '<strong>$' . number_format($price, 2) . '</strong>'); ?></p>
                     </div>
+                    <?php if ($show_net_terms): ?>
+                    <div class="hmw-reg-payment-options" style="margin-bottom:12px;">
+                        <label class="hmw-reg-payment-option">
+                            <input type="radio" name="payment_type" value="full" checked>
+                            <?php esc_html_e('Pay Online (Credit Card)', 'hmw-events'); ?>
+                        </label>
+                        <label class="hmw-reg-payment-option">
+                            <input type="radio" name="payment_type" value="net_terms">
+                            <?php esc_html_e('Pay by Invoice', 'hmw-events'); ?>
+                        </label>
+                    </div>
+                    <?php else: ?>
+                    <input type="hidden" name="payment_type" value="full">
+                    <?php endif; ?>
                     <?php if ($has_stripe): ?>
                     <div id="hmwevents-card-element" class="hmwevents-stripe-element" style="padding:12px;border:1px solid #d1d5db;border-radius:4px;background:#fff;min-height:42px;"></div>
                     <div id="hmwevents-card-errors" style="color:#b32d2e; margin-top:4px;"></div>

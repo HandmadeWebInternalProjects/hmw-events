@@ -170,6 +170,11 @@ class Coupon
                 <th><label for="hmw_coupon_is_active"><?php esc_html_e('Active', 'hmw-events'); ?></label></th>
                 <td><input type="checkbox" id="hmw_coupon_is_active" name="hmw_coupon_is_active" value="1" <?php checked($is_active, '1'); ?> /></td>
             </tr>
+            <tr>
+                <th><label for="hmw_coupon_is_staff"><?php esc_html_e('Staff Discount', 'hmw-events'); ?></label></th>
+                <td><input type="checkbox" id="hmw_coupon_is_staff" name="hmw_coupon_is_staff" value="1" <?php checked(get_post_meta($post->ID, '_coupon_is_staff', true), '1'); ?> />
+                <span class="description"><?php esc_html_e('Bypasses date, usage, and event type restrictions. Uses the discount type/value set above.', 'hmw-events'); ?></span></td>
+            </tr>
         </table>
         <?php
     }
@@ -261,6 +266,7 @@ class Coupon
             '_coupon_start_date'    => sanitize_text_field($_POST['hmw_coupon_start_date'] ?? ''),
             '_coupon_end_date'      => sanitize_text_field($_POST['hmw_coupon_end_date'] ?? ''),
             '_coupon_is_active'     => isset($_POST['hmw_coupon_is_active']) ? '1' : '0',
+            '_coupon_is_staff'      => isset($_POST['hmw_coupon_is_staff']) ? '1' : '0',
             '_coupon_min_amount'    => (float) ($_POST['hmw_coupon_min_amount'] ?? 0),
             '_coupon_max_uses'      => (int) ($_POST['hmw_coupon_max_uses'] ?? 0),
             '_coupon_max_per_user'  => (int) ($_POST['hmw_coupon_max_per_user'] ?? 0),

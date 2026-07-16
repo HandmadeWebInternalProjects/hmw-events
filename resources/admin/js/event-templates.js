@@ -46,7 +46,16 @@
     var includedHtml = '';
 
     fields.forEach(function (f) {
-      if (hiddenSet[f.key]) {
+      if (f.type === 'group') {
+        var children = f.children || [];
+        var allHidden = children.length > 0 && children.every(function (c) { return hiddenSet[c]; });
+        var allRequired = children.length > 0 && children.every(function (c) { return requiredSet[c]; });
+        if (allHidden) {
+          availableHtml += buildAcfItemHtml(f, false);
+        } else {
+          includedHtml += buildAcfItemHtml(f, allRequired);
+        }
+      } else if (hiddenSet[f.key]) {
         availableHtml += buildAcfItemHtml(f, false);
       } else {
         includedHtml += buildAcfItemHtml(f, requiredSet[f.key]);
@@ -54,6 +63,9 @@
     });
 
     fields.forEach(function (f) {
+      if (f.type === 'group') {
+        return;
+      }
       if (!hiddenSet[f.key] && !requiredSet[f.key] && initOptional.indexOf(f.key) === -1) {
         if (availableHtml.indexOf('data-field-key="' + escAttr(f.key) + '"') === -1 &&
             includedHtml.indexOf('data-field-key="' + escAttr(f.key) + '"') === -1) {
@@ -93,10 +105,24 @@
   }
 
   function buildAcfItemHtml(f, isRequired) {
+    if (f.type === 'group') {
+      return buildAcfGroupItemHtml(f, isRequired);
+    }
     var reqId = 'acf-req-' + escAttr(f.key);
     return '<li class="hmwevents-dnd-item" data-field-key="' + escAttr(f.key) + '">' +
       '<span class="hmwevents-dnd-handle">&#9776;</span>' +
       '<span class="hmwevents-dnd-label"><strong>' + escHtml(f.label) + '</strong> <code>' + escHtml(f.key) + '</code></span>' +
+      '<span class="hmwevents-dnd-required">' +
+      '<input type="checkbox" id="' + escAttr(reqId) + '" ' + (isRequired ? 'checked' : '') + '>' +
+      '<label for="' + escAttr(reqId) + '">Required</label></span></li>';
+  }
+
+  function buildAcfGroupItemHtml(f, isRequired) {
+    var childrenJson = JSON.stringify(f.children || []);
+    var reqId = 'acf-req-' + escAttr(f.key);
+    return '<li class="hmwevents-dnd-item hmwevents-dnd-group" data-field-key="' + escAttr(f.key) + '" data-group-children="' + escAttr(childrenJson) + '">' +
+      '<span class="hmwevents-dnd-handle">&#9776;</span>' +
+      '<span class="hmwevents-dnd-label"><strong>' + escHtml(f.label) + '</strong> <span class="hmwevents-dnd-group-badge">group</span></span>' +
       '<span class="hmwevents-dnd-required">' +
       '<input type="checkbox" id="' + escAttr(reqId) + '" ' + (isRequired ? 'checked' : '') + '>' +
       '<label for="' + escAttr(reqId) + '">Required</label></span></li>';
@@ -141,7 +167,7 @@
     initMultiBookingToggle();
 
     $('#hmwevents-fb-sections .hmwevents-fb-section-fields').each(function () {
-      initSectionFieldSortable($(this));
+      HmwFormBuilder.initFieldSortable($(this), saveJSON);
     });
   }
 
@@ -159,30 +185,13 @@
     html += '</div>';
     html += '<div class="hmwevents-fb-section-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
     fields.forEach(function (field) {
-      html += renderFieldCardHtml(field);
+      html += HmwFormBuilder.renderFieldCard(field);
     });
     html += '</div>';
     html += '<button type="button" class="hmwevents-fb-add-field button button-small">+ Add Field</button>';
     html += '</div>';
     return html;
   }
-
-function renderFieldCardHtml(field) {
-    var widthClass = field.width === 'half' ? 'hmwevents-fb-field--half' : 'hmwevents-fb-field--full';
-    var reqMark = field.required ? ' <span class="hmwevents-fb-field-req">*</span>' : '';
-    var perAttendeeIcon = field.per_attendee ? '<span class="hmwevents-fb-field-per-attendee" title="Per attendee">&#128101;</span>' : '';
-    var typeBadge = '<span class="hmwevents-fb-field-type">' + escHtml(field.type || 'text') + '</span>';
-    var presetAttr = field.preset ? ' data-preset="1"' : '';
-    var sourceAttr = ' data-source="' + escAttr(field.source || 'booking_details') + '"';
-    var metaKeyAttr = field.meta_key ? ' data-meta-key="' + escAttr(field.meta_key) + '"' : '';
-
-    return '<div class="hmwevents-fb-field-card ' + widthClass + '" data-field-key="' + escAttr(field.key) + '"' + presetAttr + sourceAttr + metaKeyAttr + '>' +
-      '<div class="hmwevents-fb-field-card-inner">' +
-      '<span class="hmwevents-dnd-handle">&#9776;</span>' +
-      '<span class="hmwevents-fb-field-label">' + escHtml(field.label) + reqMark + '</span>' +
-      typeBadge + perAttendeeIcon +
-      '</div></div>';
-}
 
   // ================================================================
   // SORTABLE INITIALIZATION
@@ -201,192 +210,59 @@ function renderFieldCardHtml(field) {
 
   function initFieldsSortable() {
     $('.hmwevents-fb-section-fields').each(function () {
-      initSectionFieldSortable($(this));
+      HmwFormBuilder.initFieldSortable($(this), saveJSON);
     });
-  }
-
-  function initSectionFieldSortable(el) {
-    el.sortable({
-      handle: '.hmwevents-dnd-handle',
-      placeholder: 'hmwevents-fb-grid-placeholder',
-      opacity: 0.6,
-      start: function (event, ui) {
-        ui.placeholder.addClass(ui.item.hasClass('hmwevents-fb-field--full') ? 'hmwevents-fb-field--full' : '');
-      },
-      sort: function (event, ui) {
-        handleSplitIndicator(event, ui);
-      },
-      stop: function (event, ui) {
-        $('.hmwevents-fb-split-indicator').remove();
-        handleSplitDrop(ui);
-        var pairedItem = ui.item.data('split-paired');
-        if (pairedItem) {
-          pairedItem.removeClass('hmwevents-fb-field--full').addClass('hmwevents-fb-field--half').data('split-paired', null);
-        }
-        ui.item.removeData('split-paired');
-
-        var leftPair = ui.item.next('.hmwevents-fb-field--half');
-        if (leftPair.length && !ui.item.hasClass('hmwevents-fb-field--full')) {
-          ui.item.addClass('hmwevents-fb-field--half').removeClass('hmwevents-fb-field--full');
-        }
-
-        saveJSON();
-      }
-    }).disableSelection();
-  }
-
-  function handleSplitIndicator(event, ui) {
-    $('.hmwevents-fb-split-indicator').remove();
-    var dragged = ui.item;
-    var hovered = null;
-    var hoverX = event.clientX;
-
-    $('.hmwevents-fb-field-card').not(dragged).each(function () {
-      var rect = this.getBoundingClientRect();
-      if (hoverX >= rect.left && hoverX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) {
-        hovered = $(this);
-        return false;
-      }
-    });
-
-    if (hovered && hovered.hasClass('hmwevents-fb-field--full') && dragged.hasClass('hmwevents-fb-field--full')) {
-      var rect = hovered[0].getBoundingClientRect();
-      var relX = event.clientX - rect.left;
-      if (relX > rect.width * 0.6) {
-        hovered.css('position', 'relative');
-        var indicator = $('<div class="hmwevents-fb-split-indicator" style="position:absolute;right:0;top:0;bottom:0;width:40%;border-left:2px dashed #2271b1;background:rgba(34,113,177,0.08);pointer-events:none;"></div>');
-        hovered.append(indicator);
-        dragged.data('split-target', hovered);
-      }
-    }
-  }
-
-  function handleSplitDrop(ui) {
-    var target = ui.item.data('split-target');
-    if (target && target.length) {
-      target.removeClass('hmwevents-fb-field--full').addClass('hmwevents-fb-field--half');
-      ui.item.removeClass('hmwevents-fb-field--full').addClass('hmwevents-fb-field--half');
-      ui.item.data('split-target', null);
-    }
   }
 
   // ================================================================
-  // THICKBOX MODAL
+  // FIELD MODAL
   // ================================================================
 
   function openFieldModal(sectionId, fieldData) {
     currentModalSectionId = sectionId;
     currentModalFieldKey = fieldData ? fieldData.key : '';
 
-    var isNew = !fieldData;
-    var presetBtns = $('#hmwevents-modal-preset-buttons');
-    if (presetBtns.children().length === 0) {
-      var presets = window.hmwEventTemplates.registrationPresets || {};
-      Object.keys(presets).forEach(function (key) {
-        var p = presets[key];
-        var btn = $('<button type="button" class="button button-small hmwevents-preset-btn">')
-          .text(p.label + ' (' + p.type + ')')
-          .data('preset-key', key)
-          .on('click', function () { applyPreset(key); });
-        presetBtns.append(btn);
-      });
-    }
-
-    if (isNew) {
-      $('#hmwevents-modal-presets').show();
-    }
-
-    var f = fieldData || { key: '', label: '', placeholder: '', type: 'text', required: false, width: 'full', per_attendee: false, options: [] };
-    $('#hmwevents-modal-key').val(f.key || '');
-    $('#hmwevents-modal-label').val(f.label || '');
-    $('#hmwevents-modal-placeholder').val(f.placeholder || '');
-    $('#hmwevents-modal-type').val(f.type || 'text');
-    $('#hmwevents-modal-required').prop('checked', !!f.required);
-    $('input[name="hmwevents-modal-width"][value="' + (f.width || 'full') + '"]').prop('checked', true);
-    $('#hmwevents-modal-per-attendee').prop('checked', !!f.per_attendee);
-
-    if (fieldData && fieldData.preset) {
-      $('#hmwevents-modal-key').prop('readonly', true);
-    } else {
-      $('#hmwevents-modal-key').prop('readonly', false);
-    }
-
-    updateModalOptionsPanel();
-    renderModalOptions(f.options || []);
-
-    var mbEnabled = $('#hmwevents-multi-booking-toggle').prop('checked');
-    $('#hmwevents-modal-per-attendee-row').toggle(mbEnabled);
-
-    tb_show('Field Settings', '#TB_inline?width=520&height=480&inlineId=hmwevents-field-modal');
-  }
-
-  function applyPreset(presetKey) {
-    var presets = window.hmwEventTemplates.registrationPresets || {};
-    var p = presets[presetKey];
-    if (!p) return;
-
-    $('#hmwevents-modal-key').val(p.key).prop('readonly', true);
-    $('#hmwevents-modal-label').val(p.label);
-    $('#hmwevents-modal-type').val(p.type);
-    $('#hmwevents-modal-required').prop('checked', !!p.required);
-    $('input[name="hmwevents-modal-width"][value="' + (p.width || 'full') + '"]').prop('checked', true);
-    updateModalOptionsPanel();
-  }
-
-  function updateModalOptionsPanel() {
-    var type = $('#hmwevents-modal-type').val();
-    var showOptions = ['select', 'checkbox', 'radio'].indexOf(type) !== -1;
-    $('#hmwevents-modal-options-panel').toggle(showOptions);
-  }
-
-  function renderModalOptions(options) {
-    var list = $('#hmwevents-modal-options-list');
-    list.empty();
-    (options || []).forEach(function (opt, i) {
-      var value = typeof opt === 'string' ? opt : (opt.value || '');
-      var label = typeof opt === 'string' ? opt : (opt.label || '');
-      list.append(
-        '<li style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f0f0f1;">' +
-        '<span class="hmwevents-dnd-handle" style="cursor:grab;">&#9776;</span>' +
-        '<input type="text" class="hmwevents-option-value" value="' + escAttr(value) + '" placeholder="Value" style="flex:1;padding:3px 6px;font-size:12px;">' +
-        '<input type="text" class="hmwevents-option-label" value="' + escAttr(label) + '" placeholder="Label" style="flex:1;padding:3px 6px;font-size:12px;">' +
-        '<button type="button" class="hmwevents-delete-option" style="flex-shrink:0;background:none;border:none;color:#b32d2e;cursor:pointer;font-size:14px;">&times;</button>' +
-        '</li>'
-      );
-    });
-
-    list.sortable({
-      handle: '.hmwevents-dnd-handle',
-      opacity: 0.6
-    }).disableSelection();
-  }
-
-  function collectModalOptions() {
-    var opts = [];
-    $('#hmwevents-modal-options-list li').each(function () {
-      var val = $(this).find('.hmwevents-option-value').val();
-      var lbl = $(this).find('.hmwevents-option-label').val();
-      if (val || lbl) {
-        opts.push({ value: val, label: lbl || val });
+    HmwFormBuilder.openFieldModal(
+      sectionId,
+      fieldData,
+      window.hmwEventTemplates.registrationPresets || {},
+      $('#hmwevents-multi-booking-toggle').prop('checked'),
+      function (data, secId, fieldKey) {
+        onModalSave(data, secId, fieldKey);
+      },
+      function (fieldKey) {
+        onModalDelete(fieldKey);
       }
-    });
-    return opts;
+    );
   }
 
-  function collectModalFieldData() {
-    return {
-      key: $('#hmwevents-modal-key').val().trim(),
-      label: $('#hmwevents-modal-label').val().trim(),
-      placeholder: $('#hmwevents-modal-placeholder').val().trim(),
-      type: $('#hmwevents-modal-type').val(),
-      required: $('#hmwevents-modal-required').prop('checked'),
-      width: $('input[name="hmwevents-modal-width"]:checked').val() || 'full',
-      per_attendee: $('#hmwevents-modal-per-attendee').prop('checked'),
-      preset: $('#hmwevents-modal-key').prop('readonly'),
-      source: $('#hmwevents-modal-key').prop('readonly') ? 'registrant_meta' : 'booking_details',
-      meta_key: $('#hmwevents-modal-key').prop('readonly') ? ('registrant_' + $('#hmwevents-modal-key').val()) : null,
-      options: collectModalOptions()
-    };
+  function onModalSave(data, secId, fieldKey) {
+    var sectionEl = $('.hmwevents-fb-section[data-section-id="' + secId + '"]');
+    var fieldsDiv = sectionEl.find('.hmwevents-fb-section-fields');
+
+    if (fieldKey) {
+      var existingCard = fieldsDiv.find('.hmwevents-fb-field-card[data-field-key="' + fieldKey + '"]');
+      if (existingCard.length) {
+        existingCard.replaceWith(HmwFormBuilder.renderFieldCard(data));
+      }
+    } else {
+      var allKeys = [];
+      $('.hmwevents-fb-field-card').each(function () { allKeys.push($(this).data('field-key')); });
+      if (allKeys.indexOf(data.key) !== -1) {
+        alert('A field with key "' + data.key + '" already exists.');
+        return;
+      }
+      fieldsDiv.append(HmwFormBuilder.renderFieldCard(data));
+    }
+
+    fieldsDiv.sortable('refresh');
+    saveJSON();
+  }
+
+  function onModalDelete(fieldKey) {
+    var card = $('.hmwevents-fb-field-card[data-field-key="' + fieldKey + '"]');
+    if (card.length) card.remove();
+    saveJSON();
   }
 
   // ================================================================
@@ -421,7 +297,7 @@ function renderFieldCardHtml(field) {
     $(document).on('click.fb', '.hmwevents-add-section-btn', function () {
       var section = { id: generateId(), label: 'New Section', fields: [] };
       $('#hmwevents-fb-sections').append(renderSectionHtml(section));
-      initSectionFieldSortable($('#hmwevents-fb-sections').find('.hmwevents-fb-section:last .hmwevents-fb-section-fields'));
+      HmwFormBuilder.initFieldSortable($('#hmwevents-fb-sections').find('.hmwevents-fb-section:last .hmwevents-fb-section-fields'), saveJSON);
       saveJSON();
     });
 
@@ -440,70 +316,6 @@ function renderFieldCardHtml(field) {
     $(document).off('change.mb', '#hmwevents-mb-min, #hmwevents-mb-max');
     $(document).on('change.mb', '#hmwevents-mb-min, #hmwevents-mb-max', function () {
       saveJSON();
-    });
-
-    $(document).off('click.fb', '#hmwevents-modal-save');
-    $(document).on('click.fb', '#hmwevents-modal-save', function () {
-      var data = collectModalFieldData();
-      if (!data.key || !data.label) {
-        alert('Field key and label are required.');
-        return;
-      }
-
-      var sectionEl = $('.hmwevents-fb-section[data-section-id="' + currentModalSectionId + '"]');
-      var fieldsDiv = sectionEl.find('.hmwevents-fb-section-fields');
-
-      if (currentModalFieldKey) {
-        var existingCard = fieldsDiv.find('.hmwevents-fb-field-card[data-field-key="' + currentModalFieldKey + '"]');
-        if (existingCard.length) {
-          existingCard.replaceWith(renderFieldCardHtml(data));
-        }
-      } else {
-        var allKeys = [];
-        $('.hmwevents-fb-field-card').each(function () { allKeys.push($(this).data('field-key')); });
-        if (allKeys.indexOf(data.key) !== -1) {
-          alert('A field with key "' + data.key + '" already exists.');
-          return;
-        }
-        fieldsDiv.append(renderFieldCardHtml(data));
-      }
-
-      fieldsDiv.sortable('refresh');
-      tb_remove();
-      saveJSON();
-    });
-
-    $(document).off('click.fb', '#hmwevents-modal-delete');
-    $(document).on('click.fb', '#hmwevents-modal-delete', function () {
-      if (!currentModalFieldKey) return;
-      if (!confirm('Delete this field?')) return;
-
-      $('.hmwevents-fb-field-card[data-field-key="' + currentModalFieldKey + '"]').remove();
-      tb_remove();
-      saveJSON();
-    });
-
-    $(document).off('change.fb', '#hmwevents-modal-type');
-    $(document).on('change.fb', '#hmwevents-modal-type', function () {
-      updateModalOptionsPanel();
-    });
-
-    $(document).off('click.fb', '#hmwevents-modal-add-option');
-    $(document).on('click.fb', '#hmwevents-modal-add-option', function () {
-      var list = $('#hmwevents-modal-options-list');
-      list.append(
-        '<li style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f0f0f1;">' +
-        '<span class="hmwevents-dnd-handle" style="cursor:grab;">&#9776;</span>' +
-        '<input type="text" class="hmwevents-option-value" value="" placeholder="Value" style="flex:1;padding:3px 6px;font-size:12px;">' +
-        '<input type="text" class="hmwevents-option-label" value="" placeholder="Label" style="flex:1;padding:3px 6px;font-size:12px;">' +
-        '<button type="button" class="hmwevents-delete-option" style="flex-shrink:0;background:none;border:none;color:#b32d2e;cursor:pointer;font-size:14px;">&times;</button>' +
-        '</li>'
-      );
-    });
-
-    $(document).off('click.fb', '.hmwevents-delete-option');
-    $(document).on('click.fb', '.hmwevents-delete-option', function () {
-      $(this).closest('li').remove();
     });
   }
 
@@ -529,18 +341,49 @@ function renderFieldCardHtml(field) {
     var required = [];
     var optional = [];
 
+    function addKeys(target, keys) {
+      for (var i = 0; i < keys.length; i++) {
+        if (target.indexOf(keys[i]) === -1) {
+          target.push(keys[i]);
+        }
+      }
+    }
+
     $('#hmwevents-acf-available .hmwevents-dnd-item').each(function () {
-      hidden.push($(this).data('field-key'));
+      var $item = $(this);
+      if ($item.hasClass('hmwevents-dnd-group')) {
+        var groupChildren = getGroupChildren($item);
+        addKeys(hidden, groupChildren);
+      } else {
+        hidden.push($item.data('field-key'));
+      }
     });
 
     $('#hmwevents-acf-included .hmwevents-dnd-item').each(function () {
-      var key = $(this).data('field-key');
-      var isRequired = $(this).find('.hmwevents-dnd-required input').prop('checked');
-      if (isRequired) required.push(key);
-      else optional.push(key);
+      var $item = $(this);
+      var isRequired = $item.find('.hmwevents-dnd-required input').prop('checked');
+      var keys;
+      if ($item.hasClass('hmwevents-dnd-group')) {
+        keys = getGroupChildren($item);
+      } else {
+        keys = [$item.data('field-key')];
+      }
+      if (isRequired) {
+        addKeys(required, keys);
+      } else {
+        addKeys(optional, keys);
+      }
     });
 
     return { hidden: hidden, required: required, optional: optional };
+  }
+
+  function getGroupChildren($item) {
+    try {
+      return JSON.parse($item.attr('data-group-children')) || [];
+    } catch (e) {
+      return [];
+    }
   }
 
   function readSectionsState() {
@@ -551,22 +394,7 @@ function renderFieldCardHtml(field) {
       var fields = [];
 
       $(this).find('.hmwevents-fb-field-card').each(function () {
-        var index = fields.length;
-        var card = $(this);
-        var field = {
-          key: card.data('field-key'),
-          label: card.find('.hmwevents-fb-field-label').text().replace(' *', '').trim(),
-          type: card.find('.hmwevents-fb-field-type').text().trim() || 'text',
-          required: card.find('.hmwevents-fb-field-req').length > 0,
-          placeholder: '',
-          width: card.hasClass('hmwevents-fb-field--full') ? 'full' : 'half',
-          source: card.data('source') || 'booking_details',
-          meta_key: card.data('meta-key') || null,
-          preset: card.data('preset') === 1 || card.data('preset') === '1',
-          per_attendee: card.find('.hmwevents-fb-field-per-attendee').length > 0,
-          options: []
-        };
-        fields.push(field);
+        fields.push(HmwFormBuilder.readFieldCardData($(this)));
       });
 
       sections.push({ id: sectionId, label: label, fields: fields });
@@ -682,27 +510,56 @@ function renderFieldCardHtml(field) {
       (preset.required_fields || []).forEach(function (k) { requiredSet[k] = true; });
 
       $('#hmwevents-acf-included .hmwevents-dnd-item').each(function () {
-        var key = $(this).data('field-key');
-        if (hiddenSet[key]) {
-          $(this).find('.hmwevents-dnd-required input').prop('checked', false);
-          $(this).appendTo('#hmwevents-acf-available');
+        var $item = $(this);
+        var shouldHide = false;
+        if ($item.hasClass('hmwevents-dnd-group')) {
+          var children = getGroupChildren($item);
+          shouldHide = children.length > 0 && children.every(function (c) { return hiddenSet[c]; });
+        } else {
+          shouldHide = hiddenSet[$item.data('field-key')];
+        }
+        if (shouldHide) {
+          $item.find('.hmwevents-dnd-required input').prop('checked', false);
+          $item.appendTo('#hmwevents-acf-available');
         }
       });
 
       $('#hmwevents-acf-available .hmwevents-dnd-item').each(function () {
-        var key = $(this).data('field-key');
-        if (!hiddenSet[key]) {
-          $(this).appendTo('#hmwevents-acf-included');
-          if (requiredSet[key]) {
-            $('#hmwevents-acf-included .hmwevents-dnd-item[data-field-key="' + escAttr(key) + '"] .hmwevents-dnd-required input').prop('checked', true);
+        var $item = $(this);
+        var shouldShow = false;
+        if ($item.hasClass('hmwevents-dnd-group')) {
+          var children = getGroupChildren($item);
+          shouldShow = children.length === 0 || !children.every(function (c) { return hiddenSet[c]; });
+        } else {
+          shouldShow = !hiddenSet[$item.data('field-key')];
+        }
+        if (shouldShow) {
+          $item.appendTo('#hmwevents-acf-included');
+          if ($item.hasClass('hmwevents-dnd-group')) {
+            var gChildren = getGroupChildren($item);
+            var allReq = gChildren.every(function (c) { return requiredSet[c]; });
+            if (allReq) {
+              $item.find('.hmwevents-dnd-required input').prop('checked', true);
+            }
+          } else {
+            if (requiredSet[$item.data('field-key')]) {
+              $item.find('.hmwevents-dnd-required input').prop('checked', true);
+            }
           }
         }
       });
 
       $('#hmwevents-acf-included .hmwevents-dnd-item').each(function () {
-        var key = $(this).data('field-key');
-        if (requiredSet[key]) {
-          $(this).find('.hmwevents-dnd-required input').prop('checked', true);
+        var $item = $(this);
+        var shouldCheck = false;
+        if ($item.hasClass('hmwevents-dnd-group')) {
+          var children = getGroupChildren($item);
+          shouldCheck = children.length > 0 && children.every(function (c) { return requiredSet[c]; });
+        } else {
+          shouldCheck = requiredSet[$item.data('field-key')];
+        }
+        if (shouldCheck) {
+          $item.find('.hmwevents-dnd-required input').prop('checked', true);
         }
       });
     }
@@ -762,6 +619,9 @@ function renderFieldCardHtml(field) {
     var html = '<table class="widefat striped"><thead><tr><th>Field</th><th>Type</th><th>Default Value</th></tr></thead><tbody>';
 
     fields.forEach(function (f) {
+      if (f.type === 'group') {
+        return;
+      }
       var current = defaults.hasOwnProperty(f.key) ? defaults[f.key] : '';
       if (current === null || current === undefined) current = '';
 

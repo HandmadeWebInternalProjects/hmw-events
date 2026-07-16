@@ -186,6 +186,63 @@ class RegistrationFormTest extends TestCase
         $this->assertTrue($presets['first_name']['required']);
     }
 
+    /**
+     * Parent-specific registration fields.
+     */
+
+    public function test_parent_only_constant_exists(): void
+    {
+        $this->assertSame('parent', RegistrationFieldRegistry::PARENT_ONLY);
+    }
+
+    public function test_parent_fields_exist_in_all(): void
+    {
+        $fields = RegistrationFieldRegistry::all();
+        $this->assertArrayHasKey('age_of_child', $fields);
+        $this->assertArrayHasKey('number_of_children', $fields);
+        $this->assertArrayHasKey('childcare_requirements', $fields);
+    }
+
+    public function test_parent_fields_appear_for_parent_audience(): void
+    {
+        $fields = RegistrationFieldRegistry::for_audience('parent');
+        $this->assertArrayHasKey('age_of_child', $fields);
+        $this->assertArrayHasKey('number_of_children', $fields);
+        $this->assertArrayHasKey('childcare_requirements', $fields);
+    }
+
+    public function test_parent_fields_do_not_appear_for_professional_audience(): void
+    {
+        $fields = RegistrationFieldRegistry::for_audience('professional');
+        $this->assertArrayNotHasKey('age_of_child', $fields);
+        $this->assertArrayNotHasKey('number_of_children', $fields);
+        $this->assertArrayNotHasKey('childcare_requirements', $fields);
+    }
+
+    public function test_parent_section_label_exists(): void
+    {
+        $sections = RegistrationFieldRegistry::get_sections();
+        $this->assertArrayHasKey('parent', $sections);
+        $this->assertStringContainsString('Parent', $sections['parent']);
+    }
+
+    public function test_age_of_child_field_has_options(): void
+    {
+        $fields = RegistrationFieldRegistry::all();
+        $this->assertIsArray($fields['age_of_child']['options']);
+        $this->assertGreaterThanOrEqual(5, count($fields['age_of_child']['options']));
+        $this->assertArrayHasKey('0-1', $fields['age_of_child']['options']);
+        $this->assertArrayHasKey('1-2', $fields['age_of_child']['options']);
+        $this->assertArrayHasKey('5-plus', $fields['age_of_child']['options']);
+    }
+
+    public function test_parent_fields_are_in_csv(): void
+    {
+        $fields = RegistrationFieldRegistry::all();
+        $this->assertTrue($fields['age_of_child']['in_csv']);
+        $this->assertTrue($fields['number_of_children']['in_csv']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

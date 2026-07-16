@@ -41,6 +41,28 @@
             "prepend": "$"
         },
         {
+            "key": "field_event_surcharge",
+            "label": "Booking Surcharge",
+            "name": "_event_surcharge",
+            "type": "number",
+            "required": 0,
+            "min": 0,
+            "step": "0.01",
+            "default_value": 0,
+            "prepend": "$",
+            "instructions": "Flat fee added to every booking for this event."
+        },
+        {
+            "key": "field_event_max_per_registrant",
+            "label": "Max Bookings Per Person",
+            "name": "_event_max_per_registrant",
+            "type": "number",
+            "required": 0,
+            "min": 0,
+            "default_value": 0,
+            "instructions": "Maximum bookings allowed per registrant email. 0 = unlimited."
+        },
+        {
             "key": "field_event_capacity",
             "label": "Capacity",
             "name": "_event_capacity",
@@ -293,6 +315,14 @@
             "name": "_event_booking_notes",
             "type": "textarea",
             "rows": 4
+        },
+        {
+            "key": "field_event_notification_email",
+            "label": "Notification Email Override",
+            "name": "_event_notification_email",
+            "type": "email",
+            "required": 0,
+            "instructions": "Override the default organizer email for admin booking notifications. Leave blank to use the organizer's default email address."
         },
         {
             "key": "field_organizer_id",

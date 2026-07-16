@@ -287,4 +287,103 @@ class EventHelper
 
         return $availability->available_count > 0;
     }
+
+    /**
+     * @param int    $event_id Event post ID.
+     * @param string $email    Registrant email.
+     * @return true|\WP_Error True if within cap, WP_Error if exceeded.
+     */
+    public static function check_registrant_cap(int $event_id, string $email): true|\WP_Error
+    {
+        $max = (int) (get_field('_event_max_per_registrant', $event_id) ?: 0);
+        if ($max <= 0) {
+            return true;
+        }
+
+        global $wpdb;
+        $bookings_table = $wpdb->prefix . 'hmwevents_bookings';
+
+        $existing = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*)
+            FROM {$bookings_table} b
+            INNER JOIN {$wpdb->postmeta} pm ON b.registrant_post_id = pm.post_id
+                AND pm.meta_key = 'registrant_email'
+                AND pm.meta_value = %s
+            WHERE b.event_post_id = %d
+                AND b.status IN ('pending', 'confirmed')
+                AND b.deleted_at IS NULL",
+            $email,
+            $event_id
+        ));
+
+        if ($existing >= $max) {
+            /* translators: %d is the maximum allowed bookings per person */
+            return new \WP_Error(
+                'registrant_cap_exceeded',
+                sprintf(__('You have reached the maximum of %d booking(s) per person for this event.', 'hmw-events'), $max)
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * @return int|null Attendance option ID, or null if not found.
+     */
+    public static function resolve_attendance_option_id(int $event_id, string $attendance_type): ?int
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'hmwevents_event_attendance_options';
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table}
+            WHERE event_post_id = %d
+              AND option_type = %s
+              AND is_active = 1
+            ORDER BY sort_order ASC
+            LIMIT 1",
+            $event_id,
+            $attendance_type
+        )) ?: null;
+    }
+
+    /**
+     * @return true|\WP_Error True if option has capacity, WP_Error if full.
+     */
+    public static function check_attendance_option_capacity(int $attendance_option_id): true|\WP_Error
+    {
+        global $wpdb;
+        $options_table = $wpdb->prefix . 'hmwevents_event_attendance_options';
+
+        $option = $wpdb->get_row($wpdb->prepare(
+            "SELECT capacity, label FROM {$options_table} WHERE id = %d",
+            $attendance_option_id
+        ));
+
+        if (!$option || $option->capacity === null) {
+            return true;
+        }
+
+        $capacity = (int) $option->capacity;
+        $bookings_table = $wpdb->prefix . 'hmwevents_bookings';
+
+        $booked = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*)
+            FROM {$bookings_table}
+            WHERE attendance_option_id = %d
+              AND status IN ('pending', 'confirmed')
+              AND deleted_at IS NULL",
+            $attendance_option_id
+        ));
+
+        if ($booked >= $capacity) {
+            /* translators: %s is the attendance option label */
+            return new \WP_Error(
+                'attendance_option_full',
+                sprintf(__('The "%s" option is fully booked.', 'hmw-events'), $option->label)
+            );
+        }
+
+        return true;
+    }
 }

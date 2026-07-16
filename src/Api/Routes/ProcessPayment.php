@@ -444,7 +444,9 @@ class ProcessPayment
     $course_id = (int) $request->get_param('course_id');
     $course_cost = floatval(get_field('_event_price', $course_id));
     $deposit_cost = floatval(get_field('_event_deposit', $course_id));
+    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
     $base_amount = $is_deposit && $deposit_cost > 0 ? $deposit_cost : $course_cost;
+    $base_amount += $surcharge;
 
     // Validate and apply voucher if provided
     if (!empty($voucher_code)) {
@@ -567,6 +569,13 @@ class ProcessPayment
         $result->get_error_message(),
         ['status' => 400]
       );
+    }
+
+    $invite_token = $_GET['token'] ?? $request->get_param('token') ?? '';
+    $course_id    = (int) $request->get_param('course_id');
+    if ($invite_token && $course_id) {
+      $token_service = new \HMWEvents\Services\InvitationTokenService();
+      $token_service->consume($invite_token, $course_id);
     }
 
     return new \WP_REST_Response([
@@ -781,7 +790,9 @@ class ProcessPayment
       }
 
       // Get course pricing from ACF fields (stored in dollars)
-      $course_full_price = get_field('_event_price', $booking->event_post_id);
+      $course_full_price = floatval(get_field('_event_price', $booking->event_post_id));
+      $course_surcharge = (float) (get_field('_event_surcharge', $booking->event_post_id) ?: 0);
+      $course_full_price += $course_surcharge;
       $deposit_paid = floatval($booking_group->total_amount);
 
       if ($course_full_price) {
@@ -988,6 +999,8 @@ class ProcessPayment
     $deposit_cost = floatval(get_field('_event_deposit', $course_id));
 
     $amount = $payment_type === 'deposit' && $deposit_cost > 0 ? $deposit_cost : $course_cost;
+    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
+    $amount += $surcharge;
 
     // Validate coupon
     $coupon_data = $coupon_service->validate_coupon(
@@ -1067,6 +1080,8 @@ class ProcessPayment
     // Calculate amount based on payment type
     $is_deposit = $is_deposit && !empty($deposit_cost);
     $amount = $is_deposit ? floatval($deposit_cost) : floatval($course_cost);
+    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
+    $amount += $surcharge;
 
     return new \WP_REST_Response([
       'success' => true,

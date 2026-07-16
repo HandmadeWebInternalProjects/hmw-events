@@ -26,6 +26,8 @@ class RegistrationFieldRegistry
 
     public const PROFESSIONAL_ONLY = 'professional';
 
+    public const PARENT_ONLY = 'parent';
+
     public const SOURCE_REGISTRANT_META = 'registrant_meta';
 
     public const SOURCE_BOOKING_DETAILS = 'booking_details';
@@ -73,6 +75,7 @@ class RegistrationFieldRegistry
         return [
             'contact'      => __('Contact Information', 'hmw-events'),
             'address'      => __('Address', 'hmw-events'),
+            'parent'       => __('Parent Details', 'hmw-events'),
             'professional' => __('Professional Details', 'hmw-events'),
             'documents'    => __('Documents', 'hmw-events'),
             'additional'   => __('Additional Information', 'hmw-events'),
@@ -141,6 +144,9 @@ class RegistrationFieldRegistry
             "organisation"         => "organisation",
             "job_title"            => "job_title",
             "professional_body"    => "professional_body",
+            "age_of_child"              => null,
+            "number_of_children"        => null,
+            "childcare_requirements"    => "childcare_requirements",
             "heard_about"          => null,
             "document_upload"      => null,
             "mailing_agreement"    => "mailing_agreement",
@@ -338,6 +344,56 @@ class RegistrationFieldRegistry
                 'in_csv'             => true,
                 'in_email'           => false,
                 'placeholder'        => '',
+            ],
+
+            // ──── Parent-specific fields ──────────────────────────
+            'age_of_child' => [
+                'label'              => __('Age of Child', 'hmw-events'),
+                'type'               => 'select',
+                'source'             => self::SOURCE_BOOKING_DETAILS,
+                'meta_key'           => null,
+                'audience_variants'  => [self::PARENT_ONLY],
+                'section'            => 'parent',
+                'width'              => 'half',
+                'required'           => false,
+                'in_csv'             => true,
+                'in_email'           => false,
+                'options'            => [
+                    ''        => '— Select —',
+                    '0-1'     => '0–1 years',
+                    '1-2'     => '1–2 years',
+                    '2-3'     => '2–3 years',
+                    '3-4'     => '3–4 years',
+                    '4-5'     => '4–5 years',
+                    '5-plus'  => '5+ years',
+                ],
+                'placeholder'        => '',
+            ],
+            'number_of_children' => [
+                'label'              => __('Number of Children Attending', 'hmw-events'),
+                'type'               => 'number',
+                'source'             => self::SOURCE_BOOKING_DETAILS,
+                'meta_key'           => null,
+                'audience_variants'  => [self::PARENT_ONLY],
+                'section'            => 'parent',
+                'width'              => 'half',
+                'required'           => false,
+                'in_csv'             => true,
+                'in_email'           => false,
+                'placeholder'        => '',
+            ],
+            'childcare_requirements' => [
+                'label'              => __('Childcare Requirements', 'hmw-events'),
+                'type'               => 'textarea',
+                'source'             => self::SOURCE_BOOKING_DETAILS,
+                'meta_key'           => null,
+                'audience_variants'  => [self::PARENT_ONLY],
+                'section'            => 'parent',
+                'width'              => 'full',
+                'required'           => false,
+                'in_csv'             => true,
+                'in_email'           => false,
+                'placeholder'        => __('Please describe any special childcare needs or requirements', 'hmw-events'),
             ],
 
             // ──── Professional-specific fields ────────────────────

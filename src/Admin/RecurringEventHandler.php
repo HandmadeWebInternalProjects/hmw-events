@@ -104,6 +104,8 @@ class RecurringEventHandler
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
         add_action('add_meta_boxes_hmw_event', [$this, 'add_session_schedule_meta_box']);
         add_action('wp_ajax_hmwevents_bulk_session_action', [$this, 'handle_bulk_session_action']);
+        add_action('wp_ajax_hmwevents_clear_excluded_dates', [$this, 'handle_clear_excluded_dates']);
+        add_action('wp_ajax_hmwevents_cascade_to_children', [$this, 'handle_cascade_to_children']);
     }
 
     /**
@@ -928,6 +930,32 @@ class RecurringEventHandler
         }
         echo '</p>';
 
+        if ($non_draft > 0):
+            ?>
+            <p>
+                <button type="button" class="button hmwevents-cascade-btn" data-parent="<?php echo (int) $post->ID; ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+                    <?php esc_html_e('Update All Sessions', 'hmw-events'); ?>
+                </button>
+            </p>
+            <?php
+        endif;
+
+        // Show excluded dates notice and clear button.
+        $excluded = get_post_meta($post->ID, '_excluded_session_dates', true);
+        if (!empty($excluded) && is_array($excluded)):
+            $clear_nonce = wp_create_nonce('hmwevents_session_actions');
+            ?>
+            <div style="margin-top:8px; padding:6px 8px; background:#fcf9e8; border:1px solid #dba617; border-radius:3px;">
+                <p style="margin:0 0 4px 0; font-size:12px;">
+                    <?php echo esc_html(sprintf(_n('%d excluded date', '%d excluded dates', count($excluded), 'hmw-events'), count($excluded))); ?>
+                </p>
+                <button type="button" class="button button-small hmwevents-clear-excluded" data-event-id="<?php echo (int) $post->ID; ?>" data-nonce="<?php echo esc_attr($clear_nonce); ?>">
+                    <?php esc_html_e('Clear Excluded Dates', 'hmw-events'); ?>
+                </button>
+            </div>
+            <?php
+        endif;
+
         // Table.
         echo '<table class="widefat striped hmwevents-schedule-table">';
         echo '<thead><tr>';
@@ -1080,6 +1108,62 @@ class RecurringEventHandler
                     _n('%d session moved to trash.', '%d sessions moved to trash.', $affected, 'hmw-events'),
                     $affected
                 ),
+        ]);
+    }
+
+    public function handle_clear_excluded_dates(): void
+    {
+        check_ajax_referer('hmwevents_session_actions', '_wpnonce');
+
+        if (!current_user_can('edit_hmw_events')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'hmw-events')]);
+        }
+
+        $event_id = (int) ($_POST['event_id'] ?? 0);
+        if (!$event_id) {
+            wp_send_json_error(['message' => __('Invalid event.', 'hmw-events')]);
+        }
+
+        $service = new SessionService();
+        $service->clear_excluded_dates($event_id);
+
+        wp_send_json_success(['message' => __('Excluded dates cleared. Sessions will be regenerated on next save.', 'hmw-events')]);
+    }
+
+    /**
+     * AJAX handler for cascading parent field values to all child sessions.
+     */
+    public function handle_cascade_to_children(): void
+    {
+        check_ajax_referer('hmwevents_bulk_session_action', '_wpnonce');
+
+        if (!current_user_can('edit_hmw_events')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'hmw-events')]);
+        }
+
+        $parent_id = (int) ($_POST['parent_id'] ?? 0);
+        if (!$parent_id) {
+            wp_send_json_error(['message' => __('Invalid event.', 'hmw-events')]);
+        }
+
+        $service = $this->session_service();
+        $updated = $service->cascade_to_children($parent_id, [
+            'event_venue_name'    => get_post_meta($parent_id, '_event_venue_name', true),
+            'event_venue_address' => get_post_meta($parent_id, '_event_venue_address', true),
+            'event_capacity'      => get_post_meta($parent_id, '_event_capacity', true),
+            'event_webinar_url'   => get_post_meta($parent_id, '_event_webinar_url', true),
+        ]);
+
+        wp_send_json_success([
+            'message' => sprintf(
+                _n(
+                    'Updated %d session.',
+                    'Updated %d sessions.',
+                    $updated,
+                    'hmw-events'
+                ),
+                $updated
+            ),
         ]);
     }
 
@@ -1450,8 +1534,11 @@ class RecurringEventHandler
             true
         );
         wp_localize_script('hmwevents-schedule-admin', 'hmwScheduleAdmin', [
-            'ajaxUrl'    => admin_url('admin-ajax.php'),
-            'confirmMsg' => __('Are you sure you want to trash all sessions?', 'hmw-events'),
+            'ajaxUrl'               => admin_url('admin-ajax.php'),
+            'confirmMsg'            => __('Are you sure you want to trash all sessions?', 'hmw-events'),
+            'cascadeConfirm'        => __('Update all child sessions with the current parent field values? Sessions with per-session overrides will not be changed.', 'hmw-events'),
+            'clearExcludedNonce'    => wp_create_nonce('hmwevents_session_actions'),
+            'clearExcludedConfirm'  => __('Are you sure you want to clear all excluded dates? This will allow regeneration to recreate previously deleted sessions.', 'hmw-events'),
         ]);
     }
 }

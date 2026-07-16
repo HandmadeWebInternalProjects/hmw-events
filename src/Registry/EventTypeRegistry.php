@@ -141,6 +141,7 @@ class EventTypeRegistry
                 'post_event'         => 'post_event',
                 'waitlist_promotion' => 'waitlist_promotion',
             ],
+            'show_child_sessions'        => false,
         ];
     }
 
@@ -162,6 +163,8 @@ private static function build(): array
                 'event_venue_address',
                 'event_price',
                 'event_deposit',
+                'event_surcharge',
+                'event_max_per_registrant',
                 'event_allow_net_terms',
             ],
             'required_fields' => ['event_start_date', 'event_end_date', 'event_webinar_url'],
@@ -193,6 +196,8 @@ private static function build(): array
                 'event_venue_address',
                 'event_price',
                 'event_deposit',
+                'event_surcharge',
+                'event_max_per_registrant',
                 'event_allow_net_terms',
             ],
             'required_fields' => ['event_start_date', 'event_end_date', 'event_webinar_url'],
@@ -223,6 +228,8 @@ private static function build(): array
                 'event_webinar_url',
                 'event_price',
                 'event_deposit',
+                'event_surcharge',
+                'event_max_per_registrant',
                 'event_allow_net_terms',
             ],
             'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
@@ -254,6 +261,8 @@ private static function build(): array
                 'event_capacity',
                 'event_price',
                 'event_deposit',
+                'event_surcharge',
+                'event_max_per_registrant',
                 'event_allow_net_terms',
                 'event_is_free',
             ],
@@ -265,6 +274,7 @@ private static function build(): array
                 'event_is_recurring' => 1,
             ],
             'registration_disabled' => true,
+            'show_child_sessions'  => true,
             'comm_templates' => [
                 'booking_confirmed'  => 'parent_booking_confirmed',
                 'booking_cancelled'  => 'parent_booking_cancelled',
@@ -370,11 +380,20 @@ public static function is_external_registration(string $type_slug): bool
 /**
  * Check if an event type has public registration disabled (manual bookings only).
  */
-public static function is_registration_disabled(string $type_slug): bool
-{
-    $config = self::get($type_slug);
-    return (bool) ($config['registration_disabled'] ?? false);
-}
+    public static function is_registration_disabled(string $type_slug): bool
+    {
+        $config = self::get($type_slug);
+        return (bool) ($config['registration_disabled'] ?? false);
+    }
+
+    /**
+     * Check if child sessions should appear in public event listings for an event type.
+     */
+    public static function should_show_child_sessions(string $type_slug): bool
+    {
+        $config = self::get($type_slug);
+        return (bool) ($config['show_child_sessions'] ?? false);
+    }
 
 /**
  * Build a type-slug => hidden-fields mapping for all archetypes.

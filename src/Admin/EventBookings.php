@@ -14,6 +14,8 @@ class EventBookings
     {
         add_action('add_meta_boxes_' . Event::POST_TYPE, [$this, 'add_meta_box']);
         add_action('wp_ajax_hmwevents_get_booking_details', [$this, 'ajax_get_booking_details']);
+        add_action('wp_ajax_hmwevents_generate_token', [$this, 'ajax_generate_token']);
+        add_action('wp_ajax_hmwevents_promote_waitlist', [$this, 'ajax_promote_waitlist']);
     }
 
     public function add_meta_box(): void
@@ -107,6 +109,49 @@ class EventBookings
                 </table>
             <?php endif; ?>
 
+            <?php
+            $waitlist_service = new \HMWEvents\Services\WaitlistService();
+            $waitlist_entries = $waitlist_service->get_for_event($post->ID, 'waiting');
+
+            if (!empty($waitlist_entries)): ?>
+                <h3 style="margin-top:20px;"><?php esc_html_e('Waitlist', 'hmw-events'); ?> (<?php echo count($waitlist_entries); ?>)</h3>
+                <table class="wp-list-table widefat fixed striped hmwevents-waitlist-table">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e('Position', 'hmw-events'); ?></th>
+                            <th><?php esc_html_e('Name', 'hmw-events'); ?></th>
+                            <th><?php esc_html_e('Email', 'hmw-events'); ?></th>
+                            <th><?php esc_html_e('Joined', 'hmw-events'); ?></th>
+                            <th><?php esc_html_e('Actions', 'hmw-events'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($waitlist_entries as $entry):
+                            $registrant = get_post($entry->registrant_post_id);
+                            $email = $registrant ? get_post_meta($registrant->ID, 'registrant_email', true) : '';
+                            $first_name = $registrant ? get_post_meta($registrant->ID, 'registrant_first_name', true) : '';
+                            $last_name = $registrant ? get_post_meta($registrant->ID, 'registrant_last_name', true) : '';
+                            $name = trim($first_name . ' ' . $last_name);
+                        ?>
+                            <tr>
+                                <td><?php echo (int) $entry->position; ?></td>
+                                <td><?php echo esc_html($name ?: __('Unknown', 'hmw-events')); ?></td>
+                                <td><?php echo esc_html($email); ?></td>
+                                <td><?php echo esc_html(date('Y-m-d', strtotime($entry->created_at))); ?></td>
+                                <td>
+                                    <button type="button" class="button button-small hmwevents-promote-waitlist"
+                                        data-entry-id="<?php echo (int) $entry->id; ?>"
+                                        data-event-id="<?php echo (int) $post->ID; ?>"
+                                        data-nonce="<?php echo esc_attr(wp_create_nonce('hmwevents_promote_waitlist')); ?>">
+                                        <?php esc_html_e('Promote', 'hmw-events'); ?>
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+
             <?php if (!$external_registration): ?>
                 <p style="margin-top:12px;">
                     <a href="#TB_inline?width=600&height=450&inlineId=hmwevents-add-booking-modal"
@@ -117,6 +162,26 @@ class EventBookings
                 </p>
             <?php endif; ?>
         </div>
+
+        <?php if ($post->post_status === 'by_invitation'): ?>
+            <div style="margin-top:16px; padding:12px; background:#f0f6fc; border:1px solid #72aee6; border-radius:3px;">
+                <h3 style="margin-top:0;"><?php esc_html_e('Invitation Tokens', 'hmw-events'); ?></h3>
+                <p class="description"><?php esc_html_e('Generate a private registration link. Tokens are single-use and expire after 48 hours by default.', 'hmw-events'); ?></p>
+
+                <table class="form-table">
+                    <tr>
+                        <th><label for="hmw-token-email"><?php esc_html_e('Recipient Email', 'hmw-events'); ?></label></th>
+                        <td><input type="email" id="hmw-token-email" class="regular-text" placeholder="attendee@example.com"></td>
+                    </tr>
+                </table>
+
+                <button type="button" class="button button-primary" id="hmwevents-generate-token" data-event-id="<?php echo (int) $post->ID; ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('hmwevents_generate_token')); ?>">
+                    <?php esc_html_e('Generate Registration Link', 'hmw-events'); ?>
+                </button>
+
+                <div id="hmwevents-token-result" style="margin-top:8px; display:none;"></div>
+            </div>
+        <?php endif; ?>
 
         <?php if (!$external_registration): ?>
         <div id="hmwevents-add-booking-modal" style="display:none;">
@@ -251,6 +316,35 @@ class EventBookings
         ]);
     }
 
+    public function ajax_generate_token(): void
+    {
+        check_ajax_referer('hmwevents_generate_token', '_wpnonce');
+
+        if (!current_user_can('edit_hmw_events')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'hmw-events')]);
+        }
+
+        $event_id = (int) ($_POST['event_id'] ?? 0);
+        $email = sanitize_email($_POST['email'] ?? '');
+
+        if (!$event_id) {
+            wp_send_json_error(['message' => __('Invalid event.', 'hmw-events')]);
+        }
+
+        $token_service = new \HMWEvents\Services\InvitationTokenService();
+        $result = $token_service->create($event_id, $email, 1, 48);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+
+        wp_send_json_success([
+            'message' => __('Registration link generated and invitation email queued.', 'hmw-events'),
+            'registration_url' => $result['registration_url'],
+            'token' => $result['token'],
+        ]);
+    }
+
     private function status_label(string $status): string
     {
         $labels = [
@@ -274,5 +368,32 @@ class EventBookings
         ];
 
         return $labels[$status] ?? $status;
+    }
+
+    public function ajax_promote_waitlist(): void
+    {
+        check_ajax_referer('hmwevents_promote_waitlist', '_wpnonce');
+
+        if (!current_user_can('edit_hmw_events')) {
+            wp_send_json_error(['message' => __('Permission denied.', 'hmw-events')]);
+        }
+
+        $entry_id = (int) ($_POST['entry_id'] ?? 0);
+        $event_id = (int) ($_POST['event_id'] ?? 0);
+
+        if (!$entry_id || !$event_id) {
+            wp_send_json_error(['message' => __('Invalid request.', 'hmw-events')]);
+        }
+
+        $waitlist_service = new \HMWEvents\Services\WaitlistService();
+        $promoted = $waitlist_service->promote_entry($entry_id, $event_id);
+
+        if (!$promoted) {
+            wp_send_json_error(['message' => __('Could not promote. No entries available.', 'hmw-events')]);
+        }
+
+        wp_send_json_success([
+            'message' => sprintf(__('Promoted entry #%d. Invitation email queued.', 'hmw-events'), $promoted->id),
+        ]);
     }
 }

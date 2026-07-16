@@ -30,6 +30,13 @@ class EmailQueue
       wp_die(__('You do not have sufficient permissions to access this page.'));
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['hmwevents_email_settings'])) {
+      check_admin_referer('hmwevents_email_settings');
+      $to_disable = array_keys($_POST['disable'] ?? []);
+      update_option('hmwevents_disabled_emails', $to_disable);
+      echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Email settings saved.', 'hmw-events') . '</p></div>';
+    }
+
     $queue_repo = new EmailQueueRepository();
     $stats = $queue_repo->get_stats();
 
@@ -55,6 +62,45 @@ class EmailQueue
     ?>
     <div class="wrap hmwevents-email-queue-wrap">
       <h1><?php esc_html_e('Email Queue', 'cms'); ?></h1>
+
+      <?php
+      $disabled = get_option('hmwevents_disabled_emails', []);
+      $all_types = [
+        'booking_confirmation' => __('Booking Confirmation (Customer)', 'hmw-events'),
+        'new_booking_notify'   => __('New Booking Notification (Admin)', 'hmw-events'),
+        'payment_received'     => __('Payment Receipt', 'hmw-events'),
+        'booking_cancelled'    => __('Booking Cancelled', 'hmw-events'),
+        'reminder_7_days'      => __('7-Day Reminder', 'hmw-events'),
+        'reminder_1_day'       => __('1-Day Reminder', 'hmw-events'),
+        'post_event'           => __('Post-Event Follow-up', 'hmw-events'),
+        'invitation_sent'      => __('Waitlist Invitation', 'hmw-events'),
+      ];
+      ?>
+      <div class="hmwevents-email-settings card" style="margin-bottom: 20px; padding: 15px 20px; max-width: none;">
+        <form method="post">
+          <?php wp_nonce_field('hmwevents_email_settings'); ?>
+          <input type="hidden" name="hmwevents_email_settings" value="1">
+          <h2 style="margin-top: 0;"><?php esc_html_e('Notification Settings', 'hmw-events'); ?></h2>
+          <p class="description"><?php esc_html_e('Disable email types you do not want to send. Disabled emails will not be queued.', 'hmw-events'); ?></p>
+          <table class="form-table">
+            <?php foreach ($all_types as $type => $label): ?>
+              <tr>
+                <th scope="row"><?php echo esc_html($label); ?></th>
+                <td>
+                  <label>
+                    <input type="checkbox" name="disable[<?php echo esc_attr($type); ?>]" value="1"
+                      <?php checked(in_array($type, $disabled, true)); ?>>
+                    <?php esc_html_e('Disable', 'hmw-events'); ?>
+                  </label>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </table>
+          <p class="submit">
+            <button type="submit" class="button button-primary"><?php esc_html_e('Save Settings', 'hmw-events'); ?></button>
+          </p>
+        </form>
+      </div>
 
       <!-- Stats Dashboard -->
       <div class="hmwevents-email-dashboard">

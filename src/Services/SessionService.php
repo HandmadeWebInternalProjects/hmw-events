@@ -186,6 +186,12 @@ class SessionService
             return false;
         }
 
+        $session_date = get_post_meta($session_id, '_event_start_date', true);
+        if ($session_date) {
+            $date_only = substr($session_date, 0, 10);
+            $this->add_excluded_date((int) $session->post_parent, $date_only);
+        }
+
         return (bool) wp_delete_post($session_id, $permanent);
     }
 
@@ -246,6 +252,15 @@ class SessionService
             $date_set[] = $date['start'] . '|' . $date['end'];
         }
 
+        $excluded_dates = $this->get_excluded_dates($parent_id);
+
+        if (!empty($excluded_dates)) {
+            $date_set = array_values(array_filter($date_set, function ($key) use ($excluded_dates) {
+                $date = substr($key, 0, 10);
+                return !in_array($date, $excluded_dates, true);
+            }));
+        }
+
         // Check existing children
         foreach ($existing as $child) {
             $child_start = get_post_meta($child->ID, '_event_start_date', true);
@@ -255,7 +270,10 @@ class SessionService
             $child_key = $child_start_date . '|' . $child_end_date;
             $has_overrides = $this->session_has_overrides($child->ID);
 
-            if (in_array($child_key, $date_set, true)) {
+            if (in_array($child_start_date, $excluded_dates, true)) {
+                $this->delete_session($child->ID, true);
+                $removed[] = $child->ID;
+            } elseif (in_array($child_key, $date_set, true)) {
                 $kept[] = $child->ID;
                 // Remove from date_set so we don't recreate
                 unset($date_set[array_search($child_key, $date_set, true)]);
@@ -364,6 +382,31 @@ class SessionService
             "SELECT * FROM {$this->recurrence_table} WHERE event_post_id = %d AND is_active = 1",
             $parent_id
         ));
+    }
+
+    // ================================================================
+    // EXCLUDED DATES
+    // ================================================================
+
+    private function get_excluded_dates(int $parent_id): array
+    {
+        $raw = get_post_meta($parent_id, '_excluded_session_dates', true);
+        return is_array($raw) ? $raw : [];
+    }
+
+    private function add_excluded_date(int $parent_id, string $date): void
+    {
+        $dates = $this->get_excluded_dates($parent_id);
+        if (!in_array($date, $dates, true)) {
+            $dates[] = $date;
+            sort($dates);
+            update_post_meta($parent_id, '_excluded_session_dates', $dates);
+        }
+    }
+
+    public function clear_excluded_dates(int $parent_id): void
+    {
+        delete_post_meta($parent_id, '_excluded_session_dates');
     }
 
     // ================================================================
@@ -733,5 +776,12 @@ class SessionService
 
         // Cascade status change to children
         $this->cascade_to_children($post_id, ['post_status' => $post->post_status], true);
+
+        $this->cascade_to_children($post_id, [
+            'event_venue_name'    => get_post_meta($post_id, '_event_venue_name', true),
+            'event_venue_address' => get_post_meta($post_id, '_event_venue_address', true),
+            'event_capacity'      => get_post_meta($post_id, '_event_capacity', true),
+            'event_webinar_url'   => get_post_meta($post_id, '_event_webinar_url', true),
+        ]);
     }
 }

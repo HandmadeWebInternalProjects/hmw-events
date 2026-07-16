@@ -100,6 +100,20 @@ class PaymentLinkHandler extends AbstractEmailHandler
                 }
             }
 
+            if (!empty($email->booking_id)) {
+                global $wpdb;
+                $event_post_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT event_post_id FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+                    $email->booking_id
+                ));
+                if ($event_post_id) {
+                    $override = get_post_meta((int) $event_post_id, '_event_notification_email', true);
+                    if ($override && is_email($override)) {
+                        $educator_email = $override;
+                    }
+                }
+            }
+
             do_action('hmwevents_before_email_send', $email);
 
             $sent = wp_mail(

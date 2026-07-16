@@ -169,3 +169,24 @@ if (!class_exists('WP_REST_Request')) {
         }
     }
 }
+
+if (!class_exists('WP_Post')) {
+    /**
+     * Minimal WP_Post stub for testing.
+     */
+    class WP_Post
+    {
+        public $ID;
+        public $post_type;
+        public $post_status;
+
+        public function __construct($data = null)
+        {
+            if (is_object($data)) {
+                foreach (get_object_vars($data) as $k => $v) {
+                    $this->$k = $v;
+                }
+            }
+        }
+    }
+}

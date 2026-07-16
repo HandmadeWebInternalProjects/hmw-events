@@ -114,6 +114,7 @@ final class HMWEvents
           Services\PaymentOverrideService::class,
           Services\WaitlistService::class,
           Services\InvitationTokenService::class,
+          Services\BookingSelfCancelService::class,
           Services\SessionService::class,
           Services\EmailTemplateManager::class,
           Services\EmailDispatchService::class,
@@ -130,6 +131,7 @@ final class HMWEvents
           Taxonomies\EventAudience::class,
           Taxonomies\EventDeliveryMode::class,
           Taxonomies\EventState::class,
+          Taxonomies\EventTopic::class,
 
           // User Roles
           Roles\EventOrganizerRole::class,
@@ -147,9 +149,12 @@ final class HMWEvents
           Helpers\RecurringEvent::class,
 
           // Admin Handlers
+          Admin\EventLifecycle::class,
           Admin\RecurringEventHandler::class,
           Admin\EventBookings::class,
           Admin\OrganizerPaymentsDashboard::class,
+          Admin\WorkflowEnforcer::class,
+          Admin\SessionCalendar::class,
 
           // Mailing / CRM integrations
           Services\Mailing\MailingDispatcher::class,

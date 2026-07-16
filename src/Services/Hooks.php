@@ -19,6 +19,12 @@ class Hooks
 
     // Provide default single event template (theme-overridable via hmw-events/ in theme)
     add_filter('single_template', [static::class, 'single_event_template']);
+
+    add_action('hmwevents_after_event_content', [static::class, 'render_session_schedule']);
+
+    add_action('transition_post_status', [static::class, 'on_event_cancelled'], 10, 3);
+
+    add_action('wp_head', [static::class, 'noindex_archived_events']);
   }
 
 
@@ -155,13 +161,82 @@ class Hooks
 
     global $wpdb;
     $where .= $wpdb->prepare(
-      " AND NOT ({$wpdb->posts}.post_type = %s AND {$wpdb->posts}.post_status IN (%s, %s))",
+      " AND NOT ({$wpdb->posts}.post_type = %s AND {$wpdb->posts}.post_status IN (%s, %s, %s))",
       Event::POST_TYPE,
       'archived',
-      'cancelled'
+      'cancelled',
+      'by_invitation'
     );
 
     return $where;
+  }
+
+  public static function noindex_archived_events(): void
+  {
+    if (!is_singular(Event::POST_TYPE)) {
+      return;
+    }
+
+    $post = get_post();
+    if (!$post || !in_array($post->post_status, ['archived', 'cancelled'], true)) {
+      return;
+    }
+
+    echo '<meta name="robots" content="noindex, nofollow">' . "\n";
+  }
+
+  public static function render_session_schedule(\WP_Post $event): void
+  {
+    $session_service = new SessionService();
+    $sessions = $session_service->get_sessions($event->ID, 'publish');
+
+    if (empty($sessions)) {
+      return;
+    }
+
+    hmwevents_get_template_part('session-schedule', null, ['event' => $event, 'sessions' => $sessions]);
+  }
+
+  public static function on_event_cancelled(string $new_status, string $old_status, \WP_Post $post): void
+  {
+    if ($post->post_type !== 'hmw_event') {
+      return;
+    }
+
+    if ($new_status !== 'cancelled') {
+      return;
+    }
+
+    if ($old_status === 'cancelled') {
+      return;
+    }
+
+    global $wpdb;
+    $bookings_table = DatabaseService::get_table_name('bookings');
+
+    $bookings = $wpdb->get_results($wpdb->prepare(
+      "SELECT id FROM {$bookings_table}
+      WHERE event_post_id = %d
+        AND status IN ('confirmed', 'pending')
+        AND deleted_at IS NULL",
+      $post->ID
+    ));
+
+    if (empty($bookings)) {
+      return;
+    }
+
+    foreach ($bookings as $booking) {
+      $wpdb->update(
+        $bookings_table,
+        ['status' => 'cancelled', 'cancelled_at' => current_time('mysql')],
+        ['id' => $booking->id],
+        ['%s', '%s'],
+        ['%d']
+      );
+
+      do_action('hmwevents_booking_cancelled', (int) $booking->id, 'Event cancelled', []);
+    }
   }
 
 }

@@ -2,7 +2,9 @@
     "redefinable-internals": [
         "error_log",
         "file_put_contents",
+        "hash_equals",
         "move_uploaded_file",
+        "random_bytes",
         "strtotime",
         "gmdate"
     ]

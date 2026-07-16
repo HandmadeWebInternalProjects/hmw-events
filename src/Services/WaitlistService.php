@@ -256,6 +256,40 @@ class WaitlistService
         return $next;
     }
 
+    public function promote_entry(int $entry_id, int $event_post_id, int $expiry_hours = 48): ?object
+    {
+        global $wpdb;
+
+        $entry = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->table} WHERE id = %d AND event_post_id = %d AND status = 'waiting'",
+            $entry_id,
+            $event_post_id
+        ));
+
+        if (!$entry) {
+            return null;
+        }
+
+        $expires_at = gmdate('Y-m-d H:i:s', strtotime("+{$expiry_hours} hours"));
+
+        $wpdb->update(
+            $this->table,
+            [
+                'status'      => 'notified',
+                'notified_at' => current_time('mysql'),
+                'expires_at'  => $expires_at,
+                'updated_at'  => current_time('mysql'),
+            ],
+            ['id' => $entry_id],
+            ['%s', '%s', '%s', '%s'],
+            ['%d']
+        );
+
+        do_action('hmwevents_waitlist_promoted', $entry, $event_post_id);
+
+        return $entry;
+    }
+
     /**
      * Convert a waitlist entry to confirmed (spot was taken).
      */
@@ -334,6 +368,10 @@ class WaitlistService
 
         $event = get_post($event_post_id);
         if ($event && $event->post_status === 'by_invitation') {
+            return true;
+        }
+
+        if ($this->count_for_event($event_post_id) > 0) {
             return true;
         }
 

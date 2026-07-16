@@ -282,6 +282,15 @@ class StripePaymentGateway extends AbstractPaymentGateway
             $amount = $amount_data['amount'];
             $payment_type = $amount_data['payment_type'];
 
+            $attendance_type = $booking_data['attendance_type'] ?? 'individual';
+            $attendance_option_id = EventHelper::resolve_attendance_option_id($course_id, $attendance_type);
+            if ($attendance_option_id) {
+                $option_check = EventHelper::check_attendance_option_capacity($attendance_option_id);
+                if (is_wp_error($option_check)) {
+                    throw new \Exception($option_check->get_error_message());
+                }
+            }
+
             // 4. Create booking group
             $booking_reference = $this->generate_booking_reference();
 
@@ -306,6 +315,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
                 'booking_number' => $booking_number,
                 'event_post_id' => $course_id,
                 'customer_post_id' => $customer_id,
+                'attendance_option_id' => $attendance_option_id,
                 'ticket_type' => $payment_type,
                 'booking_amount' => $amount,
             ]);

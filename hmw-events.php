@@ -1,13 +1,13 @@
 <?php
 
 use HMWEvents\HMWEvents;
-use function Breakdance\Util\getDirectoryPathRelativeToPluginFolder;
+// use function Breakdance\Util\getDirectoryPathRelativeToPluginFolder;
 
 /**
  * Plugin Name: Handmade Web Event Manager
  * Plugin URI: https://handmadewebdesign.com.au/
  * Description: Base plugin for the Handmade Web Event Manager system for booking management
- * Version: 1.2.3
+ * Version: 1.0.0
  * Author: Handmade Web & Design
  * Author URI: https://www.handmadewebdesign.com.au/
  * Text Domain: hmw-events
@@ -28,7 +28,7 @@ if (!defined('HMWEvents_PLUGIN_NAME')) {
     define('HMWEvents_PLUGIN_NAME', 'hmw-events');
 }
 if (!defined('HMWEvents_VERSION')) {
-    define('HMWEvents_VERSION', '1.2.3');
+    define('HMWEvents_VERSION', '1.0.0');
 }
 if (!defined('HMWEvents_ABSPATH')) {
     define('HMWEvents_ABSPATH', dirname(HMWEvents_PLUGIN_FILE) . '/');
@@ -110,40 +110,40 @@ function hmwevents_deactivate()
     $recurring_jobs->unregister();
 }
 
-add_action(
-  'breakdance_loaded',
-  function () {
-    \Breakdance\ElementStudio\registerSaveLocation(
-      getDirectoryPathRelativeToPluginFolder(__DIR__) . '/src/Breakdance/elements',
-      'HMWEvents\Breakdance',
-      'element',
-      'HMWEvents Custom Elements',
-      false
-    );
+// add_action(
+//   'breakdance_loaded',
+//   function () {
+//     \Breakdance\ElementStudio\registerSaveLocation(
+//       getDirectoryPathRelativeToPluginFolder(__DIR__) . '/src/Breakdance/elements',
+//       'HMWEvents\Breakdance',
+//       'element',
+//       'HMWEvents Custom Elements',
+//       false
+//     );
 
-    \Breakdance\ElementStudio\registerSaveLocation(
-      getDirectoryPathRelativeToPluginFolder(__DIR__) . '/src/Breakdance/macros',
-      'HMWEvents\Breakdance;',
-      'macro',
-      'HMWEvents Custom Macros',
-      false,
-    );
+//     \Breakdance\ElementStudio\registerSaveLocation(
+//       getDirectoryPathRelativeToPluginFolder(__DIR__) . '/src/Breakdance/macros',
+//       'HMWEvents\Breakdance;',
+//       'macro',
+//       'HMWEvents Custom Macros',
+//       false,
+//     );
 
-    \Breakdance\ElementStudio\registerSaveLocation(
-      getDirectoryPathRelativeToPluginFolder(__DIR__) . '/src/Breakdance/presets',
-      'HMWEvents\Breakdance;',
-      'preset',
-      'HMWEvents Custom Presets',
-      false,
-    );
-  },
-  // register elements before loading them
-  9
-);
+//     \Breakdance\ElementStudio\registerSaveLocation(
+//       getDirectoryPathRelativeToPluginFolder(__DIR__) . '/src/Breakdance/presets',
+//       'HMWEvents\Breakdance;',
+//       'preset',
+//       'HMWEvents Custom Presets',
+//       false,
+//     );
+//   },
+//   // register elements before loading them
+//   9
+// );
 
-add_filter('breakdance_reusable_dependencies_urls', function ($urls) {
+// add_filter('breakdance_reusable_dependencies_urls', function ($urls) {
 
-  $urls['hmwevents'] = plugins_url('/', __FILE__);
+//   $urls['hmwevents'] = plugins_url('/', __FILE__);
 
-  return $urls;
-}, PHP_INT_MAX);
+//   return $urls;
+// }, PHP_INT_MAX);

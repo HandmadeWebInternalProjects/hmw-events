@@ -1,0 +1,180 @@
+Section,Test ID,Test Description,Steps,Expected Result,Status
+Event Types & Templates,T1.1,Create event and assign type,"1. Go to Events → Add New
+2. Select Parent Multi-Week Course from Event Type dropdown
+3. Verify venue fields appear, Webinar URL hidden, Capacity=12
+4. Switch to Parenting Webinar
+5. Verify venue fields hide, Webinar URL required, price fields hide",Venue/hide/required toggles correctly per type,
+Event Types & Templates,T1.2,Create event from template,"1. Go to Events → Templates
+2. Click Create Draft Event on any template
+3. Verify draft event created with pre-populated fields
+4. Click Retire on a template
+5. Verify template shows Retired; cannot create from it",Draft created with template fields; retired template blocked,
+Event Types & Templates,T1.3,Status workflow enforcement,"1. Edit event set to Archived
+2. Try changing status to Draft
+3. Verify admin notice",Admin notice: Cannot change status from archived to draft,
+Event Creation & Config,T2.1,Pricing and surcharge,"1. Edit Professional Paid Online event
+2. Set Full Price=$100, Surcharge=$5
+3. Verify both fields save correctly
+4. Switch to Parent One-Off Free Event
+5. Verify price/surcharge/deposit fields hidden",Fields appear/hide correctly per event type,
+Event Creation & Config,T2.2,Per-registrant booking cap,"1. Set Max Bookings Per Person=2 on an event
+2. Book event twice with same email
+3. Try booking a third time
+4. Verify error message",Error: maximum of 2 booking(s) per person,
+Event Creation & Config,T2.3,Per-option capacity,"1. Open event with multiple attendance options
+2. Set capacity on Couple option
+3. Book until that option is full
+4. Try booking it again
+5. Verify error message",Error: Couple option is fully booked,
+Event Creation & Config,T2.4,Staff coupon bypasses restrictions,"1. Go to Events → Coupons → Add New
+2. Create coupon: Code=TEST10, Type=Fixed, Value=10
+3. Check Staff Discount checkbox
+4. Apply coupon with expired dates
+5. Verify coupon still works (bypasses date validation)",Staff coupon bypasses date/usage restrictions,
+Event Creation & Config,T2.5,Regular coupon validation,"1. Create coupon: PERCENT20, Type=Percent, Value=20
+2. Set past end date
+3. Try applying it
+4. Verify coupon fails with expired error",Coupon validation returns appropriate error,
+Scheduling & Sessions,T3.1,Recurring event generation,"1. Create Parent Recurring Walk-In event
+2. Set start date next Monday, end date 4 weeks out
+3. Toggle Recurring ON, Weekly, Monday
+4. Save event
+5. Verify 4 child sessions created",4 child sessions created (one per Monday),
+Scheduling & Sessions,T3.2,Session schedule on frontend,"1. View parent event on frontend
+2. Verify Session Schedule table below content
+3. Verify all session dates shown",Session Schedule table with all dates,
+Scheduling & Sessions,T3.3,Session calendar view,"1. Go to Events → Calendar
+2. Navigate to month with sessions
+3. Verify each session appears as green badge on correct date",Sessions visible on calendar,
+Scheduling & Sessions,T3.4,Session management and cascade,"1. Edit parent event
+2. Verify Session Schedule meta box shows children
+3. Click Edit on one child, change date, save
+4. Edit parent, change venue, click Update All Sessions
+5. Verify venue cascades to all children; edited date preserved",Venue cascades; overridden date kept,
+Scheduling & Sessions,T3.5,Delete session and exclusion,"1. Permanently delete one child session
+2. Save parent again
+3. Verify deleted date NOT recreated
+4. Verify excluded dates counter shows '1 excluded date'
+5. Click Clear Excluded Dates, save again
+6. Verify date is recreated",Exclusion tracker works; clear restores dates,
+Event Lifecycle,T4.1,Duplicate event,"1. Go to Events → All Events
+2. Hover over an event, click Duplicate
+3. Verify draft copy created with all meta and taxonomies",Draft copy appears with all fields,
+Event Lifecycle,T4.2,Cancel event cascade,"1. Find event with confirmed bookings
+2. Change status to Cancelled
+3. Verify all bookings cancelled",Bookings cancelled; event cancelled notice,
+Event Lifecycle,T4.3,Archive and PII tracking,"1. Archive an event with registrations
+2. Verify event not on frontend
+3. Go to Events → Reporting → Data Governance box
+4. Verify counter shows archived events pending cleanup",Counter shows pending PII cleanup count,
+Event Statuses,T5.1,By Invitation event display,"1. Set event to By Invitation
+2. View on frontend
+3. Verify Invitation Only + Fully Booked badges
+4. Verify booking form hidden",Badges shown; form hidden,
+Event Statuses,T5.2,Generate invitation link,"1. In Event Bookings meta box, enter email
+2. Click Generate Registration Link
+3. Copy URL, open in incognito
+4. Verify booking form shows
+5. Complete booking
+6. Try same link again
+7. Verify token consumed error",Token allows registration once then consumed,
+Event Statuses,T5.3,Fully Booked display,"1. Fill event capacity completely
+2. View on frontend
+3. Verify Fully Booked badge; form replaced with message",Fully Booked badge and message,
+Categorisation,T6.1,Categories and tags,"1. Edit event, assign category and tag
+2. Verify they save and display in admin list",Categories/tags save and display,
+Categorisation,T6.2,Topic taxonomy,"1. Go to Events → Topics → Add New
+2. Create topics: Sleep, Feeding, Behaviour
+3. Edit event, assign topics
+4. Verify topics appear and filter correctly",Topics filterable in listings,
+Categorisation,T6.3,Filter bar,"1. View event listing on frontend
+2. Verify filter bar shows Delivery, Price, Topic, Audience
+3. Apply filters
+4. Verify results narrow correctly",Filters work; results update,
+Categorisation,T6.4,Card badges,"1. Verify each card shows delivery mode badge
+2. Verify free events show Free badge
+3. Verify multi-session events show Multi-Session badge",All badges present and correct,
+Registration Forms,T7.1,Parent-specific fields,"1. Open Parent One-Off Free Event on frontend
+2. Verify form has Age of Child, Number of Children, Childcare Requirements",Parent fields present,
+Registration Forms,T7.2,Professional-specific fields,"1. Open Professional Paid Online Event
+2. Verify form has Organisation, Job Title, Professional Body/AHPRA",Professional fields present,
+Registration Forms,T7.3,Audience field scoping,"1. Verify parent fields NOT on professional events
+2. Verify professional fields NOT on parent events",Fields correctly scoped to audience,
+Registration Flow,T8.1,Booking confirmation page,"1. Book any event completely
+2. Verify on-screen confirmation shows booking number, event details, payment summary, Next Steps",Confirmation page complete,
+Registration Flow,T8.2,Confirmation email,"1. Check registrant email
+2. Verify email has event name, date, location, booking reference",Email content correct,
+Registration Flow,T8.3,Admin notification,"1. Check admin email
+2. Verify new booking notification with event name and customer details",Admin notification received,
+Registration Flow,T8.4,Self-cancellation (free events),"1. Book a free event
+2. Open confirmation email, find cancel link
+3. Click link
+4. Verify Booking Cancelled page; booking status updated",Self-cancel works for free events,
+Payments,T9.1,Stripe payment,"1. Book paid event with test card 4242 4242 4242 4242
+2. Verify payment processes",Payment successful,
+Payments,T9.2,Net Terms (invitation only),"1. Access paid event via invitation URL (?token=xxx)
+2. Verify Pay by Invoice option appears
+3. Access same event without token
+4. Verify Pay by Invoice does NOT appear",Net Terms gated to private URLs only,
+Payments,T9.3,Staff discount,"1. Create staff coupon with 50% discount
+2. Apply at checkout
+3. Verify 50% applied; date/usage bypassed",Staff discount applied correctly,
+Payments,T9.4,Auto receipt email,"1. Complete a payment
+2. Check registrant email
+3. Verify payment receipt/invoice received",Receipt email received,
+Payments,T9.5,Manual booking,"1. Edit event, scroll to Event Bookings
+2. Click Add Manual Booking
+3. Fill First Name, Last Name, Email, Phone
+4. Click Create Booking
+5. Verify booking appears in table: Confirmed, Payment=Pending",Manual booking created,
+Payments,T9.6,Mark as Paid,"1. Find manual booking in table
+2. Click Mark as Paid
+3. Verify payment status changes to Paid; receipt queued",Payment marked paid,
+Payments,T9.7,Payment Link,"1. Find pending booking, click Payment Link
+2. Verify customer receives payment link email",Payment link email sent,
+Capacity & Waitlists,T10.1,Waitlist auto-creation,"1. Fill event completely (low capacity for test)
+2. Try booking again
+3. Verify booking is waitlisted",Booking waitlisted when full,
+Capacity & Waitlists,T10.2,Waitlist prevents reopening,"1. Cancel one booking (free up spot)
+2. Try booking again
+3. Verify event still shows fully booked (waitlist active)",Event stays full when waitlist exists,
+Capacity & Waitlists,T10.3,Waitlist promote,"1. Edit event, scroll to Waitlist table
+2. Verify waitlisted entries with position, name, email
+3. Click Promote on an entry
+4. Verify invitation email sent with private URL",Promotion works; email sent,
+Communications,T11.1,Custom notification email,"1. Edit event, set Notification Email Override=test@example.com
+2. Create new booking for event
+3. Verify admin notification goes to override email",Override email used,
+Communications,T11.2,Disable email types,"1. Go to Events → Email Queue
+2. In Notification Settings, disable Booking Confirmation (Customer)
+3. Create new booking
+4. Verify no customer confirmation sent
+5. Re-enable it",Email type disabled and re-enabled correctly,
+Communications,T11.3,Email template editing,"1. Go to Events → Email Templates
+2. Select Booking Confirmation template
+3. Edit subject and body
+4. Send test email
+5. Verify test email uses modified template",Template editing and test send work,
+Reporting,T12.1,Filter registrations,"1. Go to Events → Reporting
+2. Apply filters: Payment=Paid, Attendance=Registered, Event Type=Professional Online
+3. Click Filter
+4. Verify results match criteria",Filtered results correct,
+Reporting,T12.2,CSV export,"1. Click Export CSV
+2. Verify CSV downloads with correct headers and data
+3. Try different export types",All export types work,
+Reporting,T12.3,Save filter,"1. Apply filters, click Save Filter
+2. Name it Paid Professional Events
+3. Reload page
+4. Verify saved filter reloadable",Saved filter persists,
+Reporting,T12.4,Remove test data,"1. Click Remove Abandoned Bookings (>7 days pending)
+2. Verify confirmation prompt
+3. Verify test bookings removed",Test data cleanup works,
+Reporting,T12.5,Data Governance dashboard,"1. Scroll to Data Governance box on Reporting page
+2. Verify shows: archived count, pending documents, audit entries, cron schedule",All compliance metrics shown,
+Compliance,T13.1,Archived events excluded from search,"1. Archive an event
+2. Perform frontend search for its title
+3. Verify event not in results",Archived event excluded from search,
+Compliance,T13.2,Noindex meta tag,"1. View source of archived/cancelled event page
+2. Verify <meta name=robots content=noindex,nofollow> present
+3. View source of published event
+4. Verify tag NOT present",Noindex tag correct per status,

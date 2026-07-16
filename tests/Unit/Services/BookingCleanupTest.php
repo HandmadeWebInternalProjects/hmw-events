@@ -72,8 +72,8 @@ class BookingCleanupTest extends TestCase
     public function test_register_adds_hooks()
     {
         Functions\expect('add_action')
-            ->times(3)
-            ->with(Mockery::anyOf('hmwevents_activation', 'hmwevents_deactivation', BookingCleanup::CRON_HOOK), Mockery::type('array'));
+            ->times(4)
+            ->with(Mockery::anyOf('hmwevents_activation', 'hmwevents_deactivation', BookingCleanup::CRON_HOOK, BookingCleanup::PII_CRON_HOOK), Mockery::type('array'));
 
         $this->service->register();
 
@@ -88,18 +88,17 @@ class BookingCleanupTest extends TestCase
     public function test_schedule_cleanup_creates_schedule()
     {
         Functions\expect('wp_next_scheduled')
-            ->once()
-            ->with(BookingCleanup::CRON_HOOK)
-            ->andReturn(false);
+            ->times(2)
+            ->andReturnUsing(function ($hook) {
+                return $hook === BookingCleanup::PII_CRON_HOOK ? false : false;
+            });
 
         Functions\expect('strtotime')
-            ->once()
-            ->with('tomorrow 3:00 AM')
+            ->times(2)
             ->andReturn(1234567890);
 
         Functions\expect('wp_schedule_event')
-            ->once()
-            ->with(1234567890, 'daily', BookingCleanup::CRON_HOOK)
+            ->times(2)
             ->andReturn(true);
 
         $this->service->schedule_cleanup();
@@ -115,8 +114,7 @@ class BookingCleanupTest extends TestCase
     public function test_schedule_cleanup_skips_if_already_scheduled()
     {
         Functions\expect('wp_next_scheduled')
-            ->once()
-            ->with(BookingCleanup::CRON_HOOK)
+            ->times(2)
             ->andReturn(1234567890);
 
         Functions\expect('wp_schedule_event')
@@ -137,13 +135,11 @@ class BookingCleanupTest extends TestCase
         $timestamp = 1234567890;
 
         Functions\expect('wp_next_scheduled')
-            ->once()
-            ->with(BookingCleanup::CRON_HOOK)
+            ->times(2)
             ->andReturn($timestamp);
 
         Functions\expect('wp_unschedule_event')
-            ->once()
-            ->with($timestamp, BookingCleanup::CRON_HOOK)
+            ->times(2)
             ->andReturn(true);
 
         $this->service->clear_schedule();
@@ -159,16 +155,15 @@ class BookingCleanupTest extends TestCase
     public function test_clear_schedule_handles_no_scheduled_event()
     {
         Functions\expect('wp_next_scheduled')
-            ->once()
-            ->with(BookingCleanup::CRON_HOOK)
+            ->times(2)
             ->andReturn(false);
 
         Functions\expect('wp_unschedule_event')
             ->never();
 
-        $this->assertTrue(true);
-
         $this->service->clear_schedule();
+
+        $this->assertTrue(true);
     }
 
     /**

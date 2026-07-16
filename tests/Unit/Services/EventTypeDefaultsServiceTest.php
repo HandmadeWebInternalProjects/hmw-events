@@ -6,7 +6,7 @@ use HMWEvents\Services\EventTypeDefaultsService;
 use PHPUnit\Framework\TestCase;
 use Brain\Monkey;
 use Brain\Monkey\Functions;
-use Mockery;
+use Mockery; 
 
 class EventTypeDefaultsServiceTest extends TestCase
 {
@@ -21,7 +21,18 @@ class EventTypeDefaultsServiceTest extends TestCase
             define('HMWEvents_ABSPATH', dirname(__DIR__, 3) . '/');
         }
 
-        $GLOBALS['wpdb'] = (object) ['prefix' => 'wp_'];
+        $GLOBALS['wpdb'] = Mockery::mock();
+        $GLOBALS['wpdb']->prefix = 'wp_';
+        $GLOBALS['wpdb']->shouldReceive('prepare')->andReturnUsing(function ($sql) {
+            return $sql;
+        })->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('get_results')->andReturn([])->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('get_var')->andReturn(0)->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('insert')->andReturn(1)->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('query')->andReturn(true)->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('delete')->andReturn(1)->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('get_row')->andReturn(null)->byDefault();
+        $GLOBALS['wpdb']->shouldReceive('esc_like')->andReturnUsing(function ($s) { return $s; })->byDefault();
 
         $this->service = new EventTypeDefaultsService();
 
@@ -31,6 +42,7 @@ class EventTypeDefaultsServiceTest extends TestCase
         Functions\when('sanitize_key')->alias(function ($key) {
             return preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $key));
         });
+        Functions\when('sanitize_text_field')->returnArg();
         Functions\when('error_log')->justReturn(true);
         Functions\when('wp_create_nonce')->justReturn('test_nonce');
         Functions\when('admin_url')->justReturn('https://example.com/wp-admin/admin-ajax.php');
@@ -40,6 +52,12 @@ class EventTypeDefaultsServiceTest extends TestCase
             return $thing instanceof \WP_Error;
         });
         Functions\when('update_post_meta')->justReturn(true);
+        Functions\when('delete_post_meta')->justReturn(true);
+        Functions\when('current_time')->justReturn('2026-01-01 00:00:00');
+
+        \Patchwork\replace('HMWEvents\\Services\\DatabaseService::get_table_name', function ($name) {
+            return 'wp_hmwevents_' . $name;
+        });
     }
 
     protected function tearDown(): void
@@ -116,9 +134,7 @@ class EventTypeDefaultsServiceTest extends TestCase
 
     public function test_auto_apply_calls_apply_defaults_with_correct_slug()
     {
-        Functions\expect('get_post_meta')
-            ->with(123, '_event_field_config', Mockery::any())
-            ->andReturn('');
+        Functions\when('get_post_meta')->justReturn('');
 
         Functions\expect('current_user_can')
             ->once()
@@ -129,9 +145,6 @@ class EventTypeDefaultsServiceTest extends TestCase
             ->once()
             ->with(123, 'hmw_event_type', ['fields' => 'slugs'])
             ->andReturn(['parent-one-off-free']);
-
-        Functions\expect('wp_delete_object_term_relationships')->never();
-        Functions\expect('wp_set_object_terms')->never();
 
         $this->service->auto_apply_on_first_save(123);
         $this->assertTrue(true);

@@ -325,22 +325,20 @@ class BookingConfirmation
         </div>
 
         <!-- Next Steps -->
-        <div class="hmwevents-confirmation-section hmwevents-next-steps">
-          <h2>What Happens Next?</h2>
-          <ol class="hmwevents-steps-list">
-            <li>
-              <strong>Confirmation Email</strong>
-              <p>You will receive a confirmation email at <?php echo esc_html($registrant_email); ?> with all your booking details.</p>
-            </li>
-            <li>
-              <strong>Course Materials</strong>
-              <p>Any pre-course materials or preparation instructions will be sent to you closer to the course date.</p>
-            </li>
-            <li>
-              <strong>Questions?</strong>
-              <p>If you have any questions, please don't hesitate to contact your educator.</p>
-            </li>
-          </ol>
+        <div class="hmwevents-confirmation-section">
+          <h2><?php esc_html_e('Next Steps', 'hmw-events'); ?></h2>
+          <?php
+          $next_steps = apply_filters('hmwevents_confirmation_next_steps', [
+            __('A confirmation email has been sent to ' . esc_html($registrant_email) . '.', 'hmw-events'),
+            __('Please save your booking reference number for future reference.', 'hmw-events'),
+            __('If you have any questions, please contact the event organizer.', 'hmw-events'),
+          ], $booking);
+          ?>
+          <ul class="hmwevents-next-steps">
+            <?php foreach ($next_steps as $step) : ?>
+              <li><?php echo wp_kses_post($step); ?></li>
+            <?php endforeach; ?>
+          </ul>
         </div>
 
         <!-- Actions -->

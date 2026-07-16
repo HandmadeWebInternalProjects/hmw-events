@@ -20,6 +20,19 @@ class TemplateResolver
 {
     private TemplateSchemaValidator $validator;
 
+    private const GROUP_EXPANSIONS = [
+        'event_recurrence' => [
+            'event_is_recurring',
+            'event_recurrence_interval',
+            'event_recurrence_unit',
+            'event_recurrence_days',
+            'event_recurrence_end_type',
+            'event_recurrence_end_date',
+            'event_recurrence_max_occurrences',
+            'event_recurrence_custom_dates',
+        ],
+    ];
+
     public function __construct(?TemplateSchemaValidator $validator = null)
     {
         $this->validator = $validator ?: new TemplateSchemaValidator();
@@ -132,7 +145,20 @@ class TemplateResolver
             $normalized[] = $key;
         }
 
-        return array_values(array_unique($normalized));
+        $normalized = array_values(array_unique($normalized));
+
+        $expanded = [];
+        foreach ($normalized as $key) {
+            if (isset(self::GROUP_EXPANSIONS[$key])) {
+                foreach (self::GROUP_EXPANSIONS[$key] as $child) {
+                    $expanded[] = $child;
+                }
+            } else {
+                $expanded[] = $key;
+            }
+        }
+
+        return array_values(array_unique($expanded));
     }
 
     /**
@@ -177,11 +203,21 @@ class TemplateResolver
         }
 
         if (!empty($event_override['registration_fields']) && is_array($event_override['registration_fields'])) {
+            $base_multi_booking = $resolved_config['field_config']['registration_fields']['multi_booking'] ?? null;
+
             if (isset($event_override['registration_fields']['sections'])) {
                 $resolved_config['field_config']['registration_fields'] = $event_override['registration_fields'];
+                if (!isset($event_override['registration_fields']['multi_booking']) && $base_multi_booking) {
+                    $resolved_config['field_config']['registration_fields']['multi_booking'] = $base_multi_booking;
+                }
                 return $resolved_config;
             }
+
             $resolved_config['field_config']['registration_fields'] = $event_override['registration_fields'];
+
+            if (!isset($event_override['registration_fields']['multi_booking']) && $base_multi_booking) {
+                $resolved_config['field_config']['registration_fields']['multi_booking'] = $base_multi_booking;
+            }
         }
 
         return $resolved_config;

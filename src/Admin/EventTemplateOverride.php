@@ -81,7 +81,8 @@ class EventTemplateOverride
         ?>
         <div id="hmwevents-override-container"
              data-post-id="<?php echo (int) $post->ID; ?>"
-             data-has-children="<?php echo $has_children ? '1' : '0'; ?>">
+             data-has-children="<?php echo $has_children ? '1' : '0'; ?>"
+             data-has-override="<?php echo $has_override ? '1' : '0'; ?>">
             <?php if ($template_title): ?>
                 <p style="margin-bottom:4px;">
                     <?php esc_html_e('This event uses template:', 'hmw-events'); ?>
@@ -148,6 +149,70 @@ class EventTemplateOverride
                     <button type="button" class="button button-primary hmwevents-save-override"><?php esc_html_e('Save Override', 'hmw-events'); ?></button>
                     <span id="hmwevents-override-status" style="margin-left:8px;"></span>
                 </div>
+            </div>
+        </div>
+        <div id="hmwevents-field-modal" style="display:none;">
+            <div class="hmwevents-modal-body">
+                <div class="hmwevents-modal-presets">
+                    <p><strong><?php esc_html_e('Quick Presets', 'hmw-events'); ?></strong></p>
+                    <div id="hmwevents-modal-preset-buttons"></div>
+                    <hr>
+                </div>
+                <table class="form-table">
+                    <tr>
+                        <th><label for="hmwevents-modal-key"><?php esc_html_e('Field Key', 'hmw-events'); ?></label></th>
+                        <td><input type="text" id="hmwevents-modal-key" class="regular-text" placeholder="e.g. custom_field"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-label"><?php esc_html_e('Label', 'hmw-events'); ?></label></th>
+                        <td><input type="text" id="hmwevents-modal-label" class="regular-text"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-placeholder"><?php esc_html_e('Placeholder', 'hmw-events'); ?></label></th>
+                        <td><input type="text" id="hmwevents-modal-placeholder" class="regular-text"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-type"><?php esc_html_e('Type', 'hmw-events'); ?></label></th>
+                        <td>
+                            <select id="hmwevents-modal-type">
+                                <option value="text"><?php esc_html_e('Text', 'hmw-events'); ?></option>
+                                <option value="email"><?php esc_html_e('Email', 'hmw-events'); ?></option>
+                                <option value="tel"><?php esc_html_e('Phone', 'hmw-events'); ?></option>
+                                <option value="textarea"><?php esc_html_e('Textarea', 'hmw-events'); ?></option>
+                                <option value="select"><?php esc_html_e('Select / Dropdown', 'hmw-events'); ?></option>
+                                <option value="checkbox"><?php esc_html_e('Checkbox', 'hmw-events'); ?></option>
+                                <option value="radio"><?php esc_html_e('Radio', 'hmw-events'); ?></option>
+                                <option value="date"><?php esc_html_e('Date', 'hmw-events'); ?></option>
+                                <option value="number"><?php esc_html_e('Number', 'hmw-events'); ?></option>
+                                <option value="file"><?php esc_html_e('File Upload', 'hmw-events'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="hmwevents-modal-required"><?php esc_html_e('Required', 'hmw-events'); ?></label></th>
+                        <td><input type="checkbox" id="hmwevents-modal-required"> <?php esc_html_e('Make this field required', 'hmw-events'); ?></td>
+                    </tr>
+                    <tr>
+                        <th><?php esc_html_e('Width', 'hmw-events'); ?></th>
+                        <td>
+                            <label><input type="radio" name="hmwevents-modal-width" value="half"> <?php esc_html_e('Half', 'hmw-events'); ?></label>
+                            <label style="margin-left:12px;"><input type="radio" name="hmwevents-modal-width" value="full" checked> <?php esc_html_e('Full', 'hmw-events'); ?></label>
+                        </td>
+                    </tr>
+                </table>
+                <div id="hmwevents-modal-options-panel" style="display:none;">
+                    <h4><?php esc_html_e('Options', 'hmw-events'); ?></h4>
+                    <ul id="hmwevents-modal-options-list" class="hmwevents-modal-options-list"></ul>
+                    <button type="button" class="button button-small" id="hmwevents-modal-add-option" style="margin-top:4px;">+ <?php esc_html_e('Add Option', 'hmw-events'); ?></button>
+                </div>
+                <p id="hmwevents-modal-per-attendee-row" style="display:none;">
+                    <label><input type="checkbox" id="hmwevents-modal-per-attendee"> <?php esc_html_e('Repeat this field for each attendee (multi-booking)', 'hmw-events'); ?></label>
+                </p>
+                <p style="margin-top:12px;">
+                    <button type="button" class="button button-primary" id="hmwevents-modal-save"><?php esc_html_e('Save Field', 'hmw-events'); ?></button>
+                    <button type="button" class="button" onclick="tb_remove(); return false;"><?php esc_html_e('Cancel', 'hmw-events'); ?></button>
+                    <button type="button" class="button button-link-delete" id="hmwevents-modal-delete" style="float:right;color:#b32d2e;"><?php esc_html_e('Delete Field', 'hmw-events'); ?></button>
+                </p>
             </div>
         </div>
         <?php

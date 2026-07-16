@@ -51,6 +51,7 @@ class EventListingService
      * @param array $filters {
      *     event_type:       string|string[]    Event type slug(s).
      *     audience:         string|string[]    Audience slug(s).
+     *     topic:            string|string[]    Topic slug(s).
      *     delivery_mode:    string|string[]    Delivery mode slug(s).
      *     state:            string|string[]    State slug(s).
      *     free_only:        bool               Only free events.
@@ -71,13 +72,13 @@ class EventListingService
 
         $args = [
             'post_type'      => 'hmw_event',
-            'post_status'    => ['publish', 'fully_booked'],
+            'post_status'    => ['publish', 'fully_booked', 'by_invitation'],
             'posts_per_page' => $filters['posts_per_page'] ?? 12,
             'paged'          => $paged,
             'meta_query'     => [],
             'tax_query'      => [],
             's'              => $filters['search'] ?? '',
-            'post_parent'    => 0,
+            'post_parent'    => !empty($filters['show_child_sessions']) ? '' : 0,
         ];
 
         if ($sort === 'title_asc' || $sort === 'title_desc') {
@@ -147,6 +148,14 @@ class EventListingService
                 'taxonomy' => 'hmw_event_audience',
                 'field'    => 'slug',
                 'terms'    => (array) $filters['audience'],
+            ];
+        }
+
+        if (!empty($filters['topic'])) {
+            $args['tax_query'][] = [
+                'taxonomy' => 'hmw_event_topic',
+                'field'    => 'slug',
+                'terms'    => (array) $filters['topic'],
             ];
         }
 
@@ -231,7 +240,16 @@ class EventListingService
             $badges[] = ['label' => __('Fully Booked', 'hmw-events'), 'class' => 'badge--full'];
         }
 
+        if ($post->post_status === 'by_invitation') {
+            $badges[] = ['label' => __('Invitation Only', 'hmw-events'), 'class' => 'badge--invitation'];
+            $badges[] = ['label' => __('Fully Booked', 'hmw-events'), 'class' => 'badge--full'];
+        }
+
         $session_info = $this->get_session_date_info($post->ID);
+
+        if ($session_info['session_count'] > 0) {
+            $badges[] = ['label' => __('Multi-Session', 'hmw-events'), 'class' => 'badge--multi-session'];
+        }
 
         return [
             'id'              => $post->ID,
@@ -257,6 +275,7 @@ class EventListingService
             'session_dates'   => $session_info['session_dates'],
             'session_summary' => $session_info['session_summary'],
             'session_count'   => $session_info['session_count'],
+            'is_multi_session' => $session_info['session_count'] > 0,
         ];
     }
 
@@ -329,13 +348,14 @@ class EventListingService
     /**
      * Render the event listings shortcode.
      *
-     * [hmw_event_listings type="workshop" audience="parents" mode="in-person" state="nsw" free="1" limit="12" show_filters="yes" sort="date" sort_order="ASC"]
+     * [hmw_event_listings type="workshop" audience="parents" topic="sleep" mode="in-person" state="nsw" free="1" limit="12" show_filters="yes" sort="date" sort_order="ASC"]
      */
     public function render_listings(array $atts = [], string $content = ''): string
     {
         $atts = shortcode_atts([
             'type'         => '',
             'audience'     => '',
+            'topic'        => '',
             'mode'         => '',
             'state'        => '',
             'free'         => '',
@@ -454,6 +474,17 @@ class EventListingService
             $filters['audience'] = explode(',', $atts['audience']);
         }
 
+        if ($atts['topic']) {
+            $filters['topic'] = explode(',', $atts['topic']);
+        } else {
+            $url_topic = isset($_GET['ev_topic']) ? (array) $_GET['ev_topic'] : [];
+            $url_topic = array_map('sanitize_text_field', $url_topic);
+            $url_topic = array_filter($url_topic);
+            if ($url_topic) {
+                $filters['topic'] = $url_topic;
+            }
+        }
+
         if ($atts['mode']) {
             $filters['delivery_mode'] = explode(',', $atts['mode']);
         } else {
@@ -530,10 +561,12 @@ class EventListingService
         $event_types     = $this->get_filter_terms('hmw_event_type');
         $delivery_modes  = $this->get_filter_terms('hmw_event_delivery_mode');
         $states          = $this->get_filter_terms('hmw_event_state');
+        $topics          = $this->get_filter_terms('hmw_event_topic');
 
         $active_types      = isset($filters['event_type']) ? (array) $filters['event_type'] : [];
         $active_modes      = isset($filters['delivery_mode']) ? (array) $filters['delivery_mode'] : [];
         $active_states     = isset($filters['state']) ? (array) $filters['state'] : [];
+        $active_topics     = isset($filters['topic']) ? (array) $filters['topic'] : [];
         $active_price      = isset($filters['free_only']) && $filters['free_only'] ? 'free'
             : (isset($filters['paid_only']) && $filters['paid_only'] ? 'paid' : '');
         $active_date_from  = $filters['date_from'] ?? '';
@@ -568,6 +601,21 @@ class EventListingService
                                 <label class="hmw-event-filters__checkbox">
                                     <input type="checkbox" name="ev_mode[]" value="<?php echo esc_attr($term->slug); ?>"
                                         <?php checked(in_array($term->slug, $active_modes, true)); ?> />
+                                    <?php echo esc_html($term->name); ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($topics): ?>
+                    <div class="hmw-event-filters__section">
+                        <span class="hmw-event-filters__label"><?php esc_html_e('Topic', 'hmw-events'); ?></span>
+                        <div class="hmw-event-filters__options">
+                            <?php foreach ($topics as $term): ?>
+                                <label class="hmw-event-filters__checkbox">
+                                    <input type="checkbox" name="ev_topic[]" value="<?php echo esc_attr($term->slug); ?>"
+                                        <?php checked(in_array($term->slug, $active_topics, true)); ?> />
                                     <?php echo esc_html($term->name); ?>
                                 </label>
                             <?php endforeach; ?>
@@ -694,6 +742,20 @@ class EventListingService
                         'label'  => $term->name,
                         'group'  => __('Mode', 'hmw-events'),
                         'remove' => 'ev_mode',
+                        'value'  => $term->slug,
+                    ];
+                }
+            }
+        }
+
+        if (isset($filters['topic'])) {
+            $terms = get_terms(['taxonomy' => 'hmw_event_topic', 'slug' => (array) $filters['topic'], 'hide_empty' => false]);
+            if ($terms && !is_wp_error($terms)) {
+                foreach ($terms as $term) {
+                    $tags[] = [
+                        'label'  => $term->name,
+                        'group'  => __('Topic', 'hmw-events'),
+                        'remove' => 'ev_topic',
                         'value'  => $term->slug,
                     ];
                 }
@@ -931,6 +993,7 @@ class EventListingService
         $filters = [
             'event_type'    => $_POST['event_type'] ?? '',
             'audience'      => $_POST['audience'] ?? '',
+            'topic'         => $_POST['topic'] ?? '',
             'delivery_mode' => $_POST['delivery_mode'] ?? '',
             'state'         => $_POST['state'] ?? '',
             'free_only'     => !empty($_POST['free_only']),

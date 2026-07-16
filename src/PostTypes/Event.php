@@ -71,6 +71,7 @@ class Event
             'menu_position'       => 20,
             'menu_icon'           => 'dashicons-calendar-alt',
             'supports'            => ['title', 'editor', 'author', 'thumbnail', 'excerpt', 'custom-fields', 'page-attributes'],
+            'taxonomies'          => ['category', 'post_tag'],
             'delete_with_user'    => false,
         ];
 
@@ -124,9 +125,9 @@ class Event
 
         register_post_status('by_invitation', [
             'label'                     => _x('By Invitation', 'post status', 'hmw-events'),
-            'public'                    => false,
+            'public'                    => true,
             'exclude_from_search'       => false,
-            'publicly_queryable'        => false,
+            'publicly_queryable'        => true,
             'show_in_admin_all_list'    => true,
             'show_in_admin_status_list' => true,
             'label_count'               => _n_noop(

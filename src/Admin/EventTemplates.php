@@ -15,6 +15,17 @@ class EventTemplates
 {
     private EventTemplateService $service;
 
+    private const RECURRENCE_CHILD_KEYS = [
+        'event_is_recurring',
+        'event_recurrence_interval',
+        'event_recurrence_unit',
+        'event_recurrence_days',
+        'event_recurrence_end_type',
+        'event_recurrence_end_date',
+        'event_recurrence_max_occurrences',
+        'event_recurrence_custom_dates',
+    ];
+
     public function __construct()
     {
         $this->service = new EventTemplateService();
@@ -333,7 +344,9 @@ class EventTemplates
             }
         }
 
-        return empty($fields) ? $this->get_acf_fields_from_json() : $fields;
+        $fields = empty($fields) ? $this->get_acf_fields_from_json() : $fields;
+
+        return $this->group_recurrence_fields($fields);
     }
 
     private function get_acf_fields_from_json(): array
@@ -370,6 +383,54 @@ class EventTemplates
         }
 
         return $fields;
+    }
+
+    private function group_recurrence_fields(array $fields): array
+    {
+        $child_keys = self::RECURRENCE_CHILD_KEYS;
+        $child_set = array_flip($child_keys);
+
+        $child_indices = [];
+        $has_children = false;
+
+        foreach ($fields as $i => $f) {
+            if (isset($child_set[$f['key']])) {
+                $child_indices[$i] = true;
+                $has_children = true;
+            }
+        }
+
+        if (!$has_children) {
+            return $fields;
+        }
+
+        $first_child_index = null;
+        foreach ($child_indices as $idx => $_) {
+            $first_child_index = $idx;
+            break;
+        }
+
+        $grouped = [];
+        $group_inserted = false;
+
+        foreach ($fields as $i => $f) {
+            if (isset($child_indices[$i])) {
+                if (!$group_inserted) {
+                    $grouped[] = [
+                        'key'      => 'event_recurrence',
+                        'label'    => __('Recurrence Settings', 'hmw-events'),
+                        'type'     => 'group',
+                        'children' => $child_keys,
+                    ];
+                    $group_inserted = true;
+                }
+                continue;
+            }
+
+            $grouped[] = $f;
+        }
+
+        return $grouped;
     }
 
     private function get_registration_fields_for_editor(): array

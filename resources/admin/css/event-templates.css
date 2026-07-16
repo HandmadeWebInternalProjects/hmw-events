@@ -49,3 +49,21 @@
 #hmwevents-template-save-status { margin: 8px 0; }
 .hmwevents-toggle-row { margin: 8px 0; font-size: 12px; }
 .hmwevents-toggle-row a { text-decoration: none; }
+
+.hmwevents-dnd-group {
+  border-left: 3px solid #2271b1;
+  background: #f0f6fc !important;
+  opacity: 1 !important;
+}
+
+.hmwevents-dnd-group-badge {
+  display: inline-block;
+  font-size: 9px;
+  text-transform: uppercase;
+  background: #2271b1;
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
