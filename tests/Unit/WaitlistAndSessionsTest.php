@@ -104,7 +104,11 @@ class WaitlistAndSessionsTest extends TestCase
     public function test_check_event_full_by_invitation(): void
     {
         Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'by_invitation'];
+            return (object) ['post_status' => 'publish'];
+        });
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_is_invitation_only') return '1';
+            return '';
         });
 
         $service = new WaitlistService();

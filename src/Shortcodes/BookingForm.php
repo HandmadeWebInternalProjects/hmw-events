@@ -73,7 +73,7 @@ class BookingForm
       return '<p class="hmwevents-info">To book this course, please click the button below to visit this Educator\'s external booking website</p><p><a href="' . esc_url($external_link) . '" target="_blank" class="button-atom button-atom--primary bde-button__button"><span class="button-atom__text">Book Now</span></a></p>';
     }
 
-    if ($course->post_status === 'by_invitation') {
+    if (\HMWEvents\PostTypes\Event::is_invitation_only($course_id)) {
       $token = $_GET['token'] ?? '';
       $token_service = new \HMWEvents\Services\InvitationTokenService();
       $validation = $token_service->validate($token, $course_id);
@@ -103,7 +103,7 @@ class BookingForm
     $display_full = floatval($full_cost) + $surcharge;
     $display_deposit = floatval($deposit_cost) + $surcharge;
 
-    $is_private_access = ($course->post_status === 'by_invitation');
+    $is_private_access = \HMWEvents\PostTypes\Event::is_invitation_only($course_id);
     $show_net_terms = (bool) get_post_meta($course_id, '_event_allow_net_terms', true) && $is_private_access;
 
     // Enqueue Stripe

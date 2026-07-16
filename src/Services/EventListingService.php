@@ -72,10 +72,15 @@ class EventListingService
 
         $args = [
             'post_type'      => 'hmw_event',
-            'post_status'    => ['publish', 'fully_booked', 'by_invitation'],
+            'post_status'    => ['publish', 'fully_booked'],
             'posts_per_page' => $filters['posts_per_page'] ?? 12,
             'paged'          => $paged,
-            'meta_query'     => [],
+            'meta_query'     => [
+                [
+                    'key'     => \HMWEvents\PostTypes\Event::META_INVITATION_ONLY,
+                    'compare' => 'NOT EXISTS',
+                ],
+            ],
             'tax_query'      => [],
             's'              => $filters['search'] ?? '',
             'post_parent'    => !empty($filters['show_child_sessions']) ? '' : 0,
@@ -240,7 +245,7 @@ class EventListingService
             $badges[] = ['label' => __('Fully Booked', 'hmw-events'), 'class' => 'badge--full'];
         }
 
-        if ($post->post_status === 'by_invitation') {
+        if (\HMWEvents\PostTypes\Event::is_invitation_only($post->ID)) {
             $badges[] = ['label' => __('Invitation Only', 'hmw-events'), 'class' => 'badge--invitation'];
             $badges[] = ['label' => __('Fully Booked', 'hmw-events'), 'class' => 'badge--full'];
         }

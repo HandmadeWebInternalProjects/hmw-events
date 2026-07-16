@@ -49,7 +49,6 @@ class WorkflowEnforcerTest extends TestCase
             'fully_booked'  => 'Fully Booked',
             'cancelled'     => 'Cancelled',
             'archived'      => 'Archived',
-            'by_invitation' => 'By Invitation',
             'trash'         => 'Trash',
         ]);
 
@@ -197,7 +196,7 @@ class WorkflowEnforcerTest extends TestCase
     public function test_trash_from_any_status_is_allowed_regardless_of_workflow(): void
     {
         $this->set_event_type_term('parent-course');
-        $this->enforcer->enforce_workflow('trash', 'by_invitation', $this->create_event_post('hmw_event', 'by_invitation'));
+        $this->enforcer->enforce_workflow('trash', 'cancelled', $this->create_event_post('hmw_event', 'cancelled'));
         $this->assertWorkflowAllowed();
     }
 
@@ -261,7 +260,7 @@ class WorkflowEnforcerTest extends TestCase
 
     public function test_is_transition_allowed_trash_always_true_with_empty_type(): void
     {
-        $result = $this->enforcer->is_transition_allowed('', 'by_invitation', 'trash');
+        $result = $this->enforcer->is_transition_allowed('', 'cancelled', 'trash');
         $this->assertTrue($result);
     }
 

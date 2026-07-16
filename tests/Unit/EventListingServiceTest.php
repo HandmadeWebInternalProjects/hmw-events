@@ -77,7 +77,7 @@ class EventListingServiceTest extends TestCase
         $args = $this->service->build_query([]);
 
         $this->assertEquals('hmw_event', $args['post_type']);
-        $this->assertEquals(['publish', 'fully_booked', 'by_invitation'], $args['post_status']);
+        $this->assertEquals(['publish', 'fully_booked'], $args['post_status']);
         $this->assertEquals(12, $args['posts_per_page']);
         $this->assertEquals(0, $args['post_parent']);
         $this->assertEquals('_event_start_date', $args['meta_key']);
@@ -192,7 +192,7 @@ class EventListingServiceTest extends TestCase
     {
         $args = $this->service->build_query(['free_only' => true]);
         $this->assertNotEmpty($args['meta_query']);
-        $this->assertEquals(1, $this->meta_query_count($args));
+        $this->assertEquals(2, $this->meta_query_count($args));
     }
 
     public function test_build_query_paid_only(): void
@@ -202,7 +202,7 @@ class EventListingServiceTest extends TestCase
 
         $entry = null;
         foreach ($args['meta_query'] as $k => $v) {
-            if ($k !== 'relation' && isset($v['key'])) {
+            if ($k !== 'relation' && isset($v['key']) && $v['key'] === '_event_price') {
                 $entry = $v;
                 break;
             }
@@ -220,7 +220,7 @@ class EventListingServiceTest extends TestCase
             'date_to'   => '2026-07-31',
         ]);
 
-        $this->assertEquals(2, $this->meta_query_count($args));
+        $this->assertEquals(3, $this->meta_query_count($args));
     }
 
     public function test_build_query_event_type_tax(): void
@@ -275,7 +275,7 @@ class EventListingServiceTest extends TestCase
         ]);
 
         $this->assertEquals('AND', $args['meta_query']['relation'] ?? '');
-        $this->assertEquals(2, $this->meta_query_count($args));
+        $this->assertEquals(3, $this->meta_query_count($args));
     }
 
     public function test_build_query_multiple_tax_queries_relation(): void

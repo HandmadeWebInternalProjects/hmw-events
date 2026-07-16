@@ -126,11 +126,10 @@ class EventTypeRegistry
                 ['label' => 'Individual', 'price' => 0, 'option_type' => 'individual'],
             ],
             'workflow'                   => [
-                'draft'         => ['publish', 'by_invitation', 'trash'],
+                'draft'         => ['publish', 'trash'],
                 'publish'       => ['fully_booked', 'cancelled', 'draft'],
                 'fully_booked'  => ['publish', 'cancelled'],
                 'cancelled'     => ['publish', 'archived'],
-                'by_invitation' => ['publish', 'cancelled', 'archived'],
                 'archived'      => ['publish'],
             ],
             'comm_templates'             => [

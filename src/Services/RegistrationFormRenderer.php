@@ -401,8 +401,7 @@ class RegistrationFormRenderer
         $price = (float) get_post_meta($event_id, '_event_price', true) ?: 0;
         $requires_payment = $price > 0;
 
-        $course = get_post($event_id);
-        $is_private_access = $course && $course->post_status === 'by_invitation';
+        $is_private_access = \HMWEvents\PostTypes\Event::is_invitation_only((int) $event_id);
         $show_net_terms = $is_private_access && (bool) get_post_meta($event_id, '_event_allow_net_terms', true);
 
         wp_enqueue_style(

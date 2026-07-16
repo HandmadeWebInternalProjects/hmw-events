@@ -74,6 +74,7 @@ class InvitationTokenServiceTest extends TestCase
         Functions\when('do_action')->justReturn(true);
         Functions\when('home_url')->justReturn('https://example.com');
         Functions\when('get_post')->justReturn(null);
+        Functions\when('get_post_meta')->justReturn('');
     }
 
     protected function tearDown(): void
@@ -346,7 +347,11 @@ class InvitationTokenServiceTest extends TestCase
     public function test_validate_token_access_blocks_invalid_token_for_by_invitation(): void
     {
         Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'by_invitation'];
+            return (object) ['post_status' => 'publish'];
+        });
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_is_invitation_only') return '1';
+            return '';
         });
 
         $service = new InvitationTokenService();
@@ -358,7 +363,11 @@ class InvitationTokenServiceTest extends TestCase
     public function test_validate_token_access_allows_valid_token_for_by_invitation(): void
     {
         Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'by_invitation'];
+            return (object) ['post_status' => 'publish'];
+        });
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_is_invitation_only') return '1';
+            return '';
         });
 
         $this->mockWpdb->shouldReceive('get_row')
@@ -379,7 +388,11 @@ class InvitationTokenServiceTest extends TestCase
     public function test_validate_token_access_uses_get_token_fallback(): void
     {
         Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'by_invitation'];
+            return (object) ['post_status' => 'publish'];
+        });
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_is_invitation_only') return '1';
+            return '';
         });
 
         $this->mockWpdb->shouldReceive('get_row')
@@ -404,7 +417,11 @@ class InvitationTokenServiceTest extends TestCase
     public function test_validate_token_access_context_takes_priority_over_get(): void
     {
         Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'by_invitation'];
+            return (object) ['post_status' => 'publish'];
+        });
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_is_invitation_only') return '1';
+            return '';
         });
 
         $this->mockWpdb->shouldReceive('get_row')

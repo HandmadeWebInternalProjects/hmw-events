@@ -370,6 +370,10 @@ class ReportingService
             return;
         }
 
+        if ($query->is_main_query() && ($query->get('p') || $query->get('page_id') || $query->get('name') || $query->get('pagename'))) {
+            return;
+        }
+
         $query->set('post_status', ['publish', 'fully_booked']);
     }
 

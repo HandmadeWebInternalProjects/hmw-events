@@ -163,7 +163,7 @@ class EventBookings
             <?php endif; ?>
         </div>
 
-        <?php if ($post->post_status === 'by_invitation'): ?>
+        <?php if (\HMWEvents\PostTypes\Event::is_invitation_only($post->ID)): ?>
             <div style="margin-top:16px; padding:12px; background:#f0f6fc; border:1px solid #72aee6; border-radius:3px;">
                 <h3 style="margin-top:0;"><?php esc_html_e('Invitation Tokens', 'hmw-events'); ?></h3>
                 <p class="description"><?php esc_html_e('Generate a private registration link. Tokens are single-use and expire after 48 hours by default.', 'hmw-events'); ?></p>

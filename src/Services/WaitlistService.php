@@ -366,8 +366,7 @@ class WaitlistService
             return true;
         }
 
-        $event = get_post($event_post_id);
-        if ($event && $event->post_status === 'by_invitation') {
+        if (\HMWEvents\PostTypes\Event::is_invitation_only($event_post_id)) {
             return true;
         }
 

@@ -147,7 +147,7 @@ class SessionCalendar
             INNER JOIN {$wpdb->posts} p2 ON p2.ID = p.post_parent
             WHERE p.post_type = 'hmw_event'
               AND p.post_parent > 0
-              AND p.post_status IN ('publish', 'fully_booked', 'by_invitation')
+              AND p.post_status IN ('publish', 'fully_booked')
               AND pm.meta_value >= %s
               AND pm.meta_value <= %s
             ORDER BY pm.meta_value ASC

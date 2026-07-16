@@ -14,7 +14,7 @@ class Hooks
     add_filter('posts_where', [static::class, 'exclude_archived_events_from_search'], 10, 2);
     // Fix Content Control + Search & Filter Pro pagination on the shop page
     add_action('pre_get_posts', [static::class, 'exclude_restricted_products_pre_query'], 10);
-    
+
     add_filter('template_include', [static::class, 'breakdance_pdf_voucher_fix'], 999999);
 
     // Provide default single event template (theme-overridable via hmw-events/ in theme)
@@ -159,13 +159,23 @@ class Hooks
       return $where;
     }
 
+    if ($query->is_singular(Event::POST_TYPE)) {
+      return $where;
+    }
+
+    if ($query->is_main_query() && ($query->get('name') || $query->get('pagename'))) {
+      $pt = $query->get('post_type');
+      if ($pt === Event::POST_TYPE || $pt === [Event::POST_TYPE]) {
+        return $where;
+      }
+    }
+
     global $wpdb;
     $where .= $wpdb->prepare(
-      " AND NOT ({$wpdb->posts}.post_type = %s AND {$wpdb->posts}.post_status IN (%s, %s, %s))",
+      " AND NOT ({$wpdb->posts}.post_type = %s AND {$wpdb->posts}.post_status IN (%s, %s))",
       Event::POST_TYPE,
       'archived',
-      'cancelled',
-      'by_invitation'
+      'cancelled'
     );
 
     return $where;

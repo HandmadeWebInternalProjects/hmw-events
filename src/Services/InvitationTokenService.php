@@ -226,7 +226,7 @@ class InvitationTokenService
     public function validate_token_access(bool $can_register, int $event_post_id, array $context): bool
     {
         $event = get_post($event_post_id);
-        if (!$event || $event->post_status !== 'by_invitation') {
+        if (!$event || !\HMWEvents\PostTypes\Event::is_invitation_only($event_post_id)) {
             return $can_register;
         }
 
