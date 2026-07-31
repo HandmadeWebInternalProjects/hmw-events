@@ -43,11 +43,13 @@
 
   function initFieldSortable(el, onStop) {
     el.sortable({
+      connectWith: '.hmwevents-fb-section-fields',
       handle: '.hmwevents-dnd-handle',
       placeholder: 'hmwevents-fb-grid-placeholder',
       opacity: 0.6,
       start: function (event, ui) {
         ui.placeholder.addClass(ui.item.hasClass('hmwevents-fb-field--full') ? 'hmwevents-fb-field--full' : '');
+        ui.item.data('source-section', ui.item.closest('.hmwevents-fb-section').attr('data-section-id'));
       },
       sort: function (event, ui) {
         handleSplitIndicator(event, ui);
@@ -55,6 +57,12 @@
       stop: function (event, ui) {
         $('.hmwevents-fb-split-indicator').remove();
         handleSplitDrop(ui);
+
+        var targetSection = ui.item.closest('.hmwevents-fb-section').attr('data-section-id');
+        var sourceSection = ui.item.data('source-section');
+        if (targetSection !== sourceSection) {
+          var crossSection = true;
+        }
 
         var pairedItem = ui.item.data('split-paired');
         if (pairedItem) {

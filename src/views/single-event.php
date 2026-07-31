@@ -25,7 +25,7 @@ $start_date   = get_post_meta($event->ID, '_event_start_date', true);
 $end_date     = get_post_meta($event->ID, '_event_end_date', true);
 $capacity     = (int) get_post_meta($event->ID, '_event_capacity', true);
 $venue        = get_post_meta($event->ID, '_event_venue_name', true);
-$venue_addr   = get_post_meta($event->ID, '_event_venue_address', true);
+$venue_addr   = \HMWEvents\Helpers\GoogleMapField::get_address_string(get_post_meta($event->ID, '_event_venue_address', true));
 $webinar_url  = get_post_meta($event->ID, '_event_webinar_url', true);
 $price        = get_post_meta($event->ID, '_event_price', true);
 $deposit      = get_post_meta($event->ID, '_event_deposit', true);
@@ -63,6 +63,8 @@ do_action('hmwevents_before_single_event', $event);
     </header>
 
     <?php do_action('hmwevents_after_event_header', $event); ?>
+
+    <?php do_action('hmwevents_event_map', $event); ?>
 
     <?php do_action('hmwevents_before_event_meta', $event); ?>
 

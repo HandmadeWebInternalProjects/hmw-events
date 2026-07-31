@@ -159,6 +159,9 @@ final class HMWEvents
           // Mailing / CRM integrations
           Services\Mailing\MailingDispatcher::class,
 
+          // Maps
+          Services\Maps\MapRendererDispatcher::class,
+
           // UI & Presentation
           Shortcodes\ResumePayment::class,
           Shortcodes\BookingForm::class,

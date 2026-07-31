@@ -21,16 +21,7 @@ class TemplateResolver
     private TemplateSchemaValidator $validator;
 
     private const GROUP_EXPANSIONS = [
-        'event_recurrence' => [
-            'event_is_recurring',
-            'event_recurrence_interval',
-            'event_recurrence_unit',
-            'event_recurrence_days',
-            'event_recurrence_end_type',
-            'event_recurrence_end_date',
-            'event_recurrence_max_occurrences',
-            'event_recurrence_custom_dates',
-        ],
+        'event_recurrence' => \HMWEvents\Registry\EventTypeRegistry::RECURRENCE_FIELD_KEYS,
     ];
 
     public function __construct(?TemplateSchemaValidator $validator = null)
@@ -105,16 +96,18 @@ class TemplateResolver
 
         $template = $normalized['event_fields'] ?? ['required' => [], 'optional' => [], 'hidden' => []];
 
-        $required = $this->normalize_event_field_list(array_merge($base['required'], $template['required']));
-        $optional = $this->normalize_event_field_list(array_merge($base['optional'], $template['optional']));
-        $hidden = $this->normalize_event_field_list(array_merge($base['hidden'], $template['hidden']));
+        $template_required = $this->normalize_event_field_list($template['required']);
+        $template_optional = $this->normalize_event_field_list($template['optional']);
+        $template_hidden = $this->normalize_event_field_list($template['hidden']);
 
-        // Hidden wins.
-        $required = array_values(array_diff($required, $hidden));
-        $optional = array_values(array_diff($optional, $hidden));
+        $hidden = array_values(array_unique(array_merge($base['hidden'], $template_hidden)));
+        $hidden = array_values(array_diff($hidden, $base['required']));
 
-        // Required wins.
-        $optional = array_values(array_diff($optional, $required));
+        $required = array_values(array_unique(array_merge($base['required'], $template_required)));
+        $required = array_values(array_diff($required, $base['hidden']));
+
+        $optional = array_values(array_unique(array_merge($base['optional'], $template_optional)));
+        $optional = array_values(array_diff($optional, $required, $hidden));
 
         return [
             'required' => $required,

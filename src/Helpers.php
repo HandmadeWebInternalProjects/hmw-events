@@ -6,105 +6,14 @@
  * @package HMWEvents
  */
 
-use HMWEvents\Services\DatabaseService;
-
 defined('ABSPATH') || die('Don\'t run this file directly!');
-
-
-if (!function_exists('is_administrator')) {
-    function is_administrator()
-    {
-        return current_user_can('administrator');
-    }
-}
-
-if (!function_exists('acf_active')) {
-    function acf_active()
-    {
-        return function_exists('get_field');
-    }
-}
-
-function getAllAdmins()
-{
-    return get_users(['role' => 'administrator']);
-}
-
-if (!function_exists('flash')) {
-    /**
-     * Get the flash service instance
-     *
-     * @param string|null $key
-     * @param mixed $message
-     * @return \HMWEvents\Services\SessionFlash|mixed
-     */
-    function flash($key = null, $message = null)
-    {
-        $flash = \HMWEvents\HMWEvents::instance()->flash;
-
-        if ($key === null) {
-            return $flash;
-        }
-
-        if ($message === null) {
-            return \HMWEvents\Services\SessionFlash::get($key);
-        }
-
-        return $flash->message($key, $message);
-    }
-}
-
-
-/**
-     * Convert RGB color to RGBA with specified opacity.
-     *
-     * @param string $rgb_color RGB color string like 'rgb(255, 0, 0)'
-     * @param float $opacity Opacity value between 0 and 1
-     * @return string RGBA color string
-     */
-function rgbToRgba($rgb_color, $opacity = 1.0)
-{
-    // Extract RGB values from the color string
-    if (preg_match('/rgb\((\d+),\s*(\d+),\s*(\d+)\)/', $rgb_color, $matches)) {
-        $r = $matches[1];
-        $g = $matches[2];
-        $b = $matches[3];
-        return "rgba($r, $g, $b, $opacity)";
-    }
-
-    // Fallback if pattern doesn't match
-    return str_replace('rgb', 'rgba', str_replace(')', ", $opacity)", $rgb_color));
-}
-
-/**
-     * Convert hex color to RGB format.
-     *
-     * @param string $hex_color Hex color like '#8B5CF6' or '8B5CF6'
-     * @return string RGB color string like 'rgb(139, 92, 246)'
-     */
-function hexToRgb($hex_color)
-{
-    // Remove # if present
-    $hex_color = ltrim($hex_color, '#');
-
-    // Convert to RGB
-    if (strlen($hex_color) === 6) {
-        $r = hexdec(substr($hex_color, 0, 2));
-        $g = hexdec(substr($hex_color, 2, 2));
-        $b = hexdec(substr($hex_color, 4, 2));
-        return "rgb($r, $g, $b)";
-    }
-
-    // Fallback to default purple if invalid hex
-    return 'rgb(148, 0, 211)';
-}
 
 
 if (!function_exists('bs_get_field')) {
     function bs_get_field(string $field, int | string $id, string $default = null): mixed
     {
         return match (true) {
-            acf_active() && get_field($field, $id) && strpos($field, '.') === false => get_field($field, $id),
+            function_exists('get_field') && get_field($field, $id) && strpos($field, '.') === false => get_field($field, $id),
             strpos($field, '.') !== false => (function () use ($field, $id) {
                 $subfields = explode('.', $field);
                 $parent_field = array_shift($subfields);
@@ -124,21 +33,11 @@ if (!function_exists('bs_get_field')) {
     }
 }
 
-if (!function_exists('bs_update_field')) {
-    function bs_update_field(string $field, mixed $value, int | string $id): void
-    {
-        if (!acf_active()) {
-            return;
-        }
-        update_field($field, $value, $id);
-    }
-}
-
 if (!function_exists('disable_admin_bar')) {
     add_action('init', 'disable_admin_bar');
     function disable_admin_bar()
     {
-        if (!is_administrator() && !is_admin()) {
+        if (!current_user_can('administrator') && !is_admin()) {
             show_admin_bar(false);
         }
     }
@@ -183,17 +82,6 @@ if (!function_exists('hmwevents_get_template_part')) {
   }
 }
 
-if (!function_exists('hmwevents_get_template')) {
-  function hmwevents_get_template($template_name, $args = [], $template_path = '', $default_path = '')
-  {
-    $located = hmwevents_locate_template($template_name, $template_path, $default_path);
-
-    if ($located && file_exists($located)) {
-      load_template($located, false, $args);
-    }
-  }
-}
-
 if (!function_exists('hmwevents_locate_template')) {
   function hmwevents_locate_template($template_name, $template_path = '', $default_path = '')
   {
@@ -215,19 +103,6 @@ if (!function_exists('hmwevents_locate_template')) {
     }
 
     return apply_filters('hmwevents_locate_template', $template, $template_name, $template_path);
-  }
-}
-
-if (!function_exists('is_breakdance_editing')) {
-  function is_breakdance_editing()
-  {
-    // Use Breakdance's built-in function if available
-    if (function_exists('\Breakdance\isRequestFromBuilderIframe')) {
-      return \Breakdance\isRequestFromBuilderIframe();
-    }
-
-    // Fallback to constant check
-    return defined('BREAKDANCE_EDITING_MODE') && BREAKDANCE_EDITING_MODE === true;
   }
 }
 

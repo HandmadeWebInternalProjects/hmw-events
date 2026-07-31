@@ -31,124 +31,15 @@ class WaitlistService
      */
     public function register(): void
     {
-        add_action('hmwevents_daily_waitlist_cleanup', [$this, 'expire_old_entries']);
-        add_filter('hmwevents_event_is_full', [$this, 'check_event_full'], 10, 2);
-    }
+    add_action('hmwevents_daily_waitlist_cleanup', [$this, 'expire_old_entries']);
+    add_filter('hmwevents_event_is_full', [$this, 'check_event_full'], 10, 2);
+  }
 
-    // ================================================================
-    // JOIN / LEAVE
-    // ================================================================
+  // ================================================================
+  // QUERY
+  // ================================================================
 
-    /**
-     * Join the waitlist for an event.
-     *
-     * @param int    $event_post_id
-     * @param int    $registrant_post_id
-     * @param string $email
-     * @return int|\WP_Error  Waitlist entry ID or error.
-     */
-    public function join(int $event_post_id, int $registrant_post_id, string $email): int|\WP_Error
-    {
-        global $wpdb;
-
-        // Check if already on the waitlist for this event
-        $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$this->table} 
-             WHERE event_post_id = %d AND registrant_post_id = %d AND status IN ('waiting', 'notified')",
-            $event_post_id,
-            $registrant_post_id
-        ));
-
-        if ($existing) {
-            return new \WP_Error(
-                'already_waitlisted',
-                __('You are already on the waitlist for this event.', 'hmw-events')
-            );
-        }
-
-        // Get next position
-        $max_position = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT MAX(position) FROM {$this->table} WHERE event_post_id = %d",
-            $event_post_id
-        ));
-
-        $position = $max_position + 1;
-
-        $result = $wpdb->insert($this->table, [
-            'event_post_id'      => $event_post_id,
-            'registrant_post_id' => $registrant_post_id,
-            'position'           => $position,
-            'status'             => 'waiting',
-            'created_at'         => current_time('mysql'),
-            'updated_at'         => current_time('mysql'),
-        ], ['%d', '%d', '%d', '%s', '%s', '%s']);
-
-        if ($result === false) {
-            return new \WP_Error('db_error', __('Failed to join waitlist.', 'hmw-events'));
-        }
-
-        $entry_id = (int) $wpdb->insert_id;
-
-        // Update waitlist count in event availability
-        $this->increment_waitlist_count($event_post_id);
-
-        /**
-         * Action: hmwevents_waitlist_joined
-         *
-         * @param int $entry_id
-         * @param int $event_post_id
-         * @param int $registrant_post_id
-         * @param int $position
-         */
-        do_action('hmwevents_waitlist_joined', $entry_id, $event_post_id, $registrant_post_id, $position);
-
-        return $entry_id;
-    }
-
-    /**
-     * Leave the waitlist.
-     */
-    public function leave(int $entry_id): bool
-    {
-        global $wpdb;
-
-        $entry = $this->get($entry_id);
-        if (!$entry) {
-            return false;
-        }
-
-        $result = $wpdb->update(
-            $this->table,
-            ['status' => 'cancelled', 'updated_at' => current_time('mysql')],
-            ['id' => $entry_id],
-            ['%s', '%s'],
-            ['%d']
-        );
-
-        if ($result !== false) {
-            $this->decrement_waitlist_count($entry->event_post_id);
-        }
-
-        return $result !== false;
-    }
-
-    // ================================================================
-    // QUERY
-    // ================================================================
-
-    /**
-     * Get a single waitlist entry.
-     */
-    public function get(int $entry_id): ?object
-    {
-        global $wpdb;
-        return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->table} WHERE id = %d",
-            $entry_id
-        ));
-    }
-
-    /**
+  /**
      * Get the waitlist for an event.
      *
      * @param int    $event_post_id
@@ -193,68 +84,17 @@ class WaitlistService
      */
     public function get_position(int $entry_id): int
     {
-        $entry = $this->get($entry_id);
-        return $entry ? (int) $entry->position : 0;
+        global $wpdb;
+        $result = $wpdb->get_row($wpdb->prepare(
+            "SELECT position FROM {$this->table} WHERE id = %d",
+            $entry_id
+        ));
+        return $result ? (int) $result->position : 0;
     }
 
     // ================================================================
     // PROMOTE
     // ================================================================
-
-    /**
-     * Promote the next person on the waitlist.
-     *
-     * Marks the top entry as 'notified', sets an expiry, and returns
-     * the entry so a registration token/invitation email can be sent.
-     *
-     * @param int $event_post_id
-     * @param int $notification_expiry_hours  How long they have to register.
-     * @return object|null  The promoted entry or null if no one waiting.
-     */
-    public function promote_next(int $event_post_id, int $notification_expiry_hours = 48): ?object
-    {
-        global $wpdb;
-
-        $next = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->table} 
-             WHERE event_post_id = %d AND status = 'waiting' 
-             ORDER BY position ASC LIMIT 1",
-            $event_post_id
-        ));
-
-        if (!$next) {
-            return null;
-        }
-
-        $expires_at = gmdate('Y-m-d H:i:s', strtotime("+{$notification_expiry_hours} hours"));
-
-        $wpdb->update(
-            $this->table,
-            [
-                'status'      => 'notified',
-                'notified_at' => current_time('mysql'),
-                'expires_at'  => $expires_at,
-                'updated_at'  => current_time('mysql'),
-            ],
-            ['id' => $next->id],
-            ['%s', '%s', '%s', '%s'],
-            ['%d']
-        );
-
-        $next->status     = 'notified';
-        $next->notified_at = current_time('mysql');
-        $next->expires_at  = $expires_at;
-
-        /**
-         * Action: hmwevents_waitlist_promoted
-         *
-         * @param object $entry       The promoted waitlist entry.
-         * @param int    $event_post_id
-         */
-        do_action('hmwevents_waitlist_promoted', $next, $event_post_id);
-
-        return $next;
-    }
 
     public function promote_entry(int $entry_id, int $event_post_id, int $expiry_hours = 48): ?object
     {
@@ -287,37 +127,12 @@ class WaitlistService
 
         do_action('hmwevents_waitlist_promoted', $entry, $event_post_id);
 
-        return $entry;
-    }
+    return $entry;
+  }
 
-    /**
-     * Convert a waitlist entry to confirmed (spot was taken).
-     */
-    public function convert(int $entry_id): bool
-    {
-        global $wpdb;
-
-        $entry = $this->get($entry_id);
-        if (!$entry || !in_array($entry->status, ['waiting', 'notified'], true)) {
-            return false;
-        }
-
-        $wpdb->update(
-            $this->table,
-            ['status' => 'converted', 'updated_at' => current_time('mysql')],
-            ['id' => $entry_id],
-            ['%s', '%s'],
-            ['%d']
-        );
-
-        $this->decrement_waitlist_count($entry->event_post_id);
-
-        return true;
-    }
-
-    // ================================================================
-    // MAINTENANCE
-    // ================================================================
+  // ================================================================
+  // MAINTENANCE
+  // ================================================================
 
     /**
      * Expire old notified entries that weren't claimed.
@@ -374,30 +189,6 @@ class WaitlistService
             return true;
         }
 
-        return $is_full;
-    }
-
-    // ================================================================
-    // HELPERS
-    // ================================================================
-
-    private function increment_waitlist_count(int $event_post_id): void
-    {
-        global $wpdb;
-        $table = DatabaseService::get_table_name('event_availability');
-        $wpdb->query($wpdb->prepare(
-            "UPDATE {$table} SET waitlisted_count = waitlisted_count + 1 WHERE event_post_id = %d",
-            $event_post_id
-        ));
-    }
-
-    private function decrement_waitlist_count(int $event_post_id): void
-    {
-        global $wpdb;
-        $table = DatabaseService::get_table_name('event_availability');
-        $wpdb->query($wpdb->prepare(
-            "UPDATE {$table} SET waitlisted_count = GREATEST(waitlisted_count - 1, 0) WHERE event_post_id = %d",
-            $event_post_id
-        ));
-    }
+    return $is_full;
+  }
 }

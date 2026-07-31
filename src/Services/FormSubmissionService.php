@@ -35,7 +35,19 @@ class FormSubmissionService
             return new \WP_Error('validation_failed', implode(' ', $errors));
         }
 
-        return $this->process($event_id, $normalized, $config, $has_multi);
+        $uploaded_files = [];
+        foreach ($_FILES as $field_key => $file) {
+            if (empty($file['name'])) {
+                continue;
+            }
+            $upload_handler = new DocumentUploadHandler();
+            $result = $upload_handler->handle_upload($file, 0, $event_id);
+            if (!is_wp_error($result)) {
+                $uploaded_files[$field_key] = $result;
+            }
+        }
+
+        return $this->process($event_id, $normalized, $config, $has_multi, $uploaded_files);
     }
 
     private function normalize_from_post(array $form_data, array $config, bool $has_multi): array|\WP_Error
@@ -90,7 +102,7 @@ class FormSubmissionService
         return $normalized;
     }
 
-    private function process(int $event_id, array $normalized, array $config, bool $has_multi): array|\WP_Error
+    private function process(int $event_id, array $normalized, array $config, bool $has_multi, array $uploaded_files = []): array|\WP_Error
     {
         $attendee_count = $has_multi ? $normalized['attendee_count'] : 1;
         $unit_price = (float) get_post_meta($event_id, '_event_price', true) ?: 0;
@@ -112,6 +124,10 @@ class FormSubmissionService
 
             if ($ai === 0) {
                 $booking_details_all = $this->extract_booking_details($normalized, $config);
+                foreach ($uploaded_files as $field_key => $file_data) {
+                    $booking_details_all[$field_key . '_file_path'] = $file_data['file_path'];
+                    $booking_details_all[$field_key . '_original_filename'] = $file_data['original_filename'];
+                }
             }
         }
 
@@ -156,7 +172,12 @@ class FormSubmissionService
         register_rest_route('hmwevents/v1', '/registration/v3-submit', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handle_v3_submission'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function () {
+                return wp_verify_nonce(
+                    $_REQUEST['_wpnonce'] ?? ($_SERVER['HTTP_X_WP_NONCE'] ?? ''),
+                    'wp_rest'
+                );
+            },
         ]);
     }
 
@@ -190,17 +211,8 @@ class FormSubmissionService
 
     private function get_event_form_config(int $event_id): array
     {
-        $override = get_post_meta($event_id, '_event_template_override', true);
-        if (is_array($override) && !empty($override['registration_fields']['sections'])) {
-            return $override['registration_fields'];
-        }
-
-        $config = get_post_meta($event_id, '_event_field_config', true);
-        if (is_array($config) && !empty($config['registration_fields']['sections'])) {
-            $reg = $config['registration_fields'];
-            if (is_array($override) && !empty($override['registration_fields']['multi_booking'])) {
-                $reg['multi_booking'] = $override['registration_fields']['multi_booking'];
-            }
+        $reg = \HMWEvents\Services\FormConfigResolver::resolve($event_id);
+        if ($reg !== null) {
             return $reg;
         }
 
@@ -302,6 +314,19 @@ class FormSubmissionService
         }
 
         $type = $field['type'] ?? 'text';
+
+        if (in_array($type, ['select', 'radio', 'checkbox'], true) && !empty($field['options'])) {
+            if ($type === 'checkbox') {
+                if (!empty($value) && $value !== '1') {
+                    return sprintf(__('Invalid value for field: %s', 'hmw-events'), $label);
+                }
+            } else {
+                $allowed_keys = array_column($field['options'], 'value');
+                if (!empty($value) && !in_array($value, $allowed_keys, true)) {
+                    return sprintf(__('Invalid value for field: %s', 'hmw-events'), $label);
+                }
+            }
+        }
 
         if ($type === 'email' && !empty($value) && !is_email($value)) {
             return sprintf('%s must be a valid email.', $label);

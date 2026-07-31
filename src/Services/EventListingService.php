@@ -212,7 +212,7 @@ class EventListingService
         $end_date   = get_post_meta($post->ID, '_event_end_date', true);
         $price      = (float) get_post_meta($post->ID, '_event_price', true);
         $venue      = get_post_meta($post->ID, '_event_venue_name', true);
-        $venue_addr = get_post_meta($post->ID, '_event_venue_address', true);
+        $venue_addr = \HMWEvents\Helpers\GoogleMapField::get_address_string(get_post_meta($post->ID, '_event_venue_address', true));
         $capacity   = (int) get_post_meta($post->ID, '_event_capacity', true);
         $webinar_url = get_post_meta($post->ID, '_event_webinar_url', true);
         $is_free    = (bool) get_post_meta($post->ID, '_event_is_free', true);

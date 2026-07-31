@@ -300,8 +300,7 @@
             "key": "field_event_venue_address",
             "label": "Venue Address",
             "name": "_event_venue_address",
-            "type": "textarea",
-            "rows": 3
+            "type": "google_map"
         },
         {
             "key": "field_event_webinar_url",

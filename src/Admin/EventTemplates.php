@@ -15,17 +15,6 @@ class EventTemplates
 {
     private EventTemplateService $service;
 
-    private const RECURRENCE_CHILD_KEYS = [
-        'event_is_recurring',
-        'event_recurrence_interval',
-        'event_recurrence_unit',
-        'event_recurrence_days',
-        'event_recurrence_end_type',
-        'event_recurrence_end_date',
-        'event_recurrence_max_occurrences',
-        'event_recurrence_custom_dates',
-    ];
-
     public function __construct()
     {
         $this->service = new EventTemplateService();
@@ -34,6 +23,7 @@ class EventTemplates
         add_action('admin_post_hmwevents_event_template_retire', [$this, 'handle_retire_toggle']);
         add_action('admin_post_hmwevents_event_template_create_event', [$this, 'handle_create_event']);
         add_action('admin_post_hmwevents_event_template_reapply', [$this, 'handle_reapply_template']);
+        add_action('admin_post_hmwevents_duplicate_template', [$this, 'handle_duplicate_template']);
     }
 
     public function render_page(): void
@@ -60,10 +50,30 @@ class EventTemplates
 
         $this->localize_template_editor_data();
 
+        $success = '';
+        if (get_transient('hmwevents_success_notice')) {
+            $success = get_transient('hmwevents_success_notice');
+            delete_transient('hmwevents_success_notice');
+        }
+        if (get_transient('hmwevents_template_duplicated')) {
+            delete_transient('hmwevents_template_duplicated');
+            $success = $success ?: __('Template duplicated successfully.', 'hmw-events');
+        }
+        $error = get_transient('hmwevents_error_notice');
+        if ($error) {
+            delete_transient('hmwevents_error_notice');
+        }
+
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('Event Templates', 'hmw-events'); ?></h1>
             <p><?php esc_html_e('Templates are global and can be used by any admin.', 'hmw-events'); ?></p>
+            <?php if ($success): ?>
+                <div class="notice notice-success"><p><?php echo esc_html($success); ?></p></div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div>
+            <?php endif; ?>
 
             <h2><?php esc_html_e('Existing Templates', 'hmw-events'); ?></h2>
             <table class="widefat striped" style="max-width: 980px; margin-bottom: 24px;">
@@ -91,6 +101,7 @@ class EventTemplates
                                 <td><?php echo $template->is_retired ? esc_html__('Retired', 'hmw-events') : esc_html__('Active', 'hmw-events'); ?></td>
                                 <td>
                                     <a class="button button-small" href="<?php echo esc_url(add_query_arg(['page' => 'hmwevents-event-templates', 'template_id' => (int) $template->id], admin_url('admin.php'))); ?>"><?php esc_html_e('Edit', 'hmw-events'); ?></a>
+                                    <a class="button button-small" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=hmwevents_duplicate_template&id=' . (int) $template->id), 'hmwevents_duplicate_template_' . (int) $template->id)); ?>" style="margin-left: 6px;"><?php esc_html_e('Duplicate', 'hmw-events'); ?></a>
                                     <form style="display:inline-block; margin-left: 6px;" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                                         <input type="hidden" name="action" value="hmwevents_event_template_retire" />
                                         <input type="hidden" name="template_id" value="<?php echo (int) $template->id; ?>" />
@@ -176,7 +187,8 @@ class EventTemplates
                     <pre id="hmwevents_template_data_raw_display" style="margin:0; white-space:pre-wrap; font-size:11px;"></pre>
                 </div>
                 <div id="hmwevents-advanced-edit">
-                    <p class="description"><?php esc_html_e('Edit the raw JSON directly. Changes here overwrite the visual editor on save only if you modify the hidden field manually.', 'hmw-events'); ?></p>
+                    <textarea id="hmwevents-raw-json" style="width:100%; height:300px; font-family:monospace; font-size:12px;"></textarea>
+                    <p class="description"><?php esc_html_e('Edit the raw JSON template data directly. Changes are saved when you click "Save Template" at the bottom.', 'hmw-events'); ?></p>
                 </div>
 
                 <?php submit_button($selected ? __('Update Template', 'hmw-events') : __('Create Template', 'hmw-events')); ?>
@@ -387,7 +399,7 @@ class EventTemplates
 
     private function group_recurrence_fields(array $fields): array
     {
-        $child_keys = self::RECURRENCE_CHILD_KEYS;
+        $child_keys = \HMWEvents\Registry\EventTypeRegistry::RECURRENCE_FIELD_KEYS;
         $child_set = array_flip($child_keys);
 
         $child_indices = [];
@@ -490,7 +502,7 @@ class EventTemplates
 
         $decoded = json_decode((string) $raw_template_data, true);
         if (!is_array($decoded)) {
-            set_transient('lhmwevents_error_notice', __('Invalid JSON for template data.', 'hmw-events'), 30);
+            set_transient('hmwevents_error_notice', __('Invalid JSON for template data.', 'hmw-events'), 30);
             wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates'));
             exit;
         }
@@ -504,9 +516,9 @@ class EventTemplates
         if ($template_id > 0) {
             $ok = $this->service->update($template_id, $payload);
             if ($ok) {
-                set_transient('lhmwevents_success_notice', __('Template updated.', 'hmw-events'), 30);
+                set_transient('hmwevents_success_notice', __('Template updated.', 'hmw-events'), 30);
             } else {
-                set_transient('lhmwevents_error_notice', __('Template update failed. Check schema and field keys.', 'hmw-events'), 30);
+                set_transient('hmwevents_error_notice', __('Template update failed. Check schema and field keys.', 'hmw-events'), 30);
             }
             wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates&template_id=' . $template_id));
             exit;
@@ -514,12 +526,12 @@ class EventTemplates
 
         $created_id = $this->service->create($payload);
         if ($created_id) {
-            set_transient('lhmwevents_success_notice', __('Template created.', 'hmw-events'), 30);
+            set_transient('hmwevents_success_notice', __('Template created.', 'hmw-events'), 30);
             wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates&template_id=' . (int) $created_id));
             exit;
         }
 
-        set_transient('lhmwevents_error_notice', __('Template creation failed. Check schema and field keys.', 'hmw-events'), 30);
+        set_transient('hmwevents_error_notice', __('Template creation failed. Check schema and field keys.', 'hmw-events'), 30);
         wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates'));
         exit;
     }
@@ -538,9 +550,9 @@ class EventTemplates
         $ok = $retire ? $this->service->retire($template_id) : $this->service->unretire($template_id);
 
         if ($ok) {
-            set_transient('lhmwevents_success_notice', $retire ? __('Template retired.', 'hmw-events') : __('Template reactivated.', 'hmw-events'), 30);
+            set_transient('hmwevents_success_notice', $retire ? __('Template retired.', 'hmw-events') : __('Template reactivated.', 'hmw-events'), 30);
         } else {
-            set_transient('lhmwevents_error_notice', __('Unable to update template status.', 'hmw-events'), 30);
+            set_transient('hmwevents_error_notice', __('Unable to update template status.', 'hmw-events'), 30);
         }
 
         wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates'));
@@ -563,12 +575,12 @@ class EventTemplates
         ]);
 
         if (is_wp_error($result)) {
-            set_transient('lhmwevents_error_notice', $result->get_error_message(), 30);
+            set_transient('hmwevents_error_notice', $result->get_error_message(), 30);
             wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates&template_id=' . $template_id));
             exit;
         }
 
-        set_transient('lhmwevents_success_notice', __('Draft event created from template.', 'hmw-events'), 30);
+        set_transient('hmwevents_success_notice', __('Draft event created from template.', 'hmw-events'), 30);
         wp_safe_redirect(get_edit_post_link((int) $result, 'redirect'));
         exit;
     }
@@ -587,13 +599,42 @@ class EventTemplates
 
         $result = $this->service->reapply_template_to_event($event_id, $template_id, $sections);
         if (is_wp_error($result)) {
-            set_transient('lhmwevents_error_notice', $result->get_error_message(), 30);
+            set_transient('hmwevents_error_notice', $result->get_error_message(), 30);
             wp_safe_redirect(admin_url('admin.php?page=hmwevents-event-templates&template_id=' . $template_id));
             exit;
         }
 
-        set_transient('lhmwevents_success_notice', __('Template re-applied to event.', 'hmw-events'), 30);
+        set_transient('hmwevents_success_notice', __('Template re-applied to event.', 'hmw-events'), 30);
         wp_safe_redirect(get_edit_post_link($event_id, 'redirect'));
+        exit;
+    }
+
+    public function handle_duplicate_template(): void
+    {
+        $id = (int) ($_GET['id'] ?? 0);
+        if (!$id || (!current_user_can('edit_hmw_events') && !current_user_can('manage_options'))) {
+            wp_die(__('Permission denied.', 'hmw-events'));
+        }
+        check_admin_referer('hmwevents_duplicate_template_' . $id);
+
+        $service = new EventTemplateService();
+        $template = $service->get($id);
+        if (!$template) {
+            wp_die(__('Template not found.', 'hmw-events'));
+        }
+
+        $new_id = $service->create([
+            'title'           => $template->title . ' (' . __('Copy', 'hmw-events') . ')',
+            'event_type_slug' => $template->event_type_slug,
+            'template_data'   => (array) $template->template_data,
+        ]);
+
+        if (!$new_id) {
+            wp_die(__('Failed to duplicate template.', 'hmw-events'));
+        }
+
+        set_transient('hmwevents_template_duplicated', true, 30);
+        wp_redirect(admin_url('admin.php?page=hmwevents-event-templates'));
         exit;
     }
 

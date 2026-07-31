@@ -666,6 +666,10 @@
   });
 
   $(document).on('submit', '#hmwevents-template-form', function () {
+    var $raw = $('#hmwevents-raw-json');
+    if ($raw.length && $('#hmwevents-advanced-edit').is(':visible') && $raw.val().trim() !== '') {
+      $('#hmwevents_template_data_raw').val($raw.val());
+    }
     saveJSON();
     return true;
   });
@@ -678,8 +682,20 @@
 
   $(document).on('click', '.hmwevents-toggle-advanced', function (e) {
     e.preventDefault();
-    $('#hmwevents-advanced-edit').slideToggle();
-    $(this).text($(this).text() === 'Show advanced editor' ? 'Hide advanced editor' : 'Show advanced editor');
+    var $area = $('#hmwevents-advanced-edit');
+    $area.slideToggle();
+    $(this).text($area.is(':visible') ? 'Hide advanced editor' : 'Show advanced editor');
+
+    var $raw = $('#hmwevents-raw-json');
+    if ($area.is(':visible') && $raw.length) {
+      var raw = $('#hmwevents_template_data_raw').val() || '{}';
+      try {
+        var parsed = JSON.parse(raw);
+        $raw.val(JSON.stringify(parsed, null, 2));
+      } catch (ex) {
+        $raw.val(raw);
+      }
+    }
   });
 
   // ================================================================

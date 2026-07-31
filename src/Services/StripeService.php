@@ -193,48 +193,6 @@ class StripeService
   }
 
     /**
-     * Create a customer in Stripe.
-     *
-     * @since 1.0.0
-     * @param string $email Customer email.
-     * @param array  $data Additional customer data.
-     * @return \Stripe\Customer|\WP_Error
-     */
-    public function create_customer($email, $data = [])
-    {
-        try {
-            $customer_data = array_merge([
-                'email' => $email,
-            ], $data);
-
-            $customer = $this->stripe->customers->create($customer_data);
-
-            return $customer;
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            error_log('HMWEvents Stripe Error: ' . $e->getMessage());
-            return new \WP_Error('stripe_error', $e->getMessage());
-        }
-    }
-
-    /**
-     * Retrieve a customer from Stripe.
-     *
-     * @since 1.0.0
-     * @param string $customer_id Stripe customer ID.
-     * @return \Stripe\Customer|\WP_Error
-     */
-    public function get_customer($customer_id)
-    {
-        try {
-            $customer = $this->stripe->customers->retrieve($customer_id);
-            return $customer;
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            error_log('HMWEvents Stripe Error: ' . $e->getMessage());
-            return new \WP_Error('stripe_error', $e->getMessage());
-        }
-    }
-
-    /**
      * Create a refund.
      *
      * @since 1.0.0
@@ -275,25 +233,6 @@ class StripeService
     {
         try {
             $payment_intent = $this->stripe->paymentIntents->retrieve($payment_intent_id);
-            return $payment_intent;
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            error_log('HMWEvents Stripe Error: ' . $e->getMessage());
-            return new \WP_Error('stripe_error', $e->getMessage());
-        }
-    }
-
-    /**
-     * Confirm a payment intent.
-     *
-     * @since 1.0.0
-     * @param string $payment_intent_id Payment intent ID.
-     * @param array  $params Additional parameters.
-     * @return \Stripe\PaymentIntent|\WP_Error
-     */
-    public function confirm_payment_intent($payment_intent_id, $params = [])
-    {
-        try {
-            $payment_intent = $this->stripe->paymentIntents->confirm($payment_intent_id, $params);
             return $payment_intent;
         } catch (\Stripe\Exception\ApiErrorException $e) {
             error_log('HMWEvents Stripe Error: ' . $e->getMessage());
@@ -363,26 +302,5 @@ class StripeService
         } catch (\Stripe\Exception\SignatureVerificationException $e) {
             return new \WP_Error('webhook_error', 'Invalid signature');
         }
-    }
-
-    /**
-     * Check if Stripe is configured.
-     *
-     * @since 1.0.0
-     * @return bool
-     */
-    public function is_configured()
-    {
-        $mode = ConfigHelper::get_option('hmwevents_stripe_mode', 'test');
-        $prefix = $mode === 'live' ? 'hmwevents_stripe_live_' : 'hmwevents_stripe_test_';
-        $secret_key_encrypted = ConfigHelper::get_option($prefix . 'secret_key', '');
-
-        if (empty($secret_key_encrypted)) {
-            return false;
-        }
-
-        // Try to decrypt to verify it's valid
-        $secret_key = Encryption::decrypt($secret_key_encrypted);
-        return ($secret_key !== false && !empty($secret_key));
     }
 }

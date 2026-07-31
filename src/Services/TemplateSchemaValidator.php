@@ -19,16 +19,7 @@ class TemplateSchemaValidator
     const ALLOWED_SOURCES = ['registrant_meta', 'booking_details'];
 
     private const GROUP_EXPANSIONS = [
-        'event_recurrence' => [
-            'event_is_recurring',
-            'event_recurrence_interval',
-            'event_recurrence_unit',
-            'event_recurrence_days',
-            'event_recurrence_end_type',
-            'event_recurrence_end_date',
-            'event_recurrence_max_occurrences',
-            'event_recurrence_custom_dates',
-        ],
+        'event_recurrence' => \HMWEvents\Registry\EventTypeRegistry::RECURRENCE_FIELD_KEYS,
     ];
 
     public function normalize(array $template_data): array|\WP_Error

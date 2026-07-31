@@ -1,213 +1,304 @@
 # Event Template Dropdown Plan
 
 **Status:** Draft  
-**Date:** 2026-07-10  
-**Estimated effort:** 4-5 hours
+**Last updated:** 2026-07-10  
+**Estimated effort:** 3-4 hours
 
 ---
 
 ## Goal
 
-Decouple ACF field visibility from the `hmw_event_type` taxonomy. Instead, make named "Event Templates" the primary driver of which fields are shown/hidden/required on the event edit screen. Event type reverts to a regular multi-select taxonomy used only for categorization and filtering.
+Decouple ACF field visibility from the `hmw_event_type` taxonomy. Make named "Event Templates" the primary driver of field visibility. Event type reverts to a regular multi-select taxonomy for categorization/filtering only. Templates are standalone — not tied to event type except as a "default starting point" hint in the template editor.
 
-## Current Architecture
+---
+
+## Current Architecture (as of 2026-07-10)
 
 ```
 User selects "Event Type" in dropdown
-  → EventType::save_event_type() writes hmw_event_type term
+  → EventType::save_event_type() writes single hmw_event_type term
   → EventTypeDefaultsService::auto_apply_on_first_save() reads term slug
-  → EventTypeRegistry::get(slug) returns {hidden_fields, required_fields}
-  → apply_defaults_to_event() writes _event_field_config post meta
+  → apply_defaults_to_event() → resolve_event_fields()
+      → checks _created_from_template_id first
+      → falls back to find_template_by_event_type(slug)
+      → then to EventTypeRegistry::get(slug)
+  → Writes _event_field_config post meta
+  → JS live toggling via hmwevents-hidden-by-type CSS class
   → ACF::apply_event_field_config() reads _event_field_config → shows/hides fields
 ```
+
+### What's already template-aware
+
+The system has evolved significantly since the original plan. Key methods in `EventTypeDefaultsService`:
+
+- **`resolve_event_fields($post_id, $type_slug)`** (`src/Services/EventTypeDefaultsService.php:209`):
+  1. Checks `_created_from_template_id` → uses that template via `TemplateResolver`
+  2. Falls back to `find_template_by_event_type($type_slug)` → gets first active template matching the event type slug
+  3. Falls back to `EventTypeRegistry::get($type_slug)` → pure registry config
+
+- **`find_template_by_event_type($type_slug)`** (`src/Services/EventTypeDefaultsService.php:241`):
+  Queries `EventTemplateService::get_all(['event_type_slug' => $type_slug, 'is_active' => true])`
+
+- **JS live toggling** uses CSS class `hmwevents-hidden-by-type` instead of jQuery `.hide()`, and already respects template overrides via `hasActiveOverride()` check.
+
+---
 
 ## Proposed Architecture
 
 ```
-User selects "Event Template" in dropdown
-  → New save handler writes _selected_template_id post meta
-  → EventTypeDefaultsService reads template ID, fetches template row
-  → template_data.event_fields becomes _event_field_config
-  → ACF::apply_event_field_config() reads _event_field_config → shows/hides fields
-  → JS live toggling uses template-specific field configs
+Event type taxonomy → regular WP checkboxes (multi-select, categorization only)
 
-Event type taxonomy goes back to standard WP checkboxes — categorization only.
+New "Event Template" dropdown in sidebar
+  → Stores _selected_template_id post meta
+  → On change: JS live toggles fields from template's event_fields.hidden
+  → On first save: reads template ID, fetches template_data, writes _event_field_config
+  → "Apply Template Defaults" button re-applies template fields + meta defaults
+  → resolve_event_fields() reads _selected_template_id instead of matching by type slug
 ```
+
+### Multi-event-type behavior
+
+If an event has multiple event types assigned, the template dropdown drives the field config independently. When the dropdown says "— Select —", the system loads the config for the first assigned event type from the Registry as a fallback. If that's not right, the user picks a template manually.
+
+### What the template editor does with event type
+
+The template admin page already has an "Event Type" dropdown that loads Registry presets for that archetype into the form builder. This is reworded to:
+
+> "Start with defaults for this event type:"
+
+It pre-populates the field visibility drag-and-drop from the Registry. The admin configures from there. The template is saved with whatever customizations they make — the `event_type_slug` is just a hint/starting-point, not a binding.
+
+---
 
 ## What Stays (No Changes Needed)
 
 | Component | Reason |
 |---|---|
-| `ACF::apply_event_field_config()` | Already reads `_event_field_config` — source-agnostic |
-| `_event_field_config` post meta | Already the single source of truth for field visibility |
-| JS live field toggling pattern | Already built — just swap the data source |
-| `hmwevents_event_templates` table | Already has `title`, `template_data`, `is_active` |
-| `EventTemplateService::get_all()` | Already lists templates by active/retired status |
-| `EventTemplateService::persist_event_snapshot()` | Already writes `_event_field_config` from resolved template data |
-| Template editor UI | Already allows configuring hidden/required fields per template |
-| `EventTypeRegistry` | Still used by template editor for base presets when creating templates |
-| `ACF.php` EventTypeRegistry fallback | Legacy events without a template still get correct field visibility |
+| `ACF::apply_event_field_config()` | Reads `_event_field_config` — source-agnostic |
+| `_event_field_config` post meta | Already the single source of truth |
+| `resolve_event_fields()` | Already template-first resolution — just update which ID it reads |
+| `find_template_by_event_type()` | No changes needed |
+| JS live toggling pattern (CSS class + override check) | Reuse selectors and data source swap |
+| `hmwevents_event_templates` table | Has `title`, `template_data`, `is_active` |
+| `EventTemplateService::get_all()` | Lists templates by active status |
+| `EventTemplateService::persist_event_snapshot()` | Already writes `_event_field_config` |
+| Template editor drag-and-drop UI | Already configures `event_fields.hidden/required` per template |
+| `EventTypeRegistry` | Base presets for template editor + fallback for untemplated events |
+| `ACF.php` EventTypeRegistry fallback | Safety net for legacy events |
+| `ajax_apply_defaults()` response with `field_config` | Already returns hidden/required — works for template data too |
 
-## What Changes
+---
+
+## Step-by-Step Implementation
 
 ### Step 1 — Revert EventType.php changes
 
 **File:** `src/Taxonomies/EventType.php`
 
-Remove the three methods and two hooks we added:
-- Remove `replace_taxonomy_meta_box()` hook and method
-- Remove `render_event_type_select()` method
-- Remove `save_event_type()` hook and method
+Remove the three methods and two hooks:
+- Remove `replace_taxonomy_meta_box()` hook and method (lines 25, 105-116)
+- Remove `render_event_type_select()` method (lines 118-136)
+- Remove `save_event_type()` hook and method (lines 26, 138-159)
 
 The default `hmw_event_typediv` metabox renders checkboxes again. Event type becomes a regular multi-select taxonomy.
 
 ### Step 2 — Create template selector dropdown
 
-**File:** `src/Services/EventTypeDefaultsService.php` (or new `src/Admin/EventTemplateSelector.php`)
+**File:** `src/Services/EventTypeDefaultsService.php`
 
-New meta box "Event Template" on the `hmw_event` edit screen, replacing the event type dropdown:
+The existing `add_meta_box()`, `render_meta_box()` stay structurally the same but become template-focused. The sidebar meta box title changes to "Event Template". The dropdown is populated from templates instead of taxonomy terms:
 
 ```php
-public function render_template_select(\WP_Post $post): void
+public function render_meta_box(\WP_Post $post): void
 {
-    $current_template_id = (int) get_post_meta($post->ID, '_selected_template_id', true);
-    $templates = $this->template_service->get_all(['is_active' => 1]);
+    $template_id = (int) get_post_meta($post->ID, '_selected_template_id', true);
+    $templates = $this->template_service()->get_all(['is_active' => 1]);
 
     wp_nonce_field('hmwevents_template_select_save', 'hmwevents_template_select_nonce');
-
-    echo '<select name="hmwevents_event_template" id="hmwevents-event-template-select">';
-    echo '<option value="">— Select Event Template —</option>';
-    foreach ($templates as $template) {
-        $selected = ($template->id === $current_template_id) ? ' selected' : '';
-        printf(
-            '<option value="%d"%s>%s</option>',
-            $template->id,
-            $selected,
-            esc_html($template->title)
-        );
-    }
-    echo '</select>';
+    ?>
+    <p><?php esc_html_e('Select an event template to configure fields and defaults.', 'hmw-events'); ?></p>
+    <select name="hmwevents_event_template" id="hmwevents-event-template-select">
+        <option value="">— Select Template —</option>
+        <?php foreach ($templates as $template): ?>
+            <option value="<?php echo (int) $template->id; ?>" <?php selected($template_id, $template->id); ?>>
+                <?php echo esc_html($template->title); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <input type="hidden" id="hmwevents-current-template-id" value="<?php echo esc_attr((string) $template_id); ?>" />
+    <button type="button" class="button button-secondary" id="hmwevents-apply-template-defaults" disabled>
+        <?php esc_html_e('Apply Template Defaults', 'hmw-events'); ?>
+    </button>
+    <p id="hmwevents-template-defaults-status" style="margin-top:8px;"></p>
+    <?php
 }
 ```
 
-Save handler writes `_selected_template_id` post meta.
-
-### Step 3 — Localize template field configs to JS
-
-**File:** `src/Services/EventTypeDefaultsService.php`
-
-Instead of localizing `hmwEventTypeDefaults.hiddenFields` (keyed by type slug), localize `hmwEventTemplateDefaults` keyed by template ID:
+Add a save handler (new hook in `register()` at priority 9):
 
 ```php
-$templates = $template_service->get_all(['is_active' => 1]);
-$hidden_fields_by_id = [];
+add_action('save_post_hmw_event', [$this, 'save_template_selection'], 9);
+```
+
+```php
+public function save_template_selection(int $post_id): void
+{
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (!isset($_POST['hmwevents_template_select_nonce'])) return;
+    if (!wp_verify_nonce($_POST['hmwevents_template_select_nonce'], 'hmwevents_template_select_save')) return;
+    if (!current_user_can('edit_post', $post_id)) return;
+
+    $template_id = (int) ($_POST['hmwevents_event_template'] ?? 0);
+    if ($template_id > 0) {
+        update_post_meta($post_id, '_selected_template_id', $template_id);
+    } else {
+        delete_post_meta($post_id, '_selected_template_id');
+    }
+}
+```
+
+### Step 3 — Update `resolve_event_fields()` to read `_selected_template_id`
+
+**File:** `src/Services/EventTypeDefaultsService.php` (line 209)
+
+The method already does template-first resolution. Just change the first check from `_created_from_template_id` to also check `_selected_template_id`:
+
+```php
+private function resolve_event_fields(int $post_id, string $type_slug): array
+{
+    $template = null;
+
+    $template_id = (int) get_post_meta($post_id, '_selected_template_id', true)
+        ?: (int) get_post_meta($post_id, '_created_from_template_id', true);
+
+    if ($template_id) {
+        $template = $this->template_service()->get($template_id);
+    }
+
+    if (!$template) {
+        $template = $this->find_template_by_event_type($type_slug);
+    }
+
+    if ($template) {
+        $resolver = new TemplateResolver(new TemplateSchemaValidator());
+        $resolved = $resolver->resolve(
+            $template->event_type_slug ?: $type_slug,
+            (array) $template->template_data
+        );
+        if (!is_wp_error($resolved) && isset($resolved['field_config']['event_fields'])) {
+            return $resolved['field_config']['event_fields'];
+        }
+    }
+
+    $type_config = EventTypeRegistry::get($type_slug);
+    return [
+        'required' => array_values(array_map('sanitize_key', (array) ($type_config['required_fields'] ?? []))),
+        'optional' => [],
+        'hidden'   => array_values(array_map('sanitize_key', (array) ($type_config['hidden_fields'] ?? []))),
+    ];
+}
+```
+
+### Step 4 — Localize template field configs to JS
+
+**File:** `src/Services/EventTypeDefaultsService.php` — `enqueue_assets()`
+
+Replace the event-type-based localization with template-based:
+
+```php
+$templates = $this->template_service()->get_all(['is_active' => 1]);
+$hidden_fields_map = [];
 foreach ($templates as $template) {
-    $data = json_decode($template->template_data, true);
-    $hidden_fields_by_id[(int) $template->id] = array_values(
+    $data = is_array($template->template_data)
+        ? $template->template_data
+        : json_decode($template->template_data, true);
+    $hidden_fields_map[(int) $template->id] = array_values(
         array_map('sanitize_key', (array) ($data['event_fields']['hidden'] ?? []))
     );
 }
-wp_localize_script('jquery', 'hmwEventTemplateDefaults', [
-    'hiddenFields' => $hidden_fields_by_id,
-    'allHideableFields' => $all_hideable_fields,
+
+wp_localize_script('jquery', 'hmwEventTypeDefaults', [
+    'hiddenFields' => $hidden_fields_map,
+    'allHideableFields' => EventTypeRegistry::get_all_hideable_fields(),
 ]);
 ```
 
-### Step 4 — Update live JS field toggling
+### Step 5 — Update JS inline script
 
-**Same file** — the inline script changes from:
-```javascript
-var hiddenFields = window.hmwEventTypeDefaults.hiddenFields;
-var selected = $('#hmwevents-event-type-select').val();
-```
-to:
-```javascript
-var hiddenFields = window.hmwEventTemplateDefaults.hiddenFields;
-var selected = $('#hmwevents-event-template-select').val();
-```
+**File:** `src/Services/EventTypeDefaultsService.php` — `get_inline_script()`
 
-All the `showAllTypeFields()` / `hideFieldsForType()` logic is reused — just the data source changes.
+Change:
+- Selector: `#hmwevents-event-type-select` → `#hmwevents-event-template-select`
+- Value read: `getSelectedTypeSlug()` → `getSelectedTemplateId()` (returns int, not string)
+- Hidden input: `#hmwevents-current-event-type-slug` → `#hmwevents-current-template-id`
+- Button: `#hmwevents-apply-type-defaults` → `#hmwevents-apply-template-defaults`
+- Status div: `#hmwevents-type-defaults-status` → `#hmwevents-template-defaults-status`
+- AJAX param: `term_slug` → `template_id`
 
-### Step 5 — Auto-apply template config on first save
+The `showAllTypeFields()` / `hideFieldsForType()` logic stays — just keyed by template ID string instead of type slug string.
 
-**File:** `src/Services/EventTypeDefaultsService.php`
+### Step 6 — Update AJAX handler
 
-Replace the current `auto_apply_on_first_save()` logic (which reads event type taxonomy term → EventTypeRegistry) with:
+**File:** `src/Services/EventTypeDefaultsService.php` — `ajax_apply_defaults()`
+
+Accept `template_id` instead of `term_slug`:
 
 ```php
-public function auto_apply_on_first_save(int $post_id): void
-{
-    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
-    if (!current_user_can('edit_post', $post_id)) return;
-
-    $existing = get_post_meta($post_id, '_event_field_config', true);
-    if (is_array($existing) && !empty($existing)) return;
-
-    $template_id = (int) get_post_meta($post_id, '_selected_template_id', true);
-    if ($template_id <= 0) return;
-
-    $template = $this->template_service->get($template_id);
-    if (!$template) return;
-
-    $template_data = is_array($template->template_data)
-        ? $template->template_data
-        : json_decode($template->template_data, true);
-
-    if (!is_array($template_data)) return;
-
-    $event_fields = $template_data['event_fields'] ?? [];
-
-    update_post_meta($post_id, '_event_field_config', [
-        'event_fields' => [
-            'required' => array_values(array_map('sanitize_key', (array) ($event_fields['required'] ?? []))),
-            'optional' => array_values(array_map('sanitize_key', (array) ($event_fields['optional'] ?? []))),
-            'hidden'   => array_values(array_map('sanitize_key', (array) ($event_fields['hidden'] ?? []))),
-        ],
-        'registration_fields' => $template_data['registration_fields'] ?? [],
-    ]);
+$template_id = (int) ($_POST['template_id'] ?? 0);
+if (!$template_id) {
+    wp_send_json_error(['message' => __('Missing template.', 'hmw-events')], 400);
 }
+
+$template = $this->template_service()->get($template_id);
+if (!$template) {
+    wp_send_json_error(['message' => __('Invalid template.', 'hmw-events')], 400);
+}
+
+// Use the template's event_type_slug for Registry lookups (attendance presets, etc.)
+$type_slug = $template->event_type_slug;
+
+$result = $this->apply_defaults_to_event($post_id, $type_slug);
 ```
 
-### Step 6 — Apply template defaults (optional enhancement)
+### Step 7 — Update "Apply Defaults" button reset behavior
 
-If the template has default meta values (e.g., `event_capacity`, `event_delivery_mode`), apply them during auto-save for empty fields. This can reuse the existing `apply_defaults_to_event()` pattern but source defaults from the template's `template_data.defaults` instead of `EventTypeRegistry::get_default_meta()`.
+The AJAX success callback already re-applies `field_config` from the response. Keep `showAllTypeFields()` + hide logic, but update hidden input to `#hmwevents-current-template-id` with the template ID value.
 
-### Step 7 — Update "Apply Defaults" button
+### Step 8 — Update meta box IDs and text strings
 
-The sidebar "Apply Type Defaults" meta box becomes "Apply Template Defaults". It re-applies the selected template's field config and default meta values. The AJAX handler changes from `term_slug` to `template_id`.
+Throughout `EventTypeDefaultsService.php`:
+- Meta box ID: `hmwevents-event-type-defaults` → `hmwevents-event-template-defaults`
+- Meta box title: "Event Type Defaults" → "Event Template"
+- Help text: "When event type changes…" → "Select a template to configure fields and defaults."
+- Nonce action/field names: update to template variants
 
-### Step 8 — Test coverage
-
-Update the two test files:
-- `tests/Unit/Services/EventTypeDefaultsServiceTest.php` — update for template-based auto-apply
-- `tests/Unit/Taxonomies/EventTypeTest.php` — revert tests to remove custom metabox assertions, keep only taxonomy constant test
-
-Add new tests:
-- Template selector renders all active templates
-- Auto-apply extracts `event_fields` from template JSON correctly
-- JS localized data maps template ID → hidden fields
+---
 
 ## Files Touched
 
-| File | Change type |
-|---|---|
-| `src/Taxonomies/EventType.php` | Revert — remove custom metabox code |
-| `src/Services/EventTypeDefaultsService.php` | Major — swap event type → template logic |
-| `tests/Unit/Taxonomies/EventTypeTest.php` | Revert — remove save/render tests |
-| `tests/Unit/Services/EventTypeDefaultsServiceTest.php` | Update — template-based assertions |
+| File | Change type | Lines |
+|---|---|---|
+| `src/Taxonomies/EventType.php` | Revert — remove custom metabox code (3 methods, 2 hooks) | ~55 |
+| `src/Services/EventTypeDefaultsService.php` | Major — dropdown data source, JS, AJAX, resolve logic | ~80 |
+| `tests/Unit/Taxonomies/EventTypeTest.php` | Revert to pre-dropdown state | ~100 |
+| `tests/Unit/Services/EventTypeDefaultsServiceTest.php` | Update for template-based assertions | ~20 |
+
+---
 
 ## Migration Notes
 
-- **Existing events** keep working via the `ACF.php` EventTypeRegistry fallback in `get_event_field_config()`. If no `_event_field_config` exists and no template is selected, it reads the `hmw_event_type` taxonomy term and falls back to Registry config. Zero migration needed.
-- **Events created from templates** (via the existing "Create from Template" flow) already have `_event_field_config` written by `persist_event_snapshot()`. They're unaffected.
-- **The template editor** still ties templates to event types via `event_type_slug`. This is intentional — when creating a template, selecting "Webinar" pre-populates the field visibility from the Webinar archetype. The admin can then customize from there.
+- **Existing events** — keep working via the `ACF.php` EventTypeRegistry fallback and existing `_event_field_config`. Zero migration needed.
+- **Events created from templates** — already have `_event_field_config` written by `persist_event_snapshot()`. Unaffected.
+- **Events with `_selected_template_id` but no `_event_field_config`** — handled by `auto_apply_on_first_save` which now resolves from template.
+- **The "Apply Type Defaults" AJAX action** — rename to `hmwevents_apply_template_defaults` for clarity, or keep the old action name and just change the params it accepts. Keeping the old name is simpler.
+- **`hmwEventTypeDefaults` JS global** — keep the name to avoid breaking anything that might reference it. The structure stays the same (`hiddenFields` map + `allHideableFields` array).
+
+---
 
 ## Open Questions
 
-1. **Should template auto-apply also set `_created_from_template_id`?** Probably not — that meta key signals "created from template" and triggers the template override UI. Auto-apply on save should be lighter weight.
+1. **Add a "Create New Template" link in the dropdown meta box?** A small "Manage Templates" link below the dropdown linking to `/wp-admin/admin.php?page=hmwevents-event-templates` would be helpful.
 
-2. **Should the template dropdown also filter by event type?** Could show two-tier: event type first, then templates of that type. Or keep it flat — all active templates visible.
+2. **Should the template dropdown show the event type in parentheses?** E.g., "Calmbirth Weekend Course (parent-course)". Depends on whether templates in the real system are named meaningfully enough on their own.
 
-3. **What happens if a template is retired after events use it?** The `_event_field_config` is a snapshot written at save time, so existing events keep their config. New events can't select retired templates (filtered by `is_active=1`).
-
-4. **Should we keep the EventTypeRegistry fallback in ACF.php?** Yes — it's a safety net for events that have no template and no `_event_field_config` written yet.
+3. **What if no template is selected and event type has no matching template?** Falls back to `EventTypeRegistry::get(type_slug)` — shows/hides fields based on the archetype. Good default behavior.

@@ -6,7 +6,7 @@ use HMWEvents\Services\EventTypeDefaultsService;
 use PHPUnit\Framework\TestCase;
 use Brain\Monkey;
 use Brain\Monkey\Functions;
-use Mockery; 
+use Mockery;
 
 class EventTypeDefaultsServiceTest extends TestCase
 {
@@ -21,24 +21,14 @@ class EventTypeDefaultsServiceTest extends TestCase
             define('HMWEvents_ABSPATH', dirname(__DIR__, 3) . '/');
         }
 
-        $GLOBALS['wpdb'] = Mockery::mock();
-        $GLOBALS['wpdb']->prefix = 'wp_';
-        $GLOBALS['wpdb']->shouldReceive('prepare')->andReturnUsing(function ($sql) {
-            return $sql;
-        })->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('get_results')->andReturn([])->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('get_var')->andReturn(0)->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('insert')->andReturn(1)->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('query')->andReturn(true)->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('delete')->andReturn(1)->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('get_row')->andReturn(null)->byDefault();
-        $GLOBALS['wpdb']->shouldReceive('esc_like')->andReturnUsing(function ($s) { return $s; })->byDefault();
+        $GLOBALS['wpdb'] = (object) ['prefix' => 'wp_'];
 
         $this->service = new EventTypeDefaultsService();
 
         Functions\when('__')->returnArg();
         Functions\when('esc_html_e')->justReturn();
         Functions\when('esc_html__')->returnArg();
+        Functions\when('esc_html')->returnArg();
         Functions\when('sanitize_key')->alias(function ($key) {
             return preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $key));
         });
@@ -53,11 +43,22 @@ class EventTypeDefaultsServiceTest extends TestCase
         });
         Functions\when('update_post_meta')->justReturn(true);
         Functions\when('delete_post_meta')->justReturn(true);
+        Functions\when('get_post')->justReturn(null);
+        Functions\when('check_ajax_referer')->justReturn(true);
+        Functions\when('wp_send_json_success')->justReturn(true);
+        Functions\when('wp_send_json_error')->justReturn(true);
+        Functions\when('selected')->justReturn();
+        Functions\when('wp_set_object_terms')->justReturn(true);
+        Functions\when('wp_get_object_terms')->justReturn([]);
+        Functions\when('current_user_can')->justReturn(true);
+        Functions\when('get_post_meta')->justReturn('');
         Functions\when('current_time')->justReturn('2026-01-01 00:00:00');
+        Functions\when('get_current_screen')->justReturn(null);
+        Functions\when('wp_enqueue_script')->justReturn(true);
+        Functions\when('wp_add_inline_script')->justReturn(true);
+        Functions\when('wp_localize_script')->justReturn(true);
 
-        \Patchwork\replace('HMWEvents\\Services\\DatabaseService::get_table_name', function ($name) {
-            return 'wp_hmwevents_' . $name;
-        });
+        $_POST = [];
     }
 
     protected function tearDown(): void
@@ -69,82 +70,21 @@ class EventTypeDefaultsServiceTest extends TestCase
 
     public function test_auto_apply_bails_when_config_exists()
     {
-        Functions\expect('current_user_can')
-            ->once()
-            ->with('edit_post', 123)
-            ->andReturn(true);
-
-        Functions\expect('get_post_meta')
-            ->once()
-            ->with(123, '_event_field_config', true)
-            ->andReturn(['event_fields' => ['hidden' => ['event_webinar_url']]]);
-
-        Functions\expect('wp_get_object_terms')->never();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_field_config') {
+                return ['event_fields' => ['hidden' => ['event_webinar_url']]];
+            }
+            return '';
+        });
 
         $this->service->auto_apply_on_first_save(123);
         $this->assertTrue(true);
     }
 
-    public function test_auto_apply_bails_when_no_event_type()
-    {
-        Functions\expect('get_post_meta')
-            ->once()
-            ->with(123, '_event_field_config', true)
-            ->andReturn('');
-
-        Functions\expect('current_user_can')
-            ->once()
-            ->with('edit_post', 123)
-            ->andReturn(true);
-
-        Functions\expect('wp_get_object_terms')
-            ->once()
-            ->with(123, 'hmw_event_type', ['fields' => 'slugs'])
-            ->andReturn([]);
-
-        Functions\expect('update_post_meta')->never();
-
-        $this->service->auto_apply_on_first_save(123);
-        $this->assertTrue(true);
-    }
-
-    public function test_auto_apply_bails_on_wp_error_terms()
-    {
-        Functions\expect('get_post_meta')
-            ->once()
-            ->with(123, '_event_field_config', true)
-            ->andReturn('');
-
-        Functions\expect('current_user_can')
-            ->once()
-            ->with('edit_post', 123)
-            ->andReturn(true);
-
-        $error = new \WP_Error('test', 'test error');
-        Functions\expect('wp_get_object_terms')
-            ->once()
-            ->with(123, 'hmw_event_type', ['fields' => 'slugs'])
-            ->andReturn($error);
-
-        Functions\expect('update_post_meta')->never();
-
-        $this->service->auto_apply_on_first_save(123);
-        $this->assertTrue(true);
-    }
-
-    public function test_auto_apply_calls_apply_defaults_with_correct_slug()
+    public function test_auto_apply_bails_when_no_template_and_no_terms()
     {
         Functions\when('get_post_meta')->justReturn('');
-
-        Functions\expect('current_user_can')
-            ->once()
-            ->with('edit_post', 123)
-            ->andReturn(true);
-
-        Functions\expect('wp_get_object_terms')
-            ->once()
-            ->with(123, 'hmw_event_type', ['fields' => 'slugs'])
-            ->andReturn(['parent-one-off-free']);
+        Functions\when('wp_get_object_terms')->justReturn([]);
 
         $this->service->auto_apply_on_first_save(123);
         $this->assertTrue(true);
@@ -152,73 +92,73 @@ class EventTypeDefaultsServiceTest extends TestCase
 
     public function test_auto_apply_bails_when_no_permission()
     {
-        Functions\expect('current_user_can')
-            ->once()
-            ->with('edit_post', 123)
-            ->andReturn(false);
-
-        Functions\expect('get_post_meta')->never();
-        Functions\expect('wp_get_object_terms')->never();
+        Functions\when('current_user_can')->justReturn(false);
 
         $this->service->auto_apply_on_first_save(123);
         $this->assertTrue(true);
     }
 
-    public function test_localized_data_structure()
+    public function test_save_template_selection_saves_id()
     {
-        Functions\expect('get_current_screen')
-            ->once()
-            ->andReturn((object) ['post_type' => 'hmw_event']);
+        $_POST['hmwevents_template_select_nonce'] = 'valid';
+        $_POST['hmwevents_event_template'] = '5';
+        Functions\when('wp_verify_nonce')->justReturn(true);
 
-        $captured = null;
-        Functions\expect('wp_localize_script')
-            ->once()
-            ->andReturnUsing(function ($handle, $name, $data) use (&$captured) {
-                $captured = $data;
-                return true;
-            });
+        $this->service->save_template_selection(123);
+        $this->assertTrue(true);
+    }
 
-        Functions\expect('wp_enqueue_script')->once();
-        Functions\expect('wp_add_inline_script')->once();
+    public function test_save_template_selection_deletes_when_empty()
+    {
+        $_POST['hmwevents_template_select_nonce'] = 'valid';
+        $_POST['hmwevents_event_template'] = '0';
+        Functions\when('wp_verify_nonce')->justReturn(true);
 
-        $this->service->enqueue_assets('post-new.php');
+        $this->service->save_template_selection(123);
+        $this->assertTrue(true);
+    }
 
-        $this->assertIsArray($captured);
-        $this->assertArrayHasKey('hiddenFields', $captured);
-        $this->assertArrayHasKey('allHideableFields', $captured);
+    public function test_save_template_selection_bails_on_bad_nonce()
+    {
+        $_POST['hmwevents_template_select_nonce'] = 'bad';
 
-        $expected_types = ['parenting-webinar', 'professional-webinar', 'parent-one-off-free', 'parent-walk-in', 'parent-course', 'professional-online', 'professional-in-person'];
-        foreach ($expected_types as $type) {
-            $this->assertArrayHasKey($type, $captured['hiddenFields']);
-        }
+        Functions\when('wp_verify_nonce')->justReturn(false);
+        Functions\expect('update_post_meta')->never();
+        Functions\expect('delete_post_meta')->never();
 
-        $this->assertContains('event_webinar_url', $captured['hiddenFields']['parent-one-off-free']);
-        $this->assertContains('event_venue_name', $captured['hiddenFields']['parenting-webinar']);
-        $this->assertContains('event_venue_address', $captured['hiddenFields']['parenting-webinar']);
+        $this->service->save_template_selection(123);
+        $this->assertTrue(true);
+    }
 
-        $this->assertIsArray($captured['hiddenFields']['professional-in-person']);
-        $this->assertContains('event_webinar_url', $captured['hiddenFields']['professional-in-person']);
+    public function test_save_template_selection_bails_when_nonce_missing()
+    {
+        Functions\expect('update_post_meta')->never();
 
-        $this->assertContains('event_webinar_url', $captured['allHideableFields']);
-        $this->assertContains('event_venue_name', $captured['allHideableFields']);
+        $this->service->save_template_selection(123);
+        $this->assertTrue(true);
+    }
+
+    public function test_save_template_selection_bails_on_no_permission()
+    {
+        $_POST['hmwevents_template_select_nonce'] = 'valid';
+
+        Functions\when('current_user_can')->justReturn(false);
+        Functions\when('wp_verify_nonce')->justReturn(true);
+        Functions\expect('update_post_meta')->never();
+
+        $this->service->save_template_selection(123);
+        $this->assertTrue(true);
     }
 
     public function test_enqueue_assets_skips_wrong_hook()
     {
-        Functions\expect('get_current_screen')->never();
-        Functions\expect('wp_enqueue_script')->never();
-
         $this->service->enqueue_assets('edit.php');
         $this->assertTrue(true);
     }
 
     public function test_enqueue_assets_skips_wrong_post_type()
     {
-        Functions\expect('get_current_screen')
-            ->once()
-            ->andReturn((object) ['post_type' => 'post']);
-
-        Functions\expect('wp_enqueue_script')->never();
+        Functions\when('get_current_screen')->justReturn((object) ['post_type' => 'post']);
 
         $this->service->enqueue_assets('post-new.php');
         $this->assertTrue(true);

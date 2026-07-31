@@ -1,15 +1,5 @@
 <?php
 
-/**
- * Event Type Defaults Service.
- *
- * Provides a safe, non-destructive "Apply Type Defaults" action when
- * an admin changes the event type on an event edit screen.
- *
- * @package HMWEvents\Services
- * @since 2.0.0
- */
-
 namespace HMWEvents\Services;
 
 use HMWEvents\Registry\EventTypeRegistry;
@@ -35,14 +25,15 @@ class EventTypeDefaultsService
         add_action('add_meta_boxes_hmw_event', [$this, 'add_meta_box']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('wp_ajax_hmwevents_apply_event_type_defaults', [$this, 'ajax_apply_defaults']);
+        add_action('save_post_hmw_event', [$this, 'save_template_selection'], 9);
         add_action('save_post_hmw_event', [$this, 'auto_apply_on_first_save'], 20);
     }
 
     public function add_meta_box(): void
     {
         add_meta_box(
-            'hmwevents-event-type-defaults',
-            __('Event Type Defaults', 'hmw-events'),
+            'hmwevents-event-template-defaults',
+            __('Event Template', 'hmw-events'),
             [$this, 'render_meta_box'],
             'hmw_event',
             'side',
@@ -52,18 +43,25 @@ class EventTypeDefaultsService
 
     public function render_meta_box(\WP_Post $post): void
     {
-        $type_terms = wp_get_object_terms($post->ID, 'hmw_event_type', ['fields' => 'slugs']);
-        $current_slug = (!is_wp_error($type_terms) && !empty($type_terms)) ? sanitize_key((string) $type_terms[0]) : '';
+        $template_id = (int) get_post_meta($post->ID, '_selected_template_id', true);
+        $templates = $this->template_service()->get_all(['is_active' => 1]);
 
-        wp_nonce_field('hmwevents_apply_type_defaults', 'hmwevents_apply_type_defaults_nonce');
+        wp_nonce_field('hmwevents_template_select_save', 'hmwevents_template_select_nonce');
         ?>
-        <p><?php esc_html_e('When event type changes, you can apply type defaults without overwriting existing values.', 'hmw-events'); ?></p>
-        <p class="description"><?php esc_html_e('Safe mode: only empty meta fields are populated.', 'hmw-events'); ?></p>
-        <input type="hidden" id="hmwevents-current-event-type-slug" value="<?php echo esc_attr($current_slug); ?>" />
-        <button type="button" class="button button-secondary" id="hmwevents-apply-type-defaults" disabled>
-            <?php esc_html_e('Apply Type Defaults', 'hmw-events'); ?>
+        <p><?php esc_html_e('Select a template to configure fields and defaults. Event type selection is for categorization only.', 'hmw-events'); ?></p>
+        <select name="hmwevents_event_template" id="hmwevents-event-template-select" style="width:100%;margin-bottom:8px;">
+            <option value="">— Select Template —</option>
+            <?php foreach ($templates as $template): ?>
+                <option value="<?php echo (int) $template->id; ?>" <?php selected($template_id, (int) $template->id); ?>>
+                    <?php echo esc_html($template->title); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <input type="hidden" id="hmwevents-current-template-id" value="<?php echo esc_attr((string) $template_id); ?>" />
+        <button type="button" class="button button-secondary" id="hmwevents-apply-template-defaults" disabled>
+            <?php esc_html_e('Apply Template Defaults', 'hmw-events'); ?>
         </button>
-        <p id="hmwevents-type-defaults-status" style="margin-top:8px;"></p>
+        <p id="hmwevents-template-defaults-status" style="margin-top:8px;"></p>
         <?php
     }
 
@@ -79,11 +77,86 @@ class EventTypeDefaultsService
         }
 
         wp_enqueue_script('jquery');
+
+        $templates = $this->template_service()->get_all(['is_active' => 1]);
+        $hidden_fields_map = [];
+        $all_hideable = [];
+
+        $resolver = new TemplateResolver(new TemplateSchemaValidator());
+
+        foreach ($templates as $template) {
+            $type_slug = $template->event_type_slug ?: '';
+
+            $resolved = $resolver->resolve($type_slug, (array) $template->template_data);
+            $event_fields = [];
+
+            if (!is_wp_error($resolved) && isset($resolved['field_config']['event_fields'])) {
+                $event_fields = $resolved['field_config']['event_fields'];
+            } else {
+                $data = is_array($template->template_data)
+                    ? $template->template_data
+                    : json_decode($template->template_data, true);
+                $field_data = is_array($data) ? ($data['event_fields'] ?? []) : [];
+                $event_fields = [
+                    'hidden' => array_values(array_map('sanitize_key', (array) ($field_data['hidden'] ?? []))),
+                    'required' => array_values(array_map('sanitize_key', (array) ($field_data['required'] ?? []))),
+                    'optional' => array_values(array_map('sanitize_key', (array) ($field_data['optional'] ?? []))),
+                ];
+            }
+
+            $hidden = array_values(array_map('sanitize_key', (array) ($event_fields['hidden'] ?? [])));
+            $hidden_fields_map[(int) $template->id] = $hidden;
+            foreach ($hidden as $field) {
+                if ($field !== '') {
+                    $all_hideable[] = $field;
+                }
+            }
+        }
+
+        $all_hideable = array_values(array_unique($all_hideable));
+
         wp_localize_script('jquery', 'hmwEventTypeDefaults', [
-            'hiddenFields' => EventTypeRegistry::get_hidden_fields_map(),
-            'allHideableFields' => EventTypeRegistry::get_all_hideable_fields(),
+            'hiddenFields' => $hidden_fields_map,
+            'allHideableFields' => $all_hideable,
         ]);
         wp_add_inline_script('jquery', $this->get_inline_script());
+        add_action('admin_head', [$this, 'output_field_visibility_css']);
+    }
+
+    public function output_field_visibility_css(): void
+    {
+        echo '<style>.acf-field.hmwevents-hidden-by-type{display:none!important}</style>';
+    }
+
+    public function save_template_selection(int $post_id): void
+    {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+
+        if (!isset($_POST['hmwevents_template_select_nonce'])) {
+            error_log('HMWEvents: template select nonce missing in POST');
+            return;
+        }
+
+        if (!wp_verify_nonce($_POST['hmwevents_template_select_nonce'], 'hmwevents_template_select_save')) {
+            error_log('HMWEvents: template select nonce verification failed');
+            return;
+        }
+
+        if (!current_user_can('edit_post', $post_id)) {
+            error_log('HMWEvents: template select permission denied for post ' . $post_id);
+            return;
+        }
+
+        $template_id = (int) ($_POST['hmwevents_event_template'] ?? 0);
+
+        if ($template_id > 0) {
+            update_post_meta($post_id, '_selected_template_id', $template_id);
+            error_log('HMWEvents: saved template ID ' . $template_id . ' for post ' . $post_id);
+        } else {
+            delete_post_meta($post_id, '_selected_template_id');
+        }
     }
 
     public function ajax_apply_defaults(): void
@@ -93,9 +166,20 @@ class EventTypeDefaultsService
         $post_id = (int) ($_POST['post_id'] ?? 0);
         $type_slug = '';
 
-        if (!empty($_POST['term_slug']) && is_string($_POST['term_slug'])) {
+        $template_id = (int) ($_POST['template_id'] ?? 0);
+
+        if ($template_id > 0) {
+            $template = $this->template_service()->get($template_id);
+            if ($template && !empty($template->event_type_slug)) {
+                $type_slug = sanitize_key($template->event_type_slug);
+            }
+        }
+
+        if ($type_slug === '' && !empty($_POST['term_slug']) && is_string($_POST['term_slug'])) {
             $type_slug = sanitize_key($_POST['term_slug']);
-        } elseif (!empty($_POST['term_id'])) {
+        }
+
+        if ($type_slug === '' && !empty($_POST['term_id'])) {
             $term = get_term((int) $_POST['term_id'], 'hmw_event_type');
             if ($term && !is_wp_error($term)) {
                 $type_slug = $term->slug;
@@ -103,7 +187,7 @@ class EventTypeDefaultsService
         }
 
         if (!$post_id || $type_slug === '') {
-            wp_send_json_error(['message' => __('Missing event or type.', 'hmw-events')], 400);
+            wp_send_json_error(['message' => __('Missing event or template.', 'hmw-events')], 400);
         }
 
         if (!current_user_can('edit_post', $post_id)) {
@@ -204,7 +288,13 @@ class EventTypeDefaultsService
     {
         $template = null;
 
-        $template_id = (int) get_post_meta($post_id, '_created_from_template_id', true);
+        $template_id = (int) get_post_meta($post_id, '_selected_template_id', true)
+            ?: (int) get_post_meta($post_id, '_created_from_template_id', true);
+
+        if ($template_id <= 0 && !empty($_POST['hmwevents_event_template'])) {
+            $template_id = (int) $_POST['hmwevents_event_template'];
+        }
+
         if ($template_id) {
             $template = $this->template_service()->get($template_id);
         }
@@ -357,17 +447,48 @@ class EventTypeDefaultsService
             return;
         }
 
+        $template_id = (int) get_post_meta($post_id, '_selected_template_id', true);
+
+        if ($template_id <= 0 && !empty($_POST['hmwevents_event_template'])) {
+            $template_id = (int) $_POST['hmwevents_event_template'];
+            if ($template_id > 0) {
+                update_post_meta($post_id, '_selected_template_id', $template_id);
+            }
+        }
+
+        $type_slug = '';
+
+        if ($template_id > 0) {
+            $template = $this->template_service()->get($template_id);
+            if ($template && !empty($template->event_type_slug)) {
+                $type_slug = sanitize_key($template->event_type_slug);
+            }
+        }
+
+        if ($type_slug === '') {
+            $terms = wp_get_object_terms($post_id, 'hmw_event_type', ['fields' => 'slugs']);
+            if (is_wp_error($terms) || empty($terms)) {
+                return;
+            }
+            $type_slug = sanitize_key((string) $terms[0]);
+        }
+
+        if ($type_slug === '') {
+            return;
+        }
+
         $existing = get_post_meta($post_id, '_event_field_config', true);
+
         if (is_array($existing) && !empty($existing)) {
-            return;
+            $event_fields = $this->resolve_event_fields($post_id, $type_slug);
+            $existing_hidden = array_values((array) ($existing['event_fields']['hidden'] ?? []));
+            $new_hidden = array_values((array) ($event_fields['hidden'] ?? []));
+
+            if ($existing_hidden === $new_hidden) {
+                return;
+            }
         }
 
-        $terms = wp_get_object_terms($post_id, 'hmw_event_type', ['fields' => 'slugs']);
-        if (is_wp_error($terms) || empty($terms)) {
-            return;
-        }
-
-        $type_slug = sanitize_key((string) $terms[0]);
         $this->apply_defaults_to_event($post_id, $type_slug);
     }
 
@@ -377,6 +498,7 @@ class EventTypeDefaultsService
         $ajax_url = admin_url('admin-ajax.php');
 
         return "(function(\$){
+            var HIDDEN_CLASS = 'hmwevents-hidden-by-type';
             var hiddenFields = window.hmwEventTypeDefaults.hiddenFields;
             var allFields = window.hmwEventTypeDefaults.allHideableFields;
 
@@ -386,75 +508,80 @@ class EventTypeDefaultsService
 
             function showAllTypeFields(){
                 \$.each(allFields, function(i, fieldName){
-                    \$('.acf-field[data-name=\"_' + fieldName + '\"]').show();
+                    \$('.acf-field[data-name=\"_' + fieldName + '\"]')
+                        .removeClass(HIDDEN_CLASS)
+                        .show();
                 });
             }
 
-            function hideFieldsForType(typeSlug){
+            function hideFieldsForTemplate(templateId){
                 if(hasActiveOverride()) return;
-                if(!typeSlug || !hiddenFields[typeSlug]) return;
-                \$.each(hiddenFields[typeSlug], function(i, fieldName){
-                    \$('.acf-field[data-name=\"_' + fieldName + '\"]').hide();
+                var key = String(templateId);
+                if(!key || key === '0' || !hiddenFields[key]) return;
+                \$.each(hiddenFields[key], function(i, fieldName){
+                    \$('.acf-field[data-name=\"_' + fieldName + '\"]')
+                        .addClass(HIDDEN_CLASS);
                 });
             }
 
-            function getSelectedTypeSlug(){
-                return \$('#hmwevents-event-type-select').val() || '';
+            function getSelectedTemplateId(){
+                return \$('#hmwevents-event-template-select').val() || 0;
             }
 
             function updateButtonState(){
-                var baseline = \$('#hmwevents-current-event-type-slug').val() || '';
-                var selected = getSelectedTypeSlug();
-                var hasChange = selected !== '' && selected !== baseline;
-                \$('#hmwevents-apply-type-defaults').prop('disabled', !hasChange);
+                var baseline = \$('#hmwevents-current-template-id').val() || '0';
+                var selected = getSelectedTemplateId();
+                var hasChange = selected > 0 && String(selected) !== String(baseline);
+                \$('#hmwevents-apply-template-defaults').prop('disabled', !hasChange);
                 if(hasChange){
-                    \$('#hmwevents-type-defaults-status').text('Event type changed. You can safely apply defaults.');
+                    \$('#hmwevents-template-defaults-status').text('Template changed. You can safely apply defaults.');
                 } else {
-                    \$('#hmwevents-type-defaults-status').text('');
+                    \$('#hmwevents-template-defaults-status').text('');
                 }
             }
 
-            \$(document).on('change', '#hmwevents-event-type-select', function(){
+            \$(document).on('change', '#hmwevents-event-template-select', function(){
                 showAllTypeFields();
-                hideFieldsForType(getSelectedTypeSlug());
+                hideFieldsForTemplate(getSelectedTemplateId());
                 updateButtonState();
             });
 
-            \$(document).on('click', '#hmwevents-apply-type-defaults', function(e){
+            \$(document).on('click', '#hmwevents-apply-template-defaults', function(e){
                 e.preventDefault();
                 var btn = \$(this);
                 var postId = parseInt(\$('#post_ID').val(), 10) || 0;
-                var typeSlug = getSelectedTypeSlug();
+                var templateId = getSelectedTemplateId();
 
-                if(!postId || !typeSlug){
-                    \$('#hmwevents-type-defaults-status').text('Save draft first and select an event type.');
+                if(!postId || templateId <= 0){
+                    \$('#hmwevents-template-defaults-status').text('Save draft first and select a template.');
                     return;
                 }
 
                 btn.prop('disabled', true);
-                \$('#hmwevents-type-defaults-status').text('Applying defaults...');
+                \$('#hmwevents-template-defaults-status').text('Applying template defaults...');
 
                 \$.post('" . esc_js($ajax_url) . "', {
                     action: 'hmwevents_apply_event_type_defaults',
                     _nonce: '" . esc_js($nonce) . "',
                     post_id: postId,
-                    term_slug: typeSlug
+                    template_id: templateId
                 }).done(function(resp){
                     if(resp && resp.success){
-                        \$('#hmwevents-current-event-type-slug').val(typeSlug);
+                        \$('#hmwevents-current-template-id').val(templateId);
                         if(resp.data && resp.data.field_config){
                             showAllTypeFields();
                             \$.each(resp.data.field_config.hidden || [], function(i, fieldName){
-                                \$('.acf-field[data-name=\"_' + fieldName + '\"]').hide();
+                                \$('.acf-field[data-name=\"_' + fieldName + '\"]')
+                                    .addClass(HIDDEN_CLASS);
                             });
                         }
-                        \$('#hmwevents-type-defaults-status').text(resp.data && resp.data.message ? resp.data.message : 'Defaults applied.');
+                        \$('#hmwevents-template-defaults-status').text(resp.data && resp.data.message ? resp.data.message : 'Template defaults applied.');
                     } else {
-                        var message = (resp && resp.data && resp.data.message) ? resp.data.message : 'Failed to apply defaults.';
-                        \$('#hmwevents-type-defaults-status').text(message);
+                        var message = (resp && resp.data && resp.data.message) ? resp.data.message : 'Failed to apply template defaults.';
+                        \$('#hmwevents-template-defaults-status').text(message);
                     }
                 }).fail(function(){
-                    \$('#hmwevents-type-defaults-status').text('Request failed.');
+                    \$('#hmwevents-template-defaults-status').text('Request failed.');
                 }).always(function(){
                     updateButtonState();
                 });
@@ -462,7 +589,7 @@ class EventTypeDefaultsService
 
             \$(function(){
                 if(!hasActiveOverride()){
-                    hideFieldsForType(getSelectedTypeSlug());
+                    hideFieldsForTemplate(getSelectedTemplateId());
                 }
                 updateButtonState();
             });

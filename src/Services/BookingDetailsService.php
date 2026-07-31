@@ -98,12 +98,12 @@ class BookingDetailsService {
   }
   
   /**
-   * Get booking details
+   * Get raw form data only
    * 
    * @param int $booking_id The booking ID
    * @return array|null Decoded form data or null if not found
    */
-  public function get_booking_details($booking_id) {
+  public function get_form_data($booking_id) {
     $row = $this->wpdb->get_row($this->wpdb->prepare(
       "SELECT form_data, form_version, created_at, updated_at 
        FROM {$this->booking_details_table} 
@@ -116,24 +116,7 @@ class BookingDetailsService {
     }
     
     $data = json_decode($row['form_data'], true);
-    
-    return [
-      'data' => $data,
-      'form_version' => $row['form_version'],
-      'created_at' => $row['created_at'],
-      'updated_at' => $row['updated_at']
-    ];
-  }
-  
-  /**
-   * Get raw form data only
-   * 
-   * @param int $booking_id The booking ID
-   * @return array|null Decoded form data or null if not found
-   */
-  public function get_form_data($booking_id) {
-    $details = $this->get_booking_details($booking_id);
-    return $details ? $details['data'] : null;
+    return $data;
   }
   
   /**
@@ -189,116 +172,5 @@ class BookingDetailsService {
       
       return $result !== false ? $this->wpdb->insert_id : false;
     }
-  }
-  
-  /**
-   * Get a single metadata value
-   * 
-   * @param int $booking_id The booking ID
-   * @param string $meta_key The metadata key
-   * @param mixed $default Default value if not found
-   * @return mixed The metadata value or default
-   */
-  public function get_booking_meta($booking_id, $meta_key, $default = null) {
-    $value = $this->wpdb->get_var($this->wpdb->prepare(
-      "SELECT meta_value FROM {$this->booking_meta_table} 
-       WHERE booking_id = %d AND meta_key = %s",
-      $booking_id,
-      $meta_key
-    ));
-    
-    if ($value === null) {
-      return $default;
-    }
-    
-    // Try to decode if it's JSON
-    $decoded = json_decode($value, true);
-    return $decoded !== null ? $decoded : $value;
-  }
-  
-  /**
-   * Get all metadata for a booking
-   * 
-   * @param int $booking_id The booking ID
-   * @return array Associative array of meta_key => meta_value
-   */
-  public function get_all_booking_meta($booking_id) {
-    $results = $this->wpdb->get_results($this->wpdb->prepare(
-      "SELECT meta_key, meta_value FROM {$this->booking_meta_table} 
-       WHERE booking_id = %d",
-      $booking_id
-    ), ARRAY_A);
-    
-    $meta = [];
-    foreach ($results as $row) {
-      $decoded = json_decode($row['meta_value'], true);
-      $meta[$row['meta_key']] = $decoded !== null ? $decoded : $row['meta_value'];
-    }
-    
-    return $meta;
-  }
-  
-  /**
-   * Search bookings by metadata
-   * 
-   * @param string $meta_key The metadata key to search
-   * @param mixed $meta_value The value to match
-   * @param string $comparison Comparison operator (=, LIKE, etc.)
-   * @return array Array of booking IDs
-   */
-  public function search_by_meta($meta_key, $meta_value, $comparison = '=') {
-    $allowed_comparisons = ['=', '!=', 'LIKE', 'NOT LIKE', '>', '<', '>=', '<='];
-    
-    if (!in_array(strtoupper($comparison), $allowed_comparisons)) {
-      $comparison = '=';
-    }
-    
-    $value_str = is_array($meta_value) ? json_encode($meta_value) : (string) $meta_value;
-    
-    if (strtoupper($comparison) === 'LIKE' || strtoupper($comparison) === 'NOT LIKE') {
-      $value_str = '%' . $this->wpdb->esc_like($value_str) . '%';
-    }
-    
-    $results = $this->wpdb->get_col($this->wpdb->prepare(
-      "SELECT DISTINCT booking_id FROM {$this->booking_meta_table} 
-       WHERE meta_key = %s AND meta_value {$comparison} %s",
-      $meta_key,
-      $value_str
-    ));
-    
-    return array_map('intval', $results);
-  }
-  
-  /**
-   * Delete booking details and all associated metadata
-   * 
-   * @param int $booking_id The booking ID
-   * @return bool True on success, false on failure
-   */
-  public function delete_booking_details($booking_id) {
-    // Delete from details table
-    $details_deleted = $this->wpdb->delete(
-      $this->booking_details_table,
-      ['booking_id' => $booking_id],
-      ['%d']
-    );
-    
-    // Delete from meta table
-    $meta_deleted = $this->wpdb->delete(
-      $this->booking_meta_table,
-      ['booking_id' => $booking_id],
-      ['%d']
-    );
-    
-    return $details_deleted !== false && $meta_deleted !== false;
-  }
-  
-  /**
-   * Get searchable field names
-   * 
-   * @return array List of searchable field names
-   */
-  public function get_searchable_fields() {
-    return $this->searchable_fields;
   }
 }

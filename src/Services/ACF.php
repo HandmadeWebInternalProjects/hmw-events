@@ -88,7 +88,12 @@ class ACF
     $optional = $this->normalize_event_field_keys((array) ($config['optional'] ?? []));
 
     if (in_array($event_field_key, $hidden, true)) {
-      return false;
+      if (!isset($field['wrapper'])) {
+        $field['wrapper'] = [];
+      }
+      $field['wrapper']['class'] = trim(($field['wrapper']['class'] ?? '') . ' hmwevents-hidden-by-type');
+      $field['required'] = 0;
+      return $field;
     }
 
     if (in_array($event_field_key, $required, true)) {

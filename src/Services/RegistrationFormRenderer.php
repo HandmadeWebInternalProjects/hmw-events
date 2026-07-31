@@ -375,21 +375,7 @@ class RegistrationFormRenderer
 
     private function get_v3_sections(int $event_id): ?array
     {
-        $override = get_post_meta($event_id, '_event_template_override', true);
-        if (is_array($override) && !empty($override['registration_fields']['sections'])) {
-            return $override['registration_fields'];
-        }
-
-        $config = get_post_meta($event_id, '_event_field_config', true);
-        if (is_array($config) && !empty($config['registration_fields']['sections'])) {
-            $reg = $config['registration_fields'];
-            if (is_array($override) && !empty($override['registration_fields']['multi_booking'])) {
-                $reg['multi_booking'] = $override['registration_fields']['multi_booking'];
-            }
-            return $reg;
-        }
-
-        return null;
+        return \HMWEvents\Services\FormConfigResolver::resolve($event_id);
     }
 
     private function render_v3_form(int $event_id, string $attendance_type, array $reg_config): string
@@ -424,17 +410,27 @@ class RegistrationFormRenderer
             }
         }
 
-        if ($requires_payment) {
-            wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        $has_multi_booking = $mb_enabled;
+
+        if ($requires_payment || $has_multi_booking) {
+            $hmw_v3_deps = ['jquery'];
+
+            if ($requires_payment) {
+                wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+                $hmw_v3_deps[] = 'stripe-js';
+            }
+
             wp_enqueue_script(
                 'hmwevents-v3-booking',
                 \HMWEvents\HMWEvents::plugin_url() . '/assets/js/v3-booking.js',
-                ['jquery', 'stripe-js'],
+                $hmw_v3_deps,
                 defined('HMWEvents_VERSION') ? HMWEvents_VERSION : '1.0.0',
                 true
             );
+
             $publishable_key = \HMWEvents\Helpers\StripeHelper::get_publishable_key(null);
-            $has_stripe = !empty($publishable_key);
+            $has_stripe = $requires_payment && !empty($publishable_key);
+
             wp_localize_script('hmwevents-v3-booking', 'hmwV3Booking', [
                 'ajaxUrl'         => admin_url('admin-ajax.php'),
                 'restUrl'         => rest_url('hmwevents/v1/registration/v3-submit'),
@@ -558,7 +554,7 @@ class RegistrationFormRenderer
         $req     = !empty($field['required']);
         $width   = $field['width'] ?? 'full';
         $ph      = $field['placeholder'] ?? '';
-        $value   = $_POST[$key] ?? '';
+        $value   = $this->get_post_value($key);
 
         $id      = 'hmw_field_' . sanitize_key($key);
         $classes = ['hmw-reg-field', 'hmw-reg-field--' . $type, 'hmw-reg-field--' . $width];
@@ -697,7 +693,7 @@ class RegistrationFormRenderer
         $req     = !empty($field['required']);
         $width   = $field['width'] ?? 'full';
         $ph      = $field['placeholder'] ?? '';
-        $value   = $_POST[$key] ?? '';
+        $value   = $this->get_post_value($key);
 
         $id      = 'hmw_field_' . $key;
         $classes = ['hmw-form-field', 'hmw-form-field--' . $type, 'hmw-form-field--' . $width];
@@ -768,6 +764,33 @@ class RegistrationFormRenderer
                            name="<?php echo esc_attr($key); ?>"
                            value="<?php echo esc_attr($value); ?>"
                            <?php echo $req ? 'required' : ''; ?> />
+                    <?php break;
+
+                case 'checkbox': ?>
+                    <?php $attrs = $req ? 'required' : ''; ?>
+                    <?php $checked = !empty($value) ? 'checked' : ''; ?>
+                    <label class="hmwevents-field hmwevents-field--checkbox">
+                        <input type="checkbox" name="<?php echo esc_attr($key); ?>" value="1" <?php echo $checked; ?> <?php echo $attrs; ?>>
+                        <?php echo esc_html($field['label']); ?>
+                    </label>
+                    <?php break;
+
+                case 'number': ?>
+                    <input type="number"
+                           id="<?php echo esc_attr($id); ?>"
+                           name="<?php echo esc_attr($key); ?>"
+                           value="<?php echo esc_attr($value); ?>"
+                           class="hmwevents-input"
+                           <?php echo $req ? 'required' : ''; ?> />
+                    <?php break;
+
+                case 'radio': ?>
+                    <div class="hmwevents-radio-group">
+                        <?php foreach (($field['options'] ?? []) as $opt_val => $opt_label): ?>
+                            <?php $checked = ($value == $opt_val) ? 'checked' : ''; ?>
+                            <label><input type="radio" name="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr($opt_val); ?>" <?php echo $checked; ?> <?php echo $req ? 'required' : ''; ?>> <?php echo esc_html($opt_label); ?></label>
+                        <?php endforeach; ?>
+                    </div>
                     <?php break;
 
                 default: ?>
@@ -878,6 +901,23 @@ class RegistrationFormRenderer
     // ================================================================
     // HELPERS
     // ================================================================
+
+    private function get_post_value(string $dot_key): string
+    {
+        if (str_contains($dot_key, '[')) {
+            $parts = preg_split('/\[([^\]]*)\]/', $dot_key, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+            $value = $_POST;
+            foreach ($parts as $part) {
+                if (!is_array($value) || !array_key_exists($part, $value)) {
+                    return '';
+                }
+                $value = $value[$part];
+            }
+            return is_scalar($value) ? (string) $value : '';
+        }
+
+        return $_POST[$dot_key] ?? '';
+    }
 
     private function get_event_type_slug(int $event_id): string
     {

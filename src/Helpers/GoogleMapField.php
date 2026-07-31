@@ -99,4 +99,22 @@ class GoogleMapField
 
     return $default;
   }
+
+  public static function get_address_string($map_field): string
+  {
+    $parsed = self::parse_google_map_address($map_field);
+    return $parsed['full_address'];
+  }
+
+  public static function get_lat($map_field): string
+  {
+    $parsed = self::parse_google_map_address($map_field);
+    return $parsed['lat'];
+  }
+
+  public static function get_lng($map_field): string
+  {
+    $parsed = self::parse_google_map_address($map_field);
+    return $parsed['lng'];
+  }
 }

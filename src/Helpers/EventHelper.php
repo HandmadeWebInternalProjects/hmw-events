@@ -168,7 +168,7 @@ class EventHelper
         $capacity   = (int) get_post_meta($event->ID, '_event_capacity', true);
         $organizer_id = (int) get_post_meta($event->ID, '_organizer_id', true);
         $venue      = get_post_meta($event->ID, '_event_venue_name', true);
-        $venue_addr = get_post_meta($event->ID, '_event_venue_address', true);
+        $venue_addr = \HMWEvents\Helpers\GoogleMapField::get_address_string(get_post_meta($event->ID, '_event_venue_address', true));
 
         return [
             'id'                           => $event->ID,

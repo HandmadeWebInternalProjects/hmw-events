@@ -129,10 +129,26 @@
     var $form = $('.hmw-registration-form--v3');
     var $btn = $('.hmw-v3-submit-btn');
     var $spinner = $('#hmwevents-submit-spinner');
-    var requiresPayment = data.price > 0 && !!card;
+    var paymentType = $('input[name="payment_type"]:checked').val();
+    var isNetTerms = paymentType === 'net_terms';
+    var requiresPayment = data.price > 0 && !!card && !isNetTerms;
 
     $btn.prop('disabled', true);
     $spinner.show();
+
+    var invalidFields = $form.find(':invalid');
+    if (invalidFields.length > 0) {
+      invalidFields.first().focus();
+      $('.hmw-v3-error').remove();
+      var $alert = $('<div class="hmw-v3-error" style="color:#b32d2e; margin-bottom:12px;">Please fill in all required fields highlighted above.</div>');
+      $('.hmw-v3-submit-btn').before($alert);
+      $alert.delay(3000).fadeOut(function () { $(this).remove(); });
+      $btn.prop('disabled', false).text(data.submitText || 'Submit Registration');
+      $spinner.hide();
+      return;
+    }
+
+    $('.hmw-v3-error').remove();
 
     if (requiresPayment) {
       stripe.createPaymentMethod({ type: 'card', card: card }).then(function (result) {

@@ -61,26 +61,4 @@ class StripeHelper
         
         return $key ?: '';
     }
-    
-    /**
-     * Check if Stripe is in test mode.
-     *
-     * @since 1.0.0
-     * @return bool True if in test mode.
-     */
-    public static function is_test_mode()
-    {
-        return ConfigHelper::get_option('hmwevents_stripe_mode', 'test') === 'test';
-    }
-    
-    /**
-     * Get Stripe mode.
-     *
-     * @since 1.0.0
-     * @return string 'test' or 'live'
-     */
-    public static function get_mode()
-    {
-        return ConfigHelper::get_option('hmwevents_stripe_mode', 'test');
-    }
 }

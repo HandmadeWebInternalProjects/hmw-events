@@ -336,9 +336,9 @@ class EmailQueue
     $result = $service->retry_email($email_id);
 
     if ($result) {
-      set_transient('lhmwevents_success_notice', 'Email reset for retry.', 30);
+      set_transient('hmwevents_success_notice', 'Email reset for retry.', 30);
     } else {
-      set_transient('lhmwevents_error_notice', 'Failed to retry email.', 30);
+      set_transient('hmwevents_error_notice', 'Failed to retry email.', 30);
     }
 
     wp_safe_redirect(wp_get_referer() ?: admin_url('admin.php?page=hmwevents-email-queue'));
@@ -361,9 +361,9 @@ class EmailQueue
     $result = $service->resend_email($email_id);
 
     if ($result) {
-      set_transient('lhmwevents_success_notice', 'Email sent successfully.', 30);
+      set_transient('hmwevents_success_notice', 'Email sent successfully.', 30);
     } else {
-      set_transient('lhmwevents_error_notice', 'Failed to send email.', 30);
+      set_transient('hmwevents_error_notice', 'Failed to send email.', 30);
     }
 
     wp_safe_redirect(wp_get_referer() ?: admin_url('admin.php?page=hmwevents-email-queue'));

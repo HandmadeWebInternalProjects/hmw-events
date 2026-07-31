@@ -13,6 +13,7 @@ use HMWEvents\Helpers\Encryption;
 use HMWEvents\Services\Emails\EmailQueueRepository;
 use HMWEvents\Services\Emails\EmailService;
 use HMWEvents\Services\Emails\EmailTemplateRepository;
+use HMWEvents\Registry\EventTypeRegistry;
 use HMWEvents\Registry\RegistrationFieldRegistry;
 
 use function get_current_screen;
@@ -26,17 +27,6 @@ class Admin
 {
   use \HMWEvents\Traits\HasComponents;
   protected $options_panel;
-
-  private const RECURRENCE_CHILD_KEYS = [
-    'event_is_recurring',
-    'event_recurrence_interval',
-    'event_recurrence_unit',
-    'event_recurrence_days',
-    'event_recurrence_end_type',
-    'event_recurrence_end_date',
-    'event_recurrence_max_occurrences',
-    'event_recurrence_custom_dates',
-  ];
 
   /**
    * Fields that need encryption.
@@ -227,6 +217,32 @@ class Admin
           'title'       => 'Feedback Form URL',
           'placeholder' => 'https://example.com/feedback/',
           'desc'        => 'Base URL for feedback form links. Used in {{feedback_url}} template variable; booking ID is appended automatically.',
+        ],
+
+        [
+          'type'    => 'content',
+          'content' => '<h3>Maps</h3>',
+        ],
+
+        [
+          'id'          => 'hmwevents_map_provider',
+          'type'        => 'select',
+          'title'       => 'Map Provider',
+          'options'     => [
+            'none'        => 'None',
+            'google_maps' => 'Google Maps',
+          ],
+          'default'     => 'none',
+          'desc'        => 'Select which map service to use for displaying venue locations on event pages.',
+        ],
+
+        [
+          'id'          => 'hmwevents_google_maps_api_key',
+          'type'        => 'text',
+          'title'       => 'Google Maps API Key',
+          'placeholder' => 'AIza...',
+          'desc'        => 'Your Google Maps Embed API key. <a href="https://developers.google.com/maps/documentation/embed/get-api-key" target="_blank">Get a key</a>.',
+          'dependency'  => ['hmwevents_map_provider', '==', 'google_maps'],
         ],
 
       ],
@@ -590,15 +606,15 @@ class Admin
   public function display_admin_notices()
   {
     // Check for success messages
-    if ($success_message = get_transient('lhmwevents_success_notice')) {
+    if ($success_message = get_transient('hmwevents_success_notice')) {
       echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($success_message) . '</p></div>';
-      delete_transient('lhmwevents_success_notice');
+      delete_transient('hmwevents_success_notice');
     }
 
     // Check for error messages
-    if ($error_message = get_transient('lhmwevents_error_notice')) {
+    if ($error_message = get_transient('hmwevents_error_notice')) {
       echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($error_message) . '</p></div>';
-      delete_transient('lhmwevents_error_notice');
+      delete_transient('hmwevents_error_notice');
     }
 
     // Check for Action Scheduler availability on our admin pages
@@ -690,7 +706,7 @@ class Admin
     $screen_id = $screen ? $screen->id : '';
 
     $valid_screen_ids = apply_filters(
-      'lhmwevents_valid_admin_screen_ids',
+      'hmwevents_valid_admin_screen_ids',
       [
         HMWEvents()->get_plugin_name(),
         'lsa-monthly-email-reports',
@@ -765,49 +781,6 @@ class Admin
     $valid['en'] = $options;
 
     return $valid;
-  }
-
-  /**
-   * Decrypt sensitive fields when retrieving options.
-   *
-   * Hooks into: exopite_sof_menu_get_options
-   *
-   * @since 1.0.0
-   * @param array $options The options array being retrieved.
-   * @param string $unique The unique identifier for this options page.
-   * @return array The options array with decrypted sensitive fields.
-   */
-  public function decrypt_sensitive_fields($options, $unique)
-  {
-    // Only process our plugin's options
-    if ($unique !== HMWEvents()->get_plugin_name()) {
-      return $options;
-    }
-
-    if (!is_array($options)) {
-      return $options;
-    }
-
-    foreach ($this->encrypted_fields as $field) {
-      if (isset($options[$field]) && !empty($options[$field])) {
-        $value = $options[$field];
-
-        // Only decrypt if it appears to be encrypted
-        if ($this->is_encrypted_value($value)) {
-          $decrypted = Encryption::decrypt($value);
-
-          if ($decrypted !== false) {
-            $options[$field] = $decrypted;
-          } else {
-            // If decryption fails, it might be plain text (legacy data)
-            // Leave it as is and let it get re-encrypted on next save
-            error_log("HMWEvents: Failed to decrypt field: {$field} - may be plain text");
-          }
-        }
-      }
-    }
-
-    return $options;
   }
 
   /**
@@ -890,7 +863,7 @@ class Admin
         'nonce'    => wp_create_nonce('wp_rest'),
       ];
 
-      wp_localize_script('hmwevents-admin', 'lhmwevents_params', $localize_params);
+      wp_localize_script('hmwevents-admin', 'hmwevents_params', $localize_params);
     }
 
     // Email admin styles and scripts
@@ -1044,16 +1017,6 @@ class Admin
     }
   }
 
-  public function add_forms()
-  {
-
-    $screen = get_current_screen();
-
-    if ($screen->id != 'toplevel_page_gf_edit_forms') {
-      return;
-    }
-  }
-
   /**
    * Render admin menu page.
    *
@@ -1178,7 +1141,7 @@ class Admin
 
   private function group_recurrence_fields(array $fields): array
   {
-    $child_keys = self::RECURRENCE_CHILD_KEYS;
+    $child_keys = EventTypeRegistry::RECURRENCE_FIELD_KEYS;
     $child_set = array_flip($child_keys);
 
     $has_children = false;

@@ -20,6 +20,17 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class EventTypeRegistry
 {
+    public const RECURRENCE_FIELD_KEYS = [
+        'event_is_recurring',
+        'event_recurrence_interval',
+        'event_recurrence_unit',
+        'event_recurrence_days',
+        'event_recurrence_end_type',
+        'event_recurrence_end_date',
+        'event_recurrence_max_occurrences',
+        'event_recurrence_custom_dates',
+    ];
+
     /**
      * Cached archetype definitions.
      *

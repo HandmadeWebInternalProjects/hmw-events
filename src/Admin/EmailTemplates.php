@@ -411,9 +411,9 @@ class EmailTemplates
     ]);
 
     if ($saved) {
-      set_transient('lhmwevents_success_notice', 'Template saved.', 30);
+      set_transient('hmwevents_success_notice', 'Template saved.', 30);
     } else {
-      set_transient('lhmwevents_error_notice', 'Failed to save template.', 30);
+      set_transient('hmwevents_error_notice', 'Failed to save template.', 30);
     }
 
     wp_safe_redirect(admin_url('admin.php?page=hmwevents-email-templates&template_key=' . urlencode($template_key)));
@@ -434,7 +434,7 @@ class EmailTemplates
     $service = new EmailService();
     $service->create_default_templates();
 
-    set_transient('lhmwevents_success_notice', 'Default templates created.', 30);
+    set_transient('hmwevents_success_notice', 'Default templates created.', 30);
     wp_safe_redirect(admin_url('admin.php?page=hmwevents-email-templates'));
     exit;
   }
@@ -453,7 +453,7 @@ class EmailTemplates
     $service = new EmailService();
     $service->create_default_templates(true);
 
-    set_transient('lhmwevents_success_notice', 'Default templates re-generated and existing system templates were overwritten.', 30);
+    set_transient('hmwevents_success_notice', 'Default templates re-generated and existing system templates were overwritten.', 30);
     wp_safe_redirect(admin_url('admin.php?page=hmwevents-email-templates'));
     exit;
   }
@@ -478,7 +478,7 @@ class EmailTemplates
     $service = new EmailService();
     $service->create_educator_default_templates($user_id);
 
-    set_transient('lhmwevents_success_notice', 'Default templates re-generated for this educator.', 30);
+    set_transient('hmwevents_success_notice', 'Default templates re-generated for this educator.', 30);
     wp_safe_redirect(add_query_arg(['user_id' => $user_id], admin_url('user-edit.php')));
     exit;
   }
@@ -500,7 +500,7 @@ class EmailTemplates
 
     update_option('hmwevents_educator_locked_templates', $locked);
 
-    set_transient('lhmwevents_success_notice', 'Educator template permissions saved.', 30);
+    set_transient('hmwevents_success_notice', 'Educator template permissions saved.', 30);
     wp_safe_redirect(admin_url('admin.php?page=hmwevents-email-templates'));
     exit;
   }
@@ -542,9 +542,9 @@ class EmailTemplates
     ]);
 
     if ($saved) {
-      set_transient('lhmwevents_success_notice', 'Template saved.', 30);
+      set_transient('hmwevents_success_notice', 'Template saved.', 30);
     } else {
-      set_transient('lhmwevents_error_notice', 'Failed to save template.', 30);
+      set_transient('hmwevents_error_notice', 'Failed to save template.', 30);
     }
 
     $redirect = add_query_arg(
@@ -590,9 +590,9 @@ class EmailTemplates
     }
 
     if ($deleted) {
-      set_transient('lhmwevents_success_notice', 'Template reset to system default.', 30);
+      set_transient('hmwevents_success_notice', 'Template reset to system default.', 30);
     } else {
-      set_transient('lhmwevents_error_notice', 'Failed to reset template.', 30);
+      set_transient('hmwevents_error_notice', 'Failed to reset template.', 30);
     }
 
     $redirect = add_query_arg(

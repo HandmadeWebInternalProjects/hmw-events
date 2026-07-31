@@ -121,38 +121,6 @@ class PaymentService
         return !empty($this->stripe_secret);
     }
 
-    /**
-     * Get the resolved Stripe secret key.
-     */
-    public function get_secret_key(): ?string
-    {
-        return $this->stripe_secret;
-    }
-
-    /**
-     * Get the resolved Stripe publishable key.
-     */
-    public function get_publishable_key(): ?string
-    {
-        return $this->stripe_publishable;
-    }
-
-    /**
-     * Get info about which key source was resolved.
-     */
-    public function get_key_source(): string
-    {
-        return $this->key_source;
-    }
-
-    /**
-     * Get the current mode.
-     */
-    public function get_mode(): string
-    {
-        return $this->mode;
-    }
-
     // ================================================================
     // PAYMENT PROCESSING
     // ================================================================
@@ -248,79 +216,6 @@ class PaymentService
             error_log('HMWEvents Stripe error: ' . $e->getMessage());
             return new \WP_Error('stripe_error', $e->getMessage());
         }
-    }
-
-    /**
-     * Confirm a payment and record the transaction.
-     *
-     * @param string $payment_intent_id Stripe PI ID.
-     * @param int    $booking_group_id  hmwevents_booking_groups ID.
-     * @return array|\WP_Error
-     */
-    public function confirm_and_record(string $payment_intent_id, int $booking_group_id): array|\WP_Error
-    {
-        if (!$this->has_keys()) {
-            return new \WP_Error('no_stripe_keys', __('Payment gateway not configured.', 'hmw-events'));
-        }
-
-        \Stripe\Stripe::setApiKey($this->stripe_secret);
-
-        try {
-            $intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            return new \WP_Error('stripe_retrieve_error', $e->getMessage());
-        }
-
-        if ($intent->status !== 'succeeded') {
-            return new \WP_Error(
-                'payment_not_succeeded',
-                sprintf(__('Payment status is %s.', 'hmw-events'), $intent->status)
-            );
-        }
-
-        // Record transaction
-        $transaction_id = $this->record_transaction($booking_group_id, $intent);
-
-        /**
-         * Action: hmwevents_payment_confirmed
-         *
-         * @param \Stripe\PaymentIntent $intent
-         * @param int $booking_group_id
-         * @param int $transaction_id
-         */
-        do_action('hmwevents_payment_confirmed', $intent, $booking_group_id, $transaction_id);
-
-        return [
-            'intent_id'      => $intent->id,
-            'transaction_id' => $transaction_id,
-            'status'         => $intent->status,
-        ];
-    }
-
-    /**
-     * Record a successful payment transaction.
-     */
-    private function record_transaction(int $booking_group_id, \Stripe\PaymentIntent $intent): int
-    {
-        global $wpdb;
-        $table = DatabaseService::get_table_name('payment_transactions');
-
-        $wpdb->insert($table, [
-            'booking_group_id'         => $booking_group_id,
-            'transaction_type'         => 'charge',
-            'amount'                   => $intent->amount / 100,
-            'currency'                 => strtoupper($intent->currency),
-            'payment_gateway'          => 'stripe',
-            'gateway'                  => 'stripe',
-            'gateway_transaction_id'   => $intent->id,
-            'gateway_customer_id'      => $intent->customer ?? null,
-            'gateway_payment_method_id' => $intent->payment_method ?? null,
-            'status'                   => 'succeeded',
-            'metadata'                 => wp_json_encode($intent->metadata->toArray()),
-            'created_at'               => current_time('mysql'),
-        ], ['%d', '%s', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
-
-        return (int) $wpdb->insert_id;
     }
 
     /**

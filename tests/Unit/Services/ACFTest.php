@@ -134,7 +134,7 @@ class ACFTest extends TestCase
     // apply_event_field_config() — hidden fields
     // ============================================================
 
-    public function test_apply_event_field_config_returns_false_for_hidden_field(): void
+    public function test_apply_event_field_config_adds_hidden_class_for_hidden_field(): void
     {
         $this->stubPostContext();
         $this->stubMetaMap([
@@ -150,7 +150,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_webinar_url', 'key' => 'field_event_webinar_url'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -249,7 +251,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_price', 'key' => 'field_event_price'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -273,7 +277,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_webinar_url', 'key' => 'field_event_webinar_url'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -292,7 +298,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_price', 'key' => 'field_event_price'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -447,7 +455,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_venue_name'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -467,7 +477,9 @@ class ACFTest extends TestCase
 
         $field = ['name' => 'event_price'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -516,7 +528,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_price', 'key' => 'field_event_price'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
 
         $post = null;
     }
@@ -541,7 +555,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => '_event_webinar_url'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -561,7 +577,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_price'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
@@ -585,7 +603,9 @@ class ACFTest extends TestCase
 
         $field = ['_name' => 'event_webinar_url'];
         $result = $this->acf->apply_event_field_config($field);
-        $this->assertFalse($result);
+        $this->assertIsArray($result);
+        $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');
+        $this->assertSame(0, $result['required']);
         $this->clearPostContext();
     }
 
