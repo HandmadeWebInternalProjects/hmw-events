@@ -202,6 +202,51 @@ class TemplateConfigTest extends TestCase
         $this->assertInstanceOf(\WP_Error::class, $result);
     }
 
+    public function test_validator_accepts_legacy_venue_event_fields(): void
+    {
+        $validator = new TemplateSchemaValidator();
+
+        $normalized = $validator->normalize([
+            'schema_version' => 3,
+            'event_fields'   => [
+                'required' => ['event_venue_name'],
+                'optional' => ['event_venue_address'],
+                'hidden'   => ['event_currency'],
+            ],
+            'registration_fields' => [
+                'sections' => [['id' => 's1', 'label' => 'S1', 'fields' => []]],
+                'multi_booking' => ['enabled' => false, 'min' => 1, 'max' => 10],
+            ],
+        ]);
+
+        $this->assertIsArray($normalized);
+        $this->assertSame(['event_venue_name'], $normalized['event_fields']['required']);
+        $this->assertSame(['event_venue_address'], $normalized['event_fields']['optional']);
+        $this->assertSame(['event_currency'], $normalized['event_fields']['hidden']);
+    }
+
+    public function test_validator_rejects_unknown_event_field(): void
+    {
+        $validator = new TemplateSchemaValidator();
+
+        $result = $validator->normalize([
+            'schema_version' => 3,
+            'event_fields'   => [
+                'required' => ['event_nonexistent_field'],
+                'optional' => [],
+                'hidden'   => [],
+            ],
+            'registration_fields' => [
+                'sections' => [['id' => 's1', 'label' => 'S1', 'fields' => []]],
+                'multi_booking' => ['enabled' => false, 'min' => 1, 'max' => 10],
+            ],
+        ]);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $errors = $result->get_error_message();
+        $this->assertStringContainsString('Unknown event field: event_nonexistent_field.', $errors);
+    }
+
     public function test_validator_v3_multi_booking_validation(): void
     {
         $validator = new TemplateSchemaValidator();
@@ -941,5 +986,144 @@ class TemplateConfigTest extends TestCase
 
         // resolve_with_override replaces event_fields directly, no expansion
         $this->assertContains('event_recurrence', $required);
+    }
+
+    // ============================================================
+    // multi_booking.mode + child_fields
+    // ============================================================
+
+    public function test_validator_v3_multi_booking_mode_defaults_to_attendees(): void
+    {
+        $validator = new TemplateSchemaValidator();
+
+        $result = $validator->normalize([
+            'schema_version'      => 3,
+            'event_fields'        => ['required' => [], 'optional' => [], 'hidden' => []],
+            'registration_fields' => [
+                'sections'      => [[
+                    'id' => 's1', 'label' => 'S1',
+                    'fields' => [[
+                        'key' => 'f1', 'label' => 'F1', 'type' => 'text', 'required' => false, 'width' => 'full',
+                    ]],
+                ]],
+                'multi_booking' => ['enabled' => false, 'min' => 1, 'max' => 10],
+            ],
+        ]);
+
+        $this->assertIsArray($result);
+        $mb = $result['registration_fields']['multi_booking'];
+        $this->assertSame('attendees', $mb['mode']);
+        $this->assertTrue($mb['child_fields']['name']['enabled']);
+        $this->assertTrue($mb['child_fields']['name']['required']);
+        $this->assertSame('Child Name', $mb['child_fields']['name']['label']);
+        $this->assertTrue($mb['child_fields']['age']['enabled']);
+        $this->assertFalse($mb['child_fields']['age']['required']);
+        $this->assertSame('Date of Birth', $mb['child_fields']['age']['label']);
+    }
+
+    public function test_validator_v3_accepts_parent_children_mode(): void
+    {
+        $validator = new TemplateSchemaValidator();
+
+        $result = $validator->normalize([
+            'schema_version'      => 3,
+            'event_fields'        => ['required' => [], 'optional' => [], 'hidden' => []],
+            'registration_fields' => [
+                'sections'      => [[
+                    'id' => 's1', 'label' => 'S1',
+                    'fields' => [[
+                        'key' => 'f1', 'label' => 'F1', 'type' => 'text', 'required' => false, 'width' => 'full',
+                    ]],
+                ]],
+                'multi_booking' => ['enabled' => true, 'mode' => 'parent_children', 'min' => 1, 'max' => 10],
+            ],
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertSame('parent_children', $result['registration_fields']['multi_booking']['mode']);
+    }
+
+    public function test_validator_v3_rejects_invalid_multi_booking_mode(): void
+    {
+        $validator = new TemplateSchemaValidator();
+
+        $result = $validator->normalize([
+            'schema_version'      => 3,
+            'event_fields'        => ['required' => [], 'optional' => [], 'hidden' => []],
+            'registration_fields' => [
+                'sections'      => [[
+                    'id' => 's1', 'label' => 'S1',
+                    'fields' => [[
+                        'key' => 'f1', 'label' => 'F1', 'type' => 'text', 'required' => false, 'width' => 'full',
+                    ]],
+                ]],
+                'multi_booking' => ['enabled' => true, 'mode' => 'bogus', 'min' => 1, 'max' => 10],
+            ],
+        ]);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('invalid_template_schema', $result->get_error_code());
+    }
+
+    public function test_validator_v3_normalizes_child_fields_overrides(): void
+    {
+        $validator = new TemplateSchemaValidator();
+
+        $result = $validator->normalize([
+            'schema_version'      => 3,
+            'event_fields'        => ['required' => [], 'optional' => [], 'hidden' => []],
+            'registration_fields' => [
+                'sections'      => [[
+                    'id' => 's1', 'label' => 'S1',
+                    'fields' => [[
+                        'key' => 'f1', 'label' => 'F1', 'type' => 'text', 'required' => false, 'width' => 'full',
+                    ]],
+                ]],
+                'multi_booking' => [
+                    'enabled'      => true,
+                    'mode'         => 'parent_children',
+                    'min'          => 1,
+                    'max'          => 10,
+                    'child_fields' => [
+                        'name' => ['enabled' => false, 'required' => false, 'label' => 'Kid Name'],
+                        'age'  => ['enabled' => false, 'required' => true, 'label' => 'Birthday'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertIsArray($result);
+        $cf = $result['registration_fields']['multi_booking']['child_fields'];
+        $this->assertFalse($cf['name']['enabled']);
+        $this->assertFalse($cf['name']['required']);
+        $this->assertSame('Kid Name', $cf['name']['label']);
+        $this->assertFalse($cf['age']['enabled']);
+        $this->assertTrue($cf['age']['required']);
+        $this->assertSame('Birthday', $cf['age']['label']);
+    }
+
+    public function test_resolver_emits_parent_children_mode_and_child_fields(): void
+    {
+        $resolver = new TemplateResolver(new TemplateSchemaValidator());
+
+        $resolved = $resolver->resolve('parent-one-off-free', [
+            'schema_version'      => 3,
+            'registration_fields' => [
+                'sections'      => [[
+                    'id' => 'contact', 'label' => 'Contact',
+                    'fields' => [[
+                        'key' => 'first_name', 'label' => 'First Name',
+                        'type' => 'text', 'required' => true, 'width' => 'half',
+                    ]],
+                ]],
+                'multi_booking' => ['enabled' => true, 'mode' => 'parent_children', 'min' => 1, 'max' => 10],
+            ],
+        ]);
+
+        $mb = $resolved['field_config']['registration_fields']['multi_booking'];
+        $this->assertSame('parent_children', $mb['mode']);
+        $this->assertIsArray($mb['child_fields']);
+        $this->assertArrayHasKey('name', $mb['child_fields']);
+        $this->assertArrayHasKey('age', $mb['child_fields']);
     }
 }

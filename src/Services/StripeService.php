@@ -128,6 +128,25 @@ class StripeService
         return $this->stripe;
     }
 
+    /**
+     * Create a Stripe customer.
+     *
+     * @param string $email Customer email address.
+     * @param array  $data Additional customer data.
+     * @return object|\WP_Error Stripe customer or error.
+     */
+    public function create_customer(string $email, array $data = [])
+    {
+        try {
+            return $this->stripe->customers->create(array_merge($data, [
+                'email' => $email,
+            ]));
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            error_log('HMWEvents Stripe Error: ' . $e->getMessage());
+            return new \WP_Error('stripe_error', $e->getMessage());
+        }
+    }
+
   /**
    * Create a payment intent.
    *

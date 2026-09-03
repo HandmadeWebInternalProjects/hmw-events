@@ -68,7 +68,7 @@ class Booking
         global $wpdb;
         $remaining = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*)
-             FROM {$wpdb->prefix}hmwevents_payment_transactions
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . "
              WHERE booking_group_id = %d
                AND status = 'succeeded'
                AND metadata LIKE %s",
@@ -110,11 +110,12 @@ class Booking
         $token       = $gateway->generate_recovery_token($booking_group_id);
         $payment_url = $gateway->get_recovery_url($token);
 
-        $currency        = !empty($booking->currency) ? $booking->currency : 'AUD';
+        $currency        = !empty($booking->currency) ? $booking->currency : (new \HMWEvents\Services\EventDataService())->get_currency($course_id);
         $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
 
         if ($is_remaining) {
-            $course_full_price = floatval(get_field('_event_price', $course_id));
+            $eds = new \HMWEvents\Services\EventDataService();
+            $course_full_price = $eds->get_price($course_id);
             $amount_due        = $course_full_price > 0
                 ? max(0, $course_full_price - floatval($booking->total_amount))
                 : floatval($booking->total_amount);

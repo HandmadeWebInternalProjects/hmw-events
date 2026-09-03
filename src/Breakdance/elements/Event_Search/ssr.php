@@ -1,4 +1,6 @@
 <?php
+
+defined('ABSPATH') || die('Don\'t run this file directly!');
 $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
 
 // Fetch supported countries from the locations plugin table

@@ -6,19 +6,21 @@
     max-width: 800px;
     margin: 0 auto;
     padding: 20px;
+    font-family: var(--hmw-font-family);
+    color: var(--hmw-color-text);
 }
 
 .hmwevents-booking-form {
-    background: #fff;
+    background: var(--hmw-color-bg);
     padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: var(--hmw-radius);
+    box-shadow: var(--hmw-shadow-sm);
 }
 
 .hmwevents-form-section {
     margin-bottom: 30px;
     padding-bottom: 30px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--hmw-color-border);
 }
 
 .hmwevents-form-section:last-child {
@@ -29,8 +31,8 @@
 
 .hmwevents-form-section h3 {
     margin: 0 0 20px 0;
-    font-size: 1.25rem;
-    color: #1f2937;
+    font-size: 2rem;
+    color: var(--hmw-color-text);
 }
 
 .hmwevents-form-row {
@@ -56,8 +58,8 @@
 .hmwevents-form-field label {
     margin-bottom: 8px;
     font-weight: 500;
-    color: #374151;
-    font-size: 0.875rem;
+    color: var(--hmw-color-label);
+    font-size: 1.4rem;
 }
 
 .hmwevents-form-field input[type="text"],
@@ -66,9 +68,9 @@
 .hmwevents-form-field input[type="date"],
 .hmwevents-form-field textarea {
     padding: 10px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 1rem;
+    border: 1px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius-sm);
+    font-size: 1.6rem;
     transition: border-color 0.2s;
 }
 
@@ -78,7 +80,7 @@
 .hmwevents-form-field input[type="date"]:focus,
 .hmwevents-form-field textarea:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--hmw-color-primary);
 }
 
 .hmwevents-form-field textarea {
@@ -102,7 +104,7 @@
 }
 
 .required {
-    color: #ef4444;
+    color: var(--hmw-color-error);
 }
 
 /* Voucher Section */
@@ -115,35 +117,35 @@
 .hmwevents-voucher-input {
     flex: 1;
     padding: 10px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 1rem;
+    border: 1px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius-sm);
+    font-size: 1.6rem;
 }
 
 .hmwevents-voucher-message {
     padding: 12px;
-    border-radius: 4px;
+    border-radius: var(--hmw-radius-sm);
     margin-bottom: 15px;
 }
 
 .hmwevents-voucher-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fca5a5;
+    background: var(--hmw-color-error-bg);
+    color: var(--hmw-color-error);
+    border: 1px solid color-mix(in srgb, var(--hmw-color-error) 40%, transparent);
 }
 
 .hmwevents-voucher-info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #93c5fd;
+    background: var(--hmw-color-primary-light);
+    color: var(--hmw-color-primary);
+    border: 1px solid var(--hmw-color-border-focus);
 }
 
 .hmwevents-voucher-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #6ee7b7;
+    background: var(--hmw-color-success-bg);
+    color: var(--hmw-color-success);
+    border: 1px solid color-mix(in srgb, var(--hmw-color-success) 45%, transparent);
     padding: 15px;
-    border-radius: 4px;
+    border-radius: var(--hmw-radius-sm);
 }
 
 .hmwevents-voucher-success strong {
@@ -164,20 +166,20 @@
 .hmwevents-payment-option {
     display: block;
     padding: 20px;
-    border: 2px solid #d1d5db;
-    border-radius: 8px;
+    border: 2px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius);
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .hmwevents-payment-option:hover {
-    border-color: #3b82f6;
-    background: #f9fafb;
+    border-color: var(--hmw-color-primary);
+    background: var(--hmw-color-bg-section);
 }
 
 .hmwevents-payment-option.active {
-    border-color: #3b82f6;
-    background: #eff6ff;
+    border-color: var(--hmw-color-primary);
+    background: var(--hmw-color-primary-light);
 }
 
 .hmwevents-payment-option input[type="radio"] {
@@ -199,15 +201,15 @@
 }
 
 .hmwevents-payment-price {
-    font-size: 1.25rem;
+    font-size: 2rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--hmw-color-text);
 }
 
 .hmwevents-payment-option p {
     margin: 0;
-    color: #6b7280;
-    font-size: 0.875rem;
+    color: var(--hmw-color-text-muted);
+    font-size: 1.4rem;
 }
 
 .hmwevents-payment-amount {
@@ -215,21 +217,21 @@
     justify-content: space-between;
     align-items: center;
     padding: 15px;
-    background: #f9fafb;
-    border-radius: 4px;
+    background: var(--hmw-color-bg-section);
+    border-radius: var(--hmw-radius-sm);
 }
 
 /* Stripe Card Element */
 .hmwevents-card-element {
     padding: 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: #fff;
+    border: 1px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius-sm);
+    background: var(--hmw-color-bg);
 }
 
 .hmwevents-card-errors {
-    color: #ef4444;
-    font-size: 0.875rem;
+    color: var(--hmw-color-error);
+    font-size: 1.4rem;
     margin-top: 8px;
 }
 
@@ -237,23 +239,23 @@
 .hmwevents-btn {
     padding: 12px 24px;
     border: none;
-    border-radius: 4px;
-    font-size: 1rem;
+    border-radius: var(--hmw-radius-sm);
+    font-size: 1.6rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .hmwevents-btn-primary {
-    background: var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white));
-    color: var(--bde-palette-color-1-db969e92-8895-47c2-b31c-bac029551fa2, var(--bde-brand-primary-color, white));
+    background: var(--hmw-color-primary);
+    color: var(--hmw-color-button-text);
     width: 100%;
     padding: 15px;
-    font-size: 1.125rem;
+    font-size: 1.8rem;
 }
 
 .hmwevents-btn-primary:hover:not(:disabled) {
-    background: var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white));
+    background: var(--hmw-color-primary-hover);
 }
 
 .hmwevents-btn-primary:disabled {
@@ -262,26 +264,26 @@
 }
 
 .hmwevents-btn-secondary {
-    background: #f3f4f6;
-    color: #374151;
+    background: var(--hmw-color-bg-section);
+    color: var(--hmw-color-text);
 }
 
 .hmwevents-btn-secondary:hover {
-    background: #e5e7eb;
+    background: var(--hmw-color-border);
 }
 
 .hmwevents-btn-link {
     background: none;
     border: none;
-    color: var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white));
+    color: var(--hmw-color-primary);
     text-decoration: underline;
     cursor: pointer;
     padding: 0;
-    font-size: 0.875rem;
+    font-size: 1.4rem;
 }
 
 .hmwevents-btn-link:hover {
-    color: var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95, var(--bde-brand-primary-color, white));
+    color: var(--hmw-color-primary-hover);
 }
 
 /* Form Messages */
@@ -293,29 +295,29 @@
 }
 
 .hmwevents-message-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #6ee7b7;
+    background: var(--hmw-color-success-bg);
+    color: var(--hmw-color-success);
+    border: 1px solid color-mix(in srgb, var(--hmw-color-success) 45%, transparent);
 }
 
 .hmwevents-message-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fca5a5;
+    background: var(--hmw-color-error-bg);
+    color: var(--hmw-color-error);
+    border: 1px solid color-mix(in srgb, var(--hmw-color-error) 40%, transparent);
 }
 
 .hmwevents-message-info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #93c5fd;
+    background: var(--hmw-color-primary-light);
+    color: var(--hmw-color-primary);
+    border: 1px solid var(--hmw-color-border-focus);
 }
 
 .hmwevents-error {
-    color: #ef4444;
+    color: var(--hmw-color-error);
     padding: 15px;
-    background: #fee2e2;
-    border-radius: 4px;
-    border: 1px solid #fca5a5;
+    background: var(--hmw-color-error-bg);
+    border-radius: var(--hmw-radius-sm);
+    border: 1px solid color-mix(in srgb, var(--hmw-color-error) 40%, transparent);
 }
 
 /* Spinner */

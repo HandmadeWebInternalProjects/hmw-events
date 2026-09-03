@@ -135,7 +135,7 @@ class StripeWebhook
         global $wpdb;
 
         $wpdb->update(
-            $wpdb->prefix . 'hmwevents_payment_transactions',
+            \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions'),
             [
                 'status' => 'failed',
                 'error_message' => $payment_intent->last_payment_error->message ?? 'Payment failed',
@@ -147,13 +147,13 @@ class StripeWebhook
 
         // Update bookings to failed
         $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
+            SELECT * FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . "
             WHERE gateway_transaction_id = %s
         ", $payment_intent->id));
 
         if ($transaction) {
             $wpdb->update(
-                $wpdb->prefix . 'hmwevents_bookings',
+                \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
                 ['payment_status' => 'failed'],
                 ['booking_group_id' => $transaction->booking_group_id],
                 ['%s'],
@@ -185,7 +185,7 @@ class StripeWebhook
 
         // Find the payment transaction
         $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
+            SELECT * FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . "
             WHERE gateway_transaction_id = %s
         ", $charge->payment_intent));
 
@@ -196,7 +196,7 @@ class StripeWebhook
 
         // Update transaction
         $wpdb->update(
-            $wpdb->prefix . 'hmwevents_payment_transactions',
+            \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions'),
             [
                 'status' => 'refunded',
                 'refund_id' => $charge->refunds->data[0]->id ?? null,
@@ -210,7 +210,7 @@ class StripeWebhook
 
         // Update bookings
         $wpdb->update(
-            $wpdb->prefix . 'hmwevents_bookings',
+            \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
             [
                 'payment_status' => 'refunded',
                 'status' => 'cancelled',
@@ -236,7 +236,7 @@ class StripeWebhook
 
         // Log dispute
         $wpdb->insert(
-            $wpdb->prefix . 'hmwevents_booking_history',
+            \HMWEvents\Services\DatabaseService::get_table_name('booking_history'),
             [
                 'booking_id' => 0, // We'd need to look this up
                 'old_status' => null,

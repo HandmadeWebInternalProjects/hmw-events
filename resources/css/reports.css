@@ -17,7 +17,7 @@
 
 .report-title {
     color: #d63638;
-    font-size: 2rem;
+    font-size: 3.2rem;
     margin-bottom: 0.5rem;
 }
 
@@ -443,7 +443,7 @@
     }
     
     .report-title {
-        font-size: 1.5rem;
+        font-size: 2.4rem;
     }
     
     /* Stack section header and pie chart on mobile */

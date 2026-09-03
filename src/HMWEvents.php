@@ -94,6 +94,8 @@ final class HMWEvents
           // Core Infrastructure
           Services\DatabaseService::class,
           Services\StripeService::class,
+          Services\EventDataService::class,
+          Services\CapacityService::class,
           Services\PaymentGateway::class,
           Services\VoucherService::class,
           Services\BookingCleanup::class,
@@ -105,24 +107,26 @@ final class HMWEvents
           Services\EventTemplateService::class,
           Services\EventTemplateOverrideService::class,
           Services\FormSubmissionService::class,
-          Services\EventTypeDefaultsService::class,
+           Services\EventTypeDefaultsService::class,
+           Admin\EventPricing::class,
           Services\RegistrationFormPreset::class,
           Services\RegistrationFormRenderer::class,
           Services\DocumentUploadHandler::class,
           Services\PaymentService::class,
-          Services\NetTermsHandler::class,
-          Services\PaymentOverrideService::class,
+           Services\NetTermsHandler::class,
+           Services\InvoiceService::class,
+           Services\PaymentOverrideService::class,
           Services\WaitlistService::class,
           Services\InvitationTokenService::class,
           Services\BookingSelfCancelService::class,
           Services\SessionService::class,
-          Services\EmailTemplateManager::class,
-          Services\EmailDispatchService::class,
+          Services\SessionBookingService::class,
           Services\EventListingService::class,
           Services\ReportingService::class,
 
           // Post Types
           PostTypes\Event::class,
+          PostTypes\EventLocation::class,
           PostTypes\Registrant::class,
           PostTypes\Coupon::class,
 
@@ -143,13 +147,11 @@ final class HMWEvents
           // HTTP & API
           Api\RegisterRoutes::class,
           Api\StripeWebhook::class,
-
-          // Helpers
-          Helpers\Encryption::class,
-          Helpers\RecurringEvent::class,
+          Api\Routes\V3Registration::class,
 
           // Admin Handlers
           Admin\EventLifecycle::class,
+          Admin\EventListColumns::class,
           Admin\RecurringEventHandler::class,
           Admin\EventBookings::class,
           Admin\OrganizerPaymentsDashboard::class,

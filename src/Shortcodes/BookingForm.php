@@ -12,12 +12,24 @@
 
 namespace HMWEvents\Shortcodes;
 
+use HMWEvents\Helpers\EventFieldConfig;
 use HMWEvents\Registry\RegistrationFieldRegistry;
+use HMWEvents\Services\EventDataService;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class BookingForm
 {
+    private ?EventDataService $event_data_service = null;
+
+    private function event_data(): EventDataService
+    {
+        if ($this->event_data_service === null) {
+            $this->event_data_service = new EventDataService();
+        }
+        return $this->event_data_service;
+    }
+
   /**
    * Register the shortcode.
    *
@@ -53,16 +65,18 @@ class BookingForm
       return '<p class="hmwevents-error">Invalid event.</p>';
     }
 
+    if (!$this->event_data()->bookings_enabled($course_id)) {
+      return '';
+    }
+
     // Check cutoff date
-    if (class_exists('\\HMWEvents\\Meta\\CourseMeta')) {
-      $course_cutoff_date = \HMWEvents\Meta\CourseMeta::get_course_cutoff_date($course_id);
-      if ($course_cutoff_date) {
-        $sydney_timezone = new \DateTimeZone('Australia/Sydney');
-        $cutoff_datetime = new \DateTime($course_cutoff_date, $sydney_timezone);
-        $current_datetime = new \DateTime('now', $sydney_timezone);
-        if ($current_datetime >= $cutoff_datetime) {
-          return '<p class="hmwevents-error">Sorry, bookings for this event have closed.</p>';
-        }
+    $cutoff = $this->event_data()->get_booking_cutoff($course_id);
+    if ($cutoff) {
+      $sydney_timezone = new \DateTimeZone('Australia/Sydney');
+      $cutoff_datetime = new \DateTime($cutoff, $sydney_timezone);
+      $current_datetime = new \DateTime('now', $sydney_timezone);
+      if ($current_datetime >= $cutoff_datetime) {
+        return '<p class="hmwevents-error">Sorry, bookings for this event have closed.</p>';
       }
     }
 
@@ -78,12 +92,19 @@ class BookingForm
       $token_service = new \HMWEvents\Services\InvitationTokenService();
       $validation = $token_service->validate($token, $course_id);
       if (is_wp_error($validation)) {
-        return '<p class="hmwevents-notice">' . esc_html__('This event is by invitation only. Registrations require a valid invitation link.', 'hmw-events') . '</p>';
+        return '<p class="hmwevents-notice">' . esc_html($validation->get_error_message()) . '</p>';
       }
     } else {
       if (!\HMWEvents\Helpers\EventHelper::check_course_availability($course_id)) {
-        return '<p class="hmwevents-error">Sorry, this course is fully booked.</p>';
+        $renderer = new \HMWEvents\Services\WaitlistFormRenderer();
+        return $renderer->render($course_id);
       }
+    }
+
+    $capacity_service = new \HMWEvents\Services\CapacityService();
+    if ($capacity_service->get_capacity($course_id) > 0 && $capacity_service->get_remaining_places($course_id) <= 0) {
+      $renderer = new \HMWEvents\Services\WaitlistFormRenderer();
+      return $renderer->render($course_id);
     }
 
     $v3_config = $this->get_v3_config($course_id);
@@ -93,18 +114,21 @@ class BookingForm
     }
 
     // Get pricing
-    $full_cost = get_field('_event_price', $course_id);
-    $deposit_cost = get_field('_event_deposit', $course_id);
-    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
-    $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
+    $full_cost = $this->event_data()->get_price($course_id);
+    $deposit_cost = $this->event_data()->get_deposit($course_id);
+    $surcharge = $this->event_data()->get_surcharge($course_id);
+    $currency = $this->event_data()->get_currency($course_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
     $organizer_id = $course->post_author;
 
     $display_full = floatval($full_cost) + $surcharge;
     $display_deposit = floatval($deposit_cost) + $surcharge;
 
+    $deposits_enabled = apply_filters('hmwevents_deposit_enabled', false);
+    $deposit_cost = $deposits_enabled ? $deposit_cost : 0;
+
     $is_private_access = \HMWEvents\PostTypes\Event::is_invitation_only($course_id);
-    $show_net_terms = (bool) get_post_meta($course_id, '_event_allow_net_terms', true) && $is_private_access;
+    $show_net_terms = $this->event_data()->get_allow_net_terms($course_id) && $is_private_access;
 
     // Enqueue Stripe
     wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
@@ -166,6 +190,9 @@ class BookingForm
 ?>
     <div class="hmwevents-booking-form-wrapper" data-course-id="<?php echo esc_attr($course_id); ?>">
       <form id="hmwevents-booking-form" class="hmwevents-booking-form">
+        <?php if (!empty($_GET['token'])): ?>
+          <input type="hidden" name="token" value="<?php echo esc_attr(sanitize_text_field(wp_unslash($_GET['token']))); ?>">
+        <?php endif; ?>
 
         <!-- Registry-driven booking fields -->
         <?php $this->render_booking_field_sections($fields); ?>
@@ -202,7 +229,7 @@ class BookingForm
         <div class="hmwevents-form-section hmwevents-payment-type-section">
           <h3>Payment Option</h3>
 
-          <?php if ($deposit_cost): ?>
+          <?php if ($deposit_cost && $deposits_enabled): ?>
             <div class="hmwevents-payment-options">
               <label class="hmwevents-payment-option" data-type="full">
                 <input type="radio" name="payment_type" value="full" id="payment_full" checked>
@@ -442,13 +469,13 @@ class BookingForm
             $template_registration = $template_override['registration_fields'];
         }
 
-        $snapshot = get_post_meta($event_id, '_event_field_config', true);
+        $snapshot = EventFieldConfig::read($event_id);
         $registration_config = null;
-        if (is_array($snapshot) && isset($snapshot['registration_fields']) && is_array($snapshot['registration_fields'])) {
+        if ($snapshot !== null && isset($snapshot['registration_fields']) && is_array($snapshot['registration_fields'])) {
             $registration_config = $snapshot['registration_fields'];
         }
 
-        $snapshot_defaults = get_post_meta($event_id, '_event_default_values', true);
+        $snapshot_defaults = EventFieldConfig::read($event_id, '_event_default_values');
         $field_overrides = [];
         if (is_array($snapshot_defaults) && isset($snapshot_defaults['registration']['field_overrides'])) {
             $field_overrides = $snapshot_defaults['registration']['field_overrides'];
@@ -584,13 +611,19 @@ class BookingForm
 
   private function get_v3_config(int $event_id): ?array
   {
-    $override = get_post_meta($event_id, '_event_template_override', true);
-    if (is_array($override) && !empty($override['registration_fields']['sections'])) {
+    $override = EventFieldConfig::read($event_id, '_event_template_override');
+    if ($override !== null
+      && isset($override['registration_fields']['sections'])
+      && is_array($override['registration_fields']['sections'])
+    ) {
       return $override['registration_fields'];
     }
 
-    $config = get_post_meta($event_id, '_event_field_config', true);
-    if (is_array($config) && !empty($config['registration_fields']['sections'])) {
+    $config = EventFieldConfig::read($event_id);
+    if ($config !== null
+      && isset($config['registration_fields']['sections'])
+      && is_array($config['registration_fields']['sections'])
+    ) {
       return $config['registration_fields'];
     }
 

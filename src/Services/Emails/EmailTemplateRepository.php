@@ -11,6 +11,8 @@
 
 namespace HMWEvents\Services\Emails;
 
+use HMWEvents\Services\DatabaseService;
+
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 /**
@@ -30,8 +32,7 @@ class EmailTemplateRepository
      */
     public function __construct()
     {
-        global $wpdb;
-        $this->table = $wpdb->prefix . 'email_templates';
+        $this->table = DatabaseService::get_table_name('email_templates');
     }
 
     /**
@@ -52,7 +53,7 @@ class EmailTemplateRepository
             // For educator templates, only find educator-specific template, no fallback
             $existing = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM {$this->table} 
-                 WHERE educator_id = %d 
+                  WHERE organizer_id = %d
                  AND template_key = %s",
                 $data['educator_id'],
                 $data['template_key']
@@ -61,7 +62,7 @@ class EmailTemplateRepository
             // For system templates, find system template (educator_id IS NULL)
             $existing = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM {$this->table} 
-                 WHERE educator_id IS NULL 
+                  WHERE organizer_id IS NULL
                  AND template_key = %s",
                 $data['template_key']
             ));
@@ -95,7 +96,7 @@ class EmailTemplateRepository
         $result = $wpdb->insert(
             $this->table,
             [
-                'educator_id'  => $data['educator_id'] ?? null,
+                'organizer_id' => $data['educator_id'] ?? $data['organizer_id'] ?? null,
                 'template_key' => $data['template_key'],
                 'subject'      => $data['subject'] ?? '',
                 'body'         => $data['body'] ?? '',
@@ -123,7 +124,7 @@ class EmailTemplateRepository
         if ($educator_id) {
             $template = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM {$this->table} 
-                 WHERE educator_id = %d 
+                  WHERE organizer_id = %d
                  AND template_key = %s 
                  AND is_active = 1",
                 $educator_id,
@@ -138,7 +139,7 @@ class EmailTemplateRepository
         // Fall back to system default (educator_id is NULL)
         return $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$this->table} 
-             WHERE educator_id IS NULL 
+              WHERE organizer_id IS NULL
              AND template_key = %s 
              AND is_active = 1",
             $template_key
@@ -173,7 +174,7 @@ class EmailTemplateRepository
 
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$this->table} 
-             WHERE educator_id = %d
+              WHERE organizer_id = %d
              ORDER BY template_key ASC",
             $educator_id
         ));
@@ -190,7 +191,7 @@ class EmailTemplateRepository
 
         return $wpdb->get_results(
             "SELECT * FROM {$this->table} 
-             WHERE educator_id IS NULL
+              WHERE organizer_id IS NULL
              ORDER BY template_key ASC"
         );
     }

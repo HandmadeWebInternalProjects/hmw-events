@@ -1,0 +1,184 @@
+.hmwevents-attendance-option-row,
+.hmwevents-pricing-row {
+  --hmw-admin-border: #dcdcde;
+  --hmw-admin-muted: #646970;
+  --hmw-admin-surface: #f6f7f7;
+}
+
+.hmwevents-attendance-control,
+.hmwevents-age-band-control,
+.hmwevents-attendance-capacity,
+.hmwevents-pricing-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hmwevents-attendance-control > span:first-child,
+.hmwevents-age-band-control > span:first-child,
+.hmwevents-attendance-capacity > span:first-child,
+.hmwevents-pricing-control > span:first-child {
+  color: #1d2327;
+}
+
+.hmwevents-attendance-control input,
+.hmwevents-attendance-control select,
+.hmwevents-age-band-control input,
+.hmwevents-age-band-control select,
+.hmwevents-pricing-control input,
+.hmwevents-pricing-control select {
+  box-sizing: border-box;
+  min-height: 30px;
+  max-width: none;
+  width: 100%;
+}
+
+.hmwevents-attendance-panel,
+.hmwevents-pricing-panel {
+  padding: 12px;
+  background: var(--hmw-admin-surface);
+  border: 1px solid var(--hmw-admin-border);
+  border-radius: 4px;
+}
+
+.hmwevents-attendance-panel-help,
+.hmwevents-pricing-help {
+  margin: 0 0 8px;
+  color: var(--hmw-admin-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.hmwevents-attendance-multi-booking {
+  padding: 12px;
+  margin-bottom: 14px;
+  background: #f0f6fc;
+  border-left: 4px solid #2271b1;
+}
+
+.hmwevents-attendance-multi-booking .description {
+  margin: 4px 0 8px 20px;
+}
+
+.hmwevents-attendance-multi-booking > div {
+  display: flex;
+  gap: 12px;
+  margin-left: 20px;
+}
+
+.hmwevents-attendance-multi-booking input[type="number"] {
+  width: 70px;
+}
+
+.hmwevents-attendance-control-grid,
+.hmwevents-pricing-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 180px));
+  gap: 12px;
+}
+
+.hmwevents-attendance-input-prefix,
+.hmwevents-pricing-prefix {
+  display: none;
+}
+
+.hmwevents-age-band-rule {
+  display: grid;
+  grid-template-columns: minmax(130px, 170px) minmax(130px, 150px) minmax(150px, 210px) minmax(130px, 170px) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--hmw-admin-border);
+  border-radius: 4px;
+}
+
+.hmwevents-age-band-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+}
+
+.hmwevents-age-band-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.hmwevents-age-band-control small,
+.hmwevents-age-band-field small,
+.hmwevents-attendance-capacity small {
+  color: var(--hmw-admin-muted);
+  font-weight: 400;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.hmwevents-age-band-remove {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--hmw-admin-border);
+  border-radius: 3px;
+  background: #fff;
+  color: #b32d2e;
+  font-size: 16px;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.hmwevents-age-band-remove:hover {
+  border-color: #b32d2e;
+  color: #d63638;
+}
+
+.hmwevents-pricing-row > td {
+  vertical-align: top;
+  padding: 14px 12px;
+}
+
+.hmwevents-pricing-row > td:first-child {
+  width: 180px;
+}
+
+.hmwevents-pricing-row > td:first-child small {
+  color: var(--hmw-admin-muted);
+}
+
+.hmwevents-price-mode {
+  min-width: 180px;
+  margin-bottom: 8px;
+}
+
+.hmwevents-age-band-rules {
+  display: grid;
+  gap: 8px;
+}
+
+.hmwevents-age-band-rules .hmwevents-age-band-rule {
+  margin-bottom: 0;
+}
+
+@media (max-width: 782px) {
+  .hmwevents-pricing-row,
+  .hmwevents-pricing-row > td {
+    display: block;
+    width: auto !important;
+  }
+
+  .hmwevents-pricing-row > td:first-child {
+    padding-bottom: 0;
+  }
+
+  .hmwevents-age-band-rule {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hmwevents-age-band-remove {
+    justify-self: start;
+  }
+}

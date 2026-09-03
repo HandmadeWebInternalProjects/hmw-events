@@ -2,6 +2,7 @@
 
 namespace HMWEvents\Services;
 
+use HMWEvents\Registry\AcfFieldGroupRegistry;
 use HMWEvents\Registry\EventTypeRegistry;
 use HMWEvents\Registry\RegistrationFieldRegistry;
 
@@ -14,12 +15,19 @@ class TemplateSchemaValidator
     const ALLOWED_FIELD_TYPES = [
         'text', 'email', 'tel', 'textarea', 'select',
         'checkbox', 'radio', 'date', 'number', 'file',
+        'session_picker',
     ];
 
     const ALLOWED_SOURCES = ['registrant_meta', 'booking_details'];
 
-    private const GROUP_EXPANSIONS = [
-        'event_recurrence' => \HMWEvents\Registry\EventTypeRegistry::RECURRENCE_FIELD_KEYS,
+    const ALLOWED_ATTENDANCE_TYPES = ['individual', 'parent', 'parent_child', 'couple', 'professional'];
+
+    const ALLOWED_MULTI_BOOKING_MODES = ['attendees', 'parent_children'];
+
+    private const LEGACY_EVENT_FIELD_KEYS = [
+        'event_venue_name',
+        'event_venue_address',
+        'event_currency',
     ];
 
     public function normalize(array $template_data): array|\WP_Error
@@ -238,7 +246,7 @@ class TemplateSchemaValidator
             $section_id = sanitize_key($section['id'] ?? 'sec_' . bin2hex(random_bytes(4)));
             $fields = [];
 
-            foreach ($section['fields'] as $raw_field) {
+                foreach (($section['fields'] ?? []) as $raw_field) {
                 if (!is_array($raw_field)) {
                     continue;
                 }
@@ -259,10 +267,43 @@ class TemplateSchemaValidator
 
         return [
             'sections'      => $sections,
-            'multi_booking' => [
-                'enabled' => (bool) ($multi_booking['enabled'] ?? false),
-                'min'     => max(1, (int) ($multi_booking['min'] ?? 1)),
-                'max'     => max(1, (int) ($multi_booking['max'] ?? 10)),
+            'multi_booking' => $this->normalize_multi_booking($multi_booking),
+        ];
+    }
+
+    private function normalize_multi_booking(array $multi_booking): array
+    {
+        $mode = sanitize_key((string) ($multi_booking['mode'] ?? 'attendees'));
+        if ($mode === '') {
+            $mode = 'attendees';
+        }
+
+        $child_fields = is_array($multi_booking['child_fields'] ?? null) ? $multi_booking['child_fields'] : [];
+
+        return [
+            'enabled'      => (bool) ($multi_booking['enabled'] ?? false),
+            'mode'         => $mode,
+            'min'          => max(1, (int) ($multi_booking['min'] ?? 1)),
+            'max'          => max(1, (int) ($multi_booking['max'] ?? 10)),
+            'child_fields' => $this->normalize_child_fields($child_fields),
+        ];
+    }
+
+    private function normalize_child_fields(array $child_fields): array
+    {
+        $name = is_array($child_fields['name'] ?? null) ? $child_fields['name'] : [];
+        $age  = is_array($child_fields['age'] ?? null) ? $child_fields['age'] : [];
+
+        return [
+            'name' => [
+                'enabled'  => (bool) ($name['enabled'] ?? true),
+                'required' => (bool) ($name['required'] ?? true),
+                'label'    => sanitize_text_field((string) ($name['label'] ?? '')) ?: __('Child Name', 'hmw-events'),
+            ],
+            'age'  => [
+                'enabled'  => (bool) ($age['enabled'] ?? true),
+                'required' => (bool) ($age['required'] ?? false),
+                'label'    => sanitize_text_field((string) ($age['label'] ?? '')) ?: __('Date of Birth', 'hmw-events'),
             ],
         ];
     }
@@ -308,6 +349,7 @@ class TemplateSchemaValidator
             'meta_key'     => $field['meta_key'] ?? null,
             'preset'       => (bool) ($field['preset'] ?? false),
             'per_attendee' => (bool) ($field['per_attendee'] ?? false),
+            'attendance_types' => $this->sanitize_attendance_types($field['attendance_types'] ?? []),
             'options'      => $options,
         ];
     }
@@ -322,7 +364,7 @@ class TemplateSchemaValidator
         }
 
         $known_event_fields = $this->get_known_event_field_keys();
-        $known_group_keys = array_keys(self::GROUP_EXPANSIONS);
+        $known_group_keys = array_keys(AcfFieldGroupRegistry::get_group_expansions());
         foreach (['required', 'optional', 'hidden'] as $bucket) {
             foreach ($data['event_fields'][$bucket] as $key) {
                 if (in_array($key, $known_group_keys, true)) {
@@ -339,6 +381,68 @@ class TemplateSchemaValidator
             $errors = array_merge($errors, $this->validate_multi_booking($data));
         } elseif ($schema_version >= 2) {
             $errors = array_merge($errors, $this->validate_v2_registration($data));
+        }
+
+        $errors = array_merge($errors, $this->validate_attendance_options($data));
+
+        return $errors;
+    }
+
+    private function validate_attendance_options(array $data): array
+    {
+        $errors = [];
+        $options = $data['defaults']['attendance_options'] ?? [];
+
+        foreach ($options as $index => $option) {
+            $capacity = $option['capacity'] ?? null;
+            if ($capacity !== null && $capacity < 0) {
+                $errors[] = sprintf('Attendance option %d capacity must be at least 0.', $index);
+            }
+
+            $mode = $option['price_mode'] ?? 'flat';
+            if (!in_array($mode, AttendancePricingService::MODES, true)) {
+                $errors[] = sprintf('Attendance option %d has an invalid price_mode.', $index);
+            }
+
+            $composition = $option['composition'] ?? [];
+            $min = (int) ($composition['min_attendees'] ?? 1);
+            $max = (int) ($composition['max_attendees'] ?? $min);
+
+            if ($min < 1) {
+                $errors[] = sprintf('Attendance option %d minimum attendees must be at least 1.', $index);
+            }
+
+            if ($max < $min) {
+                $errors[] = sprintf('Attendance option %d maximum attendees must be at least the minimum.', $index);
+            }
+
+            $min_adults = (int) ($composition['min_adults'] ?? 0);
+            $min_children = (int) ($composition['min_children'] ?? 0);
+
+            if ($min_adults + $min_children > $max) {
+                $errors[] = sprintf('Attendance option %d requires more adults and children than its maximum attendees allows.', $index);
+            }
+
+            foreach ($option['pricing_rules'] ?? [] as $rule_index => $rule) {
+                if (!isset($rule['price']) || !is_numeric($rule['price'])) {
+                    $errors[] = sprintf('Attendance option %d pricing rule %d must have a numeric price.', $index, $rule_index);
+                }
+
+                if ($mode === 'per_attendee' && !in_array($rule['role'] ?? '', ['adult', 'child', 'any'], true)) {
+                    $errors[] = sprintf('Attendance option %d pricing rule %d must target adult, child, or any for per-attendee pricing.', $index, $rule_index);
+                }
+
+                $rule_min = (int) ($rule['min_age'] ?? 0);
+                $rule_max = $rule['max_age'] ?? null;
+
+                if ($rule_min < 0) {
+                    $errors[] = sprintf('Attendance option %d pricing rule %d minimum age must be at least 0.', $index, $rule_index);
+                }
+
+                if ($rule_max !== null && $rule_max !== '' && (int) $rule_max < $rule_min) {
+                    $errors[] = sprintf('Attendance option %d pricing rule %d maximum age must not be less than its minimum age.', $index, $rule_index);
+                }
+            }
         }
 
         return $errors;
@@ -464,6 +568,16 @@ class TemplateSchemaValidator
                     $errors[] = sprintf('Field "%s" per_attendee must be boolean.', $fkey);
                 }
 
+                if (!is_array($field['attendance_types'])) {
+                    $errors[] = sprintf('Field "%s" attendance_types must be an array.', $fkey);
+                } else {
+                    foreach ($field['attendance_types'] as $attendance_type) {
+                        if (!in_array($attendance_type, self::ALLOWED_ATTENDANCE_TYPES, true)) {
+                            $errors[] = sprintf('Field "%s" has invalid attendance type "%s".', $fkey, $attendance_type);
+                        }
+                    }
+                }
+
                 if ($field['per_attendee'] && !$multi_enabled) {
                     $errors[] = sprintf('Field "%s" has per_attendee=true but multi-booking is disabled.', $fkey);
                 }
@@ -480,6 +594,14 @@ class TemplateSchemaValidator
 
         if (!isset($mb['enabled']) || !is_bool($mb['enabled'])) {
             $errors[] = 'multi_booking.enabled must be a boolean.';
+        }
+
+        $mode = $mb['mode'] ?? 'attendees';
+        if (!in_array($mode, self::ALLOWED_MULTI_BOOKING_MODES, true)) {
+            $errors[] = sprintf(
+                'multi_booking.mode must be one of: %s.',
+                implode(', ', self::ALLOWED_MULTI_BOOKING_MODES)
+            );
         }
 
         $min = (int) ($mb['min'] ?? 1);
@@ -523,6 +645,18 @@ class TemplateSchemaValidator
         ];
     }
 
+    private function sanitize_attendance_types($types): array
+    {
+        if (!is_array($types)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(
+            array_map('sanitize_key', $types),
+            fn(string $type): bool => $type !== ''
+        )));
+    }
+
     private function canonicalize_event_field_list(array $keys): array
     {
         $normalized = [];
@@ -538,10 +672,11 @@ class TemplateSchemaValidator
 
         $normalized = array_values(array_unique($normalized));
 
+        $expansions = AcfFieldGroupRegistry::get_group_expansions();
         $expanded = [];
         foreach ($normalized as $key) {
-            if (isset(self::GROUP_EXPANSIONS[$key])) {
-                foreach (self::GROUP_EXPANSIONS[$key] as $child) {
+            if (isset($expansions[$key])) {
+                foreach ($expansions[$key] as $child) {
                     $expanded[] = $child;
                 }
             } else {
@@ -594,10 +729,99 @@ class TemplateSchemaValidator
                 continue;
             }
 
+            $raw_capacity = $option['capacity'] ?? null;
+            $capacity = ($raw_capacity === null || $raw_capacity === '')
+                ? null
+                : max(0, (int) $raw_capacity);
+
+            $rules = $this->normalize_pricing_rules($option['pricing_rules'] ?? []);
+            $mode  = AttendancePricingService::normalize_mode((string) ($option['price_mode'] ?? ''), $rules);
+
             $clean[] = [
-                'option_type' => $type ?: 'individual',
-                'label'       => $label,
-                'price'       => (float) ($option['price'] ?? 0),
+                'option_type'   => $type ?: 'individual',
+                'label'         => $label,
+                'price'         => (float) ($option['price'] ?? 0),
+                'capacity'      => $capacity,
+                'composition'   => $this->normalize_composition($option['composition'] ?? [], $type),
+                'price_mode'    => $mode,
+                'pricing_rules' => $rules,
+            ];
+        }
+
+        return $clean;
+    }
+
+    private function normalize_composition(array $composition, string $type): array
+    {
+        $defaults = AttendancePricingService::default_composition($type);
+
+        $min = isset($composition['min_attendees'])
+            ? max(1, (int) $composition['min_attendees'])
+            : $defaults['min_attendees'];
+
+        $max = isset($composition['max_attendees'])
+            ? max(1, (int) $composition['max_attendees'])
+            : $defaults['max_attendees'];
+
+        if ($max < $min) {
+            $max = $min;
+        }
+
+        $min_adults = isset($composition['min_adults'])
+            ? max(0, (int) $composition['min_adults'])
+            : $defaults['min_adults'];
+
+        $min_children = isset($composition['min_children'])
+            ? max(0, (int) $composition['min_children'])
+            : $defaults['min_children'];
+
+        $allowed = $this->sanitize_attendance_types($composition['allowed_roles'] ?? $defaults['allowed_roles']);
+        $allowed = array_values(array_filter($allowed, fn($role) => in_array($role, ['adult', 'child'], true)));
+        if (empty($allowed)) {
+            $allowed = ['adult'];
+        }
+
+        return [
+            'min_attendees' => $min,
+            'max_attendees' => $max,
+            'min_adults'    => $min_adults,
+            'min_children'  => $min_children,
+            'allowed_roles' => $allowed,
+        ];
+    }
+
+    private function normalize_pricing_rules(array $rules): array
+    {
+        $clean = [];
+
+        foreach ($rules as $rule) {
+            if (!is_array($rule)) {
+                continue;
+            }
+
+            $price = $rule['price'] ?? null;
+            if ($price === null || $price === '' || !is_numeric($price)) {
+                continue;
+            }
+
+            $role = sanitize_key((string) ($rule['role'] ?? 'any'));
+            if (!in_array($role, ['adult', 'child', 'any'], true)) {
+                $role = 'any';
+            }
+
+            $max_age = $rule['max_age'] ?? null;
+            if ($max_age !== null && $max_age !== '') {
+                $max_age = (int) $max_age;
+            } else {
+                $max_age = null;
+            }
+
+            $clean[] = [
+                'label'   => sanitize_text_field($rule['label'] ?? ''),
+                'role'    => $role,
+                'min_age' => max(0, (int) ($rule['min_age'] ?? 0)),
+                'max_age' => $max_age,
+                'price'   => (float) $price,
             ];
         }
 
@@ -639,33 +863,7 @@ class TemplateSchemaValidator
 
     private function get_known_event_field_keys(): array
     {
-        $keys = [];
-
-        if (defined('HMWEvents_ABSPATH')) {
-            $json_file = HMWEvents_ABSPATH . 'acf-json/group_hmw_event_details.json';
-            if (file_exists($json_file)) {
-                $contents = file_get_contents($json_file);
-                $data = json_decode((string) $contents, true);
-                if (is_array($data) && !empty($data['fields'])) {
-                    foreach ($data['fields'] as $field) {
-                        $meta_name = $field['name'] ?? '';
-                        if ($meta_name === '') {
-                            continue;
-                        }
-
-                        $normalized = sanitize_key($meta_name);
-                        if (str_starts_with($normalized, '_event_')) {
-                            $normalized = substr($normalized, 1);
-                        }
-
-                        $keys[] = $normalized;
-                        if (str_starts_with($normalized, 'event_')) {
-                            $keys[] = '_' . $normalized;
-                        }
-                    }
-                }
-            }
-        }
+        $keys = AcfFieldGroupRegistry::get_field_keys();
 
         $all = EventTypeRegistry::all();
         foreach ($all as $config) {
@@ -686,6 +884,10 @@ class TemplateSchemaValidator
         foreach (array_keys(EventTypeRegistry::defaults()['default_meta'] ?? []) as $field) {
             $normalized = sanitize_key((string) $field);
             $keys[] = $normalized;
+        }
+
+        foreach (self::LEGACY_EVENT_FIELD_KEYS as $field) {
+            $keys[] = sanitize_key($field);
         }
 
         $keys = array_filter(array_unique($keys));

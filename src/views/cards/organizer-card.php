@@ -1,5 +1,7 @@
 <?php
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 /**
  * Educator Card Template
  * 

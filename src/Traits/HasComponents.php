@@ -2,6 +2,8 @@
 
 namespace HMWEvents\Traits;
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 trait HasComponents
 {
     abstract public static function get_components(): array;

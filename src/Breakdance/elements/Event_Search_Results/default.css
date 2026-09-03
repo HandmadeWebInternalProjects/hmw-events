@@ -13,7 +13,7 @@
 }
 
 .event-search-results .active-filters__label {
-  font-size: 0.875rem;
+  font-size: 1.4rem;
   color: #666;
 }
 
@@ -26,7 +26,7 @@
   color: var(--bde-palette-color-1-db969e92-8895-47c2-b31c-bac029551fa2);
   border: 1px solid var(--bde-palette-color-1-69cdcf52-a21a-4d2a-94e0-6b17bb086b95);
   border-radius: 999px;
-  font-size: 0.875rem;
+  font-size: 1.4rem;
   text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -38,7 +38,7 @@
 }
 
 .event-search-results .active-filter-tag__remove {
-  font-size: 1rem;
+  font-size: 1.6rem;
   line-height: 1;
   opacity: 0.7;
 }
@@ -52,7 +52,7 @@
 
 .event-search-results .results-count {
   margin-bottom: 1.5rem;
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   color: #666;
 }
 

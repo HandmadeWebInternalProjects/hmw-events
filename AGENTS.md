@@ -28,7 +28,7 @@ Handmade Web & Design. Targets PHP 8.0+ and WordPress 6.3+.
 
 ```
 src/
-├── Admin/                 # Admin screen handlers (RecurringEventHandler, Reporting, etc.)
+├── Admin/                 # Admin screen handlers (EventLifecycle, EventListColumns, RecurringEventHandler, etc.)
 ├── Api/                   # REST API (Routes, StripeWebhook, ApiHelper)
 │   └── Routes/            # Individual route classes
 ├── Breakdance/            # Breakdance page builder integration (elements, macros, presets)
@@ -41,7 +41,7 @@ src/
 ├── Middleware/            # Middleware patterns
 ├── PostTypes/             # CPT registrations (Event, Registrant, Coupon)
 ├── Providers/             # Service provider patterns
-├── Registry/              # Config registries (EventTypeRegistry, RegistrationFieldRegistry)
+├── Registry/              # Config registries (EventTypeRegistry, RegistrationFieldRegistry, EmailTypeRegistry)
 ├── Roles/                 # Custom user roles (EventOrganizerRole)
 ├── Services/              # Business logic services (35+ classes)
 │   ├── Emails/            # Email system (queue, templates, handlers, dispatch)
@@ -211,7 +211,7 @@ All routes under `hmwevents/v1`. Defined in classes under `src/Api/Routes/`:
 |---|---|
 | `ProcessPayment.php` | `/payment/process`, `/payment/create`, `/payment/confirm`, `/payment/status/{id}`, `/payment/resume/{token}`, `/payment/gateway-config`, `/payment/verify-amount`, `/voucher/validate`, `/coupon/validate` |
 | `BookingActions.php` | `/booking/transfer`, `/booking/resend-confirmation`, `/booking/resend-receipt`, `/booking/create-manual`, `/booking/update`, `/booking/send-payment-link` |
-| `Events.php` | `/courses/educator/{educator_id}`, `/educators/search` |
+| `V3Registration.php` | `/registration/v3-submit` (JSON v3 form submission, multi-attendee) |
 
 Routes are registered in `src/Api/RegisterRoutes.php`. The webhook endpoint
 (live mode) and test webhook endpoint are in `src/Api/StripeWebhook.php`.
@@ -225,8 +225,8 @@ are stored in the `hmwevents_email_templates` table, queued to
 Core services:
 - `EmailQueueProcessor` — processes the `hmwevents_email_queue` table
 - `EmailEventHooks` — fires emails based on plugin events
-- `EmailTemplateManager` — manages templates in `hmwevents_email_templates`
-- `EmailDispatchService` — sends via WordPress or external SMTP
+- `EmailTemplateRepository` — manages templates in `hmwevents_email_templates`
+- `EmailService` — orchestrates handlers, queue, and sending via `wp_mail`
 
 Email handlers in `src/Services/Emails/Handlers/`:
 - `BookingConfirmationHandler.php`
@@ -235,8 +235,34 @@ Email handlers in `src/Services/Emails/Handlers/`:
 - `ReminderHandler.php`
 - `PaymentLinkHandler.php`
 - `PostEventHandler.php`
+- `NotificationHandler.php` (payment receipts, waitlist promotions, invoices, invitations)
 
 All handlers extend `AbstractEmailHandler.php`.
+
+### Disable-able email types
+
+`EmailTypeRegistry` (`src/Registry/EmailTypeRegistry.php`) is the single
+source of truth for email types that can be disabled. The Email Queue
+admin "Notification Settings" UI (the list), the persisted option
+`hmwevents_disabled_emails` (written/filtered by
+`src/Admin/EmailQueue.php`), the `EmailEventHooks::is_email_enabled()`
+guards, and the queue table's type column all derive from it. The
+registry maps each key to a human label and resolves legacy keys via
+`canonical()` (e.g. `course_changed` → `event_changed`), so queued rows
+written before a rename still display and retry correctly — no DB
+migration. Unknown keys passed to `is_email_enabled()` fail open
+(return true).
+
+Disable-able types (13): `booking_confirmation`, `new_booking_notify`,
+`payment_received`, `booking_cancelled`, `reminder_7_days`,
+`reminder_1_day`, `post_event`, `invitation_sent`, `waitlist_joined`,
+`waitlist_promotion`, `invoice_issued`, `refund_issued`, `event_changed`.
+
+`waitlist_promotion` has its own toggle — it is not gated by
+`invitation_sent`. Email-type keys are the `email_type` column
+vocabulary in `hmwevents_email_queue`; template keys in
+`hmwevents_email_templates` (e.g. `course_changed`) are a separate,
+DB-persisted vocabulary and are not renamed.
 
 ### Event templates
 
@@ -254,6 +280,27 @@ applied when creating a new event via the AJAX endpoint
 | `wp hmw import-event-venue` | `src/CLI/ImportEventVenueCommand.php` |
 | `wp hmw repair-foreign-keys` | `src/CLI/RepairForeignKeysCommand.php` |
 
+### Admin Documentation page
+
+Reads the markdown user guide inside wp-admin. Submenu `hmwevents-documentation`
+under `hmwevents-main` (registered in `Admin::admin_menu()` after Reporting,
+rendered via `Admin::render_documentation_page()`), handled by
+`HMWEvents\Admin\Documentation` (`src/Admin/Documentation.php`) — instantiated
+on render, not a component. Content comes from `docs/user-guide/*.md`. The
+page is chosen with `&doc=<slug>`, normalized with `sanitize_key()` and
+validated against a strict whitelist (private const `PAGES`, slug => nav
+label, default `index`); file paths are built only from whitelist keys plus a
+`realpath()` containment check. Pipeline: load file → strip leading h1 (the
+extracted title becomes the single `<h1>`, PAGES label as fallback) →
+`rewrite_links()` (relative `images/...` without `..` → `plugins_url()`
+plugin URLs; whitelisted `<slug>.md`/`.md#anchor` links →
+`admin.php?page=hmwevents-documentation&doc=<slug>`; anything else untouched)
+→ league/commonmark `GithubFlavoredMarkdownConverter` (already a composer
+dependency; `html_input => escape`, `allow_unsafe_links => false`) →
+`wp_kses_post()`. Stylesheet `resources/admin/css/documentation.css` is
+enqueued on screens whose id contains `hmwevents-documentation`. Tests:
+`tests/Unit/Admin/DocumentationPageTest.php`.
+
 ### Registries
 
 `src/Registry/` contains configuration registry classes:
@@ -261,6 +308,9 @@ applied when creating a new event via the AJAX endpoint
   (which ACF fields to hide/require per event type)
 - `RegistrationFieldRegistry` — registration form field definitions
 - `CommunicationTriggerMatrix` — maps events to email triggers
+- `EmailTypeRegistry` — single source of truth for disable-able email
+  types (labels, legacy-key aliases, validation); consumed by the Email
+  Queue settings UI and `EmailEventHooks::is_email_enabled()`
 
 ### Custom user roles
 

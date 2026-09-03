@@ -68,21 +68,20 @@ class EventTypeRegistryTest extends TestCase
     public function test_parenting_webinar_hides_venue_fields(): void
     {
         $config = EventTypeRegistry::get('parenting-webinar');
-        $this->assertContains('event_venue_name', $config['hidden_fields']);
-        $this->assertContains('event_venue_address', $config['hidden_fields']);
+        $this->assertContains('event_venue', $config['hidden_fields']);
         $this->assertContains('event_surcharge', $config['hidden_fields']);
         $this->assertNotContains('event_webinar_url', $config['hidden_fields']);
     }
 
     public function test_is_field_visible_for_parenting_webinar(): void
     {
-        $this->assertFalse(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_venue_name'));
+        $this->assertFalse(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_venue'));
         $this->assertTrue(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_start_date'));
     }
 
     public function test_parent_one_off_free_does_not_hide_venue(): void
     {
-        $this->assertTrue(EventTypeRegistry::is_field_visible('parent-one-off-free', 'event_venue_address'));
+        $this->assertTrue(EventTypeRegistry::is_field_visible('parent-one-off-free', 'event_venue'));
     }
 
     // ============================================================
@@ -99,6 +98,12 @@ class EventTypeRegistryTest extends TestCase
     {
         $config = EventTypeRegistry::get('parent-one-off-free');
         $this->assertContains('event_surcharge', $config['hidden_fields']);
+    }
+
+    public function test_parent_one_off_free_allows_max_per_registrant(): void
+    {
+        $config = EventTypeRegistry::get('parent-one-off-free');
+        $this->assertNotContains('event_max_per_registrant', $config['hidden_fields']);
     }
 
     public function test_parent_walk_in_hides_surcharge(): void
@@ -127,12 +132,12 @@ class EventTypeRegistryTest extends TestCase
     {
         $this->assertTrue(EventTypeRegistry::is_field_required('parenting-webinar', 'event_start_date'));
         $this->assertTrue(EventTypeRegistry::is_field_required('parenting-webinar', 'event_webinar_url'));
-        $this->assertFalse(EventTypeRegistry::is_field_required('parenting-webinar', 'event_venue_name'));
+        $this->assertFalse(EventTypeRegistry::is_field_required('parenting-webinar', 'event_venue'));
     }
 
     public function test_professional_in_person_requires_venue(): void
     {
-        $this->assertTrue(EventTypeRegistry::is_field_required('professional-in-person', 'event_venue_name'));
+        $this->assertTrue(EventTypeRegistry::is_field_required('professional-in-person', 'event_venue'));
     }
 
     // ============================================================

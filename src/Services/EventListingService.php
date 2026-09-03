@@ -25,6 +25,7 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
 class EventListingService
 {
     private ?SessionService $session_service = null;
+    private ?EventDataService $event_data_service = null;
 
     private function session_service(): SessionService
     {
@@ -32,6 +33,14 @@ class EventListingService
             $this->session_service = new SessionService();
         }
         return $this->session_service;
+    }
+
+    private function event_data(): EventDataService
+    {
+        if ($this->event_data_service === null) {
+            $this->event_data_service = new EventDataService();
+        }
+        return $this->event_data_service;
     }
 
     public function register(): void
@@ -69,7 +78,14 @@ class EventListingService
     {
         $sort  = $filters['sort'] ?? 'date_asc';
         $paged = max(1, (int) ($filters['page'] ?? 1));
-
+        $invitation_only_ids = get_posts([
+            'post_type'      => 'hmw_event',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_key'       => \HMWEvents\PostTypes\Event::META_INVITATION_ONLY,
+            'meta_value'     => '1',
+        ]);
         $args = [
             'post_type'      => 'hmw_event',
             'post_status'    => ['publish', 'fully_booked'],
@@ -77,14 +93,21 @@ class EventListingService
             'paged'          => $paged,
             'meta_query'     => [
                 [
-                    'key'     => \HMWEvents\PostTypes\Event::META_INVITATION_ONLY,
-                    'compare' => 'NOT EXISTS',
+                    'key'     => '_event_start_date',
+                    'compare' => 'EXISTS',
                 ],
             ],
             'tax_query'      => [],
-            's'              => $filters['search'] ?? '',
             'post_parent'    => !empty($filters['show_child_sessions']) ? '' : 0,
         ];
+
+        if (!empty($filters['search'])) {
+            $args['s'] = $filters['search'];
+        }
+
+        if (!empty($invitation_only_ids)) {
+            $args['post__not_in'] = array_map('intval', (array) $invitation_only_ids);
+        }
 
         if ($sort === 'title_asc' || $sort === 'title_desc') {
             $args['orderby'] = 'title';
@@ -208,14 +231,15 @@ class EventListingService
      */
     public function get_event_card($post): ?array
     {
-        $start_date = get_post_meta($post->ID, '_event_start_date', true);
-        $end_date   = get_post_meta($post->ID, '_event_end_date', true);
-        $price      = (float) get_post_meta($post->ID, '_event_price', true);
-        $venue      = get_post_meta($post->ID, '_event_venue_name', true);
-        $venue_addr = \HMWEvents\Helpers\GoogleMapField::get_address_string(get_post_meta($post->ID, '_event_venue_address', true));
-        $capacity   = (int) get_post_meta($post->ID, '_event_capacity', true);
-        $webinar_url = get_post_meta($post->ID, '_event_webinar_url', true);
-        $is_free    = (bool) get_post_meta($post->ID, '_event_is_free', true);
+        $eds        = $this->event_data();
+        $start_date = $eds->get_start_date($post->ID);
+        $end_date   = $eds->get_end_date($post->ID);
+        $price      = $eds->get_price($post->ID);
+        $venue      = $eds->get_venue_name($post->ID);
+        $venue_addr = $eds->get_venue_address_string($post->ID);
+        $capacity   = $eds->get_capacity($post->ID);
+        $webinar_url= $eds->get_webinar_url($post->ID);
+        $is_free    = $eds->get_is_free($post->ID);
 
         $event_types    = wp_get_object_terms($post->ID, 'hmw_event_type', ['fields' => 'slugs']);
         $event_type_names = wp_get_object_terms($post->ID, 'hmw_event_type', ['fields' => 'names']);
@@ -303,9 +327,10 @@ class EventListingService
 
         $dates = [];
         $now = current_time('mysql');
+        $eds = $this->event_data();
 
         foreach ($sessions as $session) {
-            $start = get_post_meta($session->ID, '_event_start_date', true);
+            $start = $eds->get_start_date($session->ID);
             if ($start && $start >= $now) {
                 $dates[] = [
                     'raw'       => $start,
@@ -353,7 +378,7 @@ class EventListingService
     /**
      * Render the event listings shortcode.
      *
-     * [hmw_event_listings type="workshop" audience="parents" topic="sleep" mode="in-person" state="nsw" free="1" limit="12" show_filters="yes" sort="date" sort_order="ASC"]
+     * [hmw_event_listings type="workshop" audience="parents" topic="sleep" mode="in-person" state="nsw" free="1" limit="12" show_filters="yes" sort="date" sort_order="ASC" event_type_filter_parent="23"]
      */
     public function render_listings(array $atts = [], string $content = ''): string
     {
@@ -368,6 +393,7 @@ class EventListingService
             'show_filters' => 'yes',
             'sort'         => 'date',
             'sort_order'   => 'ASC',
+            'event_type_filter_parent' => '',
         ], $atts);
 
         $show_filters = $this->is_truthy($atts['show_filters']);
@@ -459,20 +485,30 @@ class EventListingService
      */
     private function parse_filter_params(array $atts): array
     {
-        $filters                = [];
+        $filters                   = [];
         $filters['posts_per_page'] = (int) $atts['limit'];
         $filters['show_type_filter'] = true;
 
+        $type_filter_parent = (int) $atts['event_type_filter_parent'];
+        if ($type_filter_parent > 0) {
+            $filters['type_filter_parent'] = $type_filter_parent;
+        }
+
         if ($atts['type']) {
             $filters['event_type'] = explode(',', $atts['type']);
-            $filters['show_type_filter'] = false;
-        } else {
-            $url_type = isset($_GET['ev_type']) ? (array) $_GET['ev_type'] : [];
-            $url_type = array_map('sanitize_text_field', $url_type);
-            $url_type = array_filter($url_type);
-            if ($url_type) {
-                $filters['event_type'] = $url_type;
+            $filters['event_type_is_restriction'] = true;
+            if ($type_filter_parent === 0) {
+                $filters['show_type_filter'] = false;
             }
+        }
+
+        $url_type = isset($_GET['ev_type']) ? (array) $_GET['ev_type'] : [];
+        $url_type = array_map('sanitize_text_field', $url_type);
+        $url_type = array_filter($url_type);
+
+        if ($url_type && ($type_filter_parent > 0 || empty($filters['event_type']))) {
+            $filters['event_type'] = $url_type;
+            unset($filters['event_type_is_restriction']);
         }
 
         if ($atts['audience']) {
@@ -563,7 +599,8 @@ class EventListingService
      */
     private function render_filter_bar(array $filters, array $atts): void
     {
-        $event_types     = $this->get_filter_terms('hmw_event_type');
+        $type_filter_parent = (int) ($filters['type_filter_parent'] ?? 0);
+        $event_types        = $this->get_filter_terms('hmw_event_type', $type_filter_parent);
         $delivery_modes  = $this->get_filter_terms('hmw_event_delivery_mode');
         $states          = $this->get_filter_terms('hmw_event_state');
         $topics          = $this->get_filter_terms('hmw_event_topic');
@@ -591,7 +628,7 @@ class EventListingService
                                 <label class="hmw-event-filters__checkbox">
                                     <input type="checkbox" name="ev_type[]" value="<?php echo esc_attr($term->slug); ?>"
                                         <?php checked(in_array($term->slug, $active_types, true)); ?> />
-                                    <?php echo esc_html($term->name); ?>
+                                    <?php echo esc_html($this->get_term_label($term)); ?>
                                 </label>
                             <?php endforeach; ?>
                         </div>
@@ -606,7 +643,7 @@ class EventListingService
                                 <label class="hmw-event-filters__checkbox">
                                     <input type="checkbox" name="ev_mode[]" value="<?php echo esc_attr($term->slug); ?>"
                                         <?php checked(in_array($term->slug, $active_modes, true)); ?> />
-                                    <?php echo esc_html($term->name); ?>
+                                    <?php echo esc_html($this->get_term_label($term)); ?>
                                 </label>
                             <?php endforeach; ?>
                         </div>
@@ -621,7 +658,7 @@ class EventListingService
                                 <label class="hmw-event-filters__checkbox">
                                     <input type="checkbox" name="ev_topic[]" value="<?php echo esc_attr($term->slug); ?>"
                                         <?php checked(in_array($term->slug, $active_topics, true)); ?> />
-                                    <?php echo esc_html($term->name); ?>
+                                    <?php echo esc_html($this->get_term_label($term)); ?>
                                 </label>
                             <?php endforeach; ?>
                         </div>
@@ -669,7 +706,7 @@ class EventListingService
                                 <label class="hmw-event-filters__checkbox">
                                     <input type="checkbox" name="ev_state[]" value="<?php echo esc_attr($term->slug); ?>"
                                         <?php checked(in_array($term->slug, $active_states, true)); ?> />
-                                    <?php echo esc_html($term->name); ?>
+                                    <?php echo esc_html($this->get_term_label($term)); ?>
                                 </label>
                             <?php endforeach; ?>
                         </div>
@@ -725,12 +762,12 @@ class EventListingService
     {
         $tags = [];
 
-        if (isset($filters['event_type']) && $filters['show_type_filter']) {
+        if (isset($filters['event_type']) && $filters['show_type_filter'] && empty($filters['event_type_is_restriction'])) {
             $terms = get_terms(['taxonomy' => 'hmw_event_type', 'slug' => (array) $filters['event_type'], 'hide_empty' => false]);
             if ($terms && !is_wp_error($terms)) {
                 foreach ($terms as $term) {
                     $tags[] = [
-                        'label'  => $term->name,
+                        'label'  => $this->get_term_label($term),
                         'group'  => __('Type', 'hmw-events'),
                         'remove' => 'ev_type',
                         'value'  => $term->slug,
@@ -744,7 +781,7 @@ class EventListingService
             if ($terms && !is_wp_error($terms)) {
                 foreach ($terms as $term) {
                     $tags[] = [
-                        'label'  => $term->name,
+                        'label'  => $this->get_term_label($term),
                         'group'  => __('Mode', 'hmw-events'),
                         'remove' => 'ev_mode',
                         'value'  => $term->slug,
@@ -758,7 +795,7 @@ class EventListingService
             if ($terms && !is_wp_error($terms)) {
                 foreach ($terms as $term) {
                     $tags[] = [
-                        'label'  => $term->name,
+                        'label'  => $this->get_term_label($term),
                         'group'  => __('Topic', 'hmw-events'),
                         'remove' => 'ev_topic',
                         'value'  => $term->slug,
@@ -772,7 +809,7 @@ class EventListingService
             if ($terms && !is_wp_error($terms)) {
                 foreach ($terms as $term) {
                     $tags[] = [
-                        'label'  => $term->name,
+                        'label'  => $this->get_term_label($term),
                         'group'  => __('Location', 'hmw-events'),
                         'remove' => 'ev_state',
                         'value'  => $term->slug,
@@ -861,13 +898,26 @@ class EventListingService
     /**
      * Get terms for filter checkboxes, sorted by name.
      */
-    private function get_filter_terms(string $taxonomy): array
+    private function get_filter_terms(string $taxonomy, int $parent_id = 0): array
     {
-        $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => true]);
+        $args = ['taxonomy' => $taxonomy, 'hide_empty' => true];
+        if ($parent_id > 0) {
+            $args['parent'] = $parent_id;
+        }
+        $terms = get_terms($args);
         if (is_wp_error($terms) || empty($terms)) {
             return [];
         }
         return $terms;
+    }
+
+    private function get_term_label(object $term): string
+    {
+        if ($term->name !== $term->slug) {
+            return $term->name;
+        }
+
+        return ucwords(str_replace(['-', '_'], ' ', $term->slug));
     }
 
     /**
@@ -996,18 +1046,18 @@ class EventListingService
     public function ajax_filter(): void
     {
         $filters = [
-            'event_type'    => $_POST['event_type'] ?? '',
-            'audience'      => $_POST['audience'] ?? '',
-            'topic'         => $_POST['topic'] ?? '',
-            'delivery_mode' => $_POST['delivery_mode'] ?? '',
-            'state'         => $_POST['state'] ?? '',
+            'event_type'    => sanitize_key(wp_unslash($_POST['event_type'] ?? '')),
+            'audience'      => sanitize_key(wp_unslash($_POST['audience'] ?? '')),
+            'topic'         => sanitize_key(wp_unslash($_POST['topic'] ?? '')),
+            'delivery_mode' => sanitize_key(wp_unslash($_POST['delivery_mode'] ?? '')),
+            'state'         => sanitize_key(wp_unslash($_POST['state'] ?? '')),
             'free_only'     => !empty($_POST['free_only']),
             'paid_only'     => !empty($_POST['paid_only']),
-            'date_from'     => $_POST['date_from'] ?? '',
-            'date_to'       => $_POST['date_to'] ?? '',
-            'search'        => $_POST['search'] ?? '',
+            'date_from'     => sanitize_text_field(wp_unslash($_POST['date_from'] ?? '')),
+            'date_to'       => sanitize_text_field(wp_unslash($_POST['date_to'] ?? '')),
+            'search'        => sanitize_text_field(wp_unslash($_POST['search'] ?? '')),
             'page'          => (int) ($_POST['page'] ?? 1),
-            'posts_per_page' => (int) ($_POST['per_page'] ?? 12),
+            'posts_per_page' => min(48, max(1, (int) ($_POST['per_page'] ?? 12))),
         ];
 
         $query = $this->query($filters);

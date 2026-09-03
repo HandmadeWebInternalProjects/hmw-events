@@ -99,7 +99,7 @@ class EmailQueueRepositoryTest extends TestCase
     $wpdb->shouldReceive('insert')
       ->once()
       ->with(
-        'wp_email_queue',
+        'wp_hmwevents_email_queue',
         Mockery::on(function($data) {
           return $data['recipient_email'] === 'test@example.com'
             && $data['subject'] === 'Test Subject'
@@ -129,7 +129,7 @@ class EmailQueueRepositoryTest extends TestCase
     $wpdb->shouldReceive('update')
       ->once()
       ->with(
-        'wp_email_queue',
+        'wp_hmwevents_email_queue',
         Mockery::on(function($data) {
           return $data['status'] === 'sent';
         }),
@@ -156,7 +156,7 @@ class EmailQueueRepositoryTest extends TestCase
     $wpdb->shouldReceive('update')
       ->once()
       ->with(
-        'wp_email_queue',
+        'wp_hmwevents_email_queue',
         Mockery::on(function($data) {
           // new_attempts = 2+1=3, max_attempts=5, 3<5 → status='pending'
           return $data['status'] === 'pending'
@@ -228,7 +228,7 @@ class EmailQueueRepositoryTest extends TestCase
     $wpdb->shouldReceive('update')
       ->once()
       ->with(
-        'wp_email_queue',
+        'wp_hmwevents_email_queue',
         Mockery::on(function($data) {
           return $data['status'] === 'pending'
             && $data['attempts'] === 0;

@@ -42,6 +42,9 @@ class EventListingServiceTest extends TestCase
         Functions\when('get_the_post_thumbnail_url')->justReturn('');
         Functions\when('wp_trim_words')->returnArg(1);
         Functions\when('get_terms')->justReturn([]);
+        Functions\when('is_wp_error')->alias(function ($thing) {
+            return $thing instanceof \WP_Error;
+        });
         Functions\when('get_pagenum_link')->justReturn('https://example.com/page/1');
         Functions\when('paginate_links')->justReturn('');
         Functions\when('add_query_arg')->alias(function ($arg1, ...$rest) {
@@ -60,10 +63,21 @@ class EventListingServiceTest extends TestCase
         $this->service = new EventListingService();
 
         Functions\when('get_posts')->justReturn([]);
+        Functions\when('get_post')->alias(function ($id) {
+            return new \WP_Post((object) [
+                'ID' => (int) $id,
+                'post_type' => 'hmw_event',
+                'post_status' => 'publish',
+                'post_title' => 'Test Event',
+                'post_excerpt' => 'Test excerpt',
+                'post_content' => 'Test content',
+            ]);
+        });
     }
 
     protected function tearDown(): void
     {
+        unset($_GET['ev_type']);
         Monkey\tearDown();
         parent::tearDown();
     }
@@ -296,17 +310,36 @@ class EventListingServiceTest extends TestCase
     public function test_get_event_card_returns_array(): void
     {
         Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
+            if ($id === 42) {
+                return $key === '_venue_address' ? ['address' => '123 Test St'] : '';
+            }
             return match ($key) {
                 '_event_start_date' => '2026-07-15 09:00:00',
                 '_event_end_date'   => '2026-07-16 17:00:00',
                 '_event_price'      => '150.00',
-                '_event_venue_name' => 'Test Venue',
-                '_event_venue_address' => '123 Test St',
+                '_event_venue'      => 42,
                 '_event_capacity'   => '20',
                 '_event_webinar_url' => 'https://zoom.us/test',
                 '_event_is_free'    => '0',
                 default             => '',
             };
+        });
+
+        Functions\when('get_post')->alias(function ($id) {
+            if ($id === 42) {
+                return new \WP_Post((object) [
+                    'ID'         => 42,
+                    'post_type'  => 'event_location',
+                    'post_status' => 'publish',
+                    'post_title' => 'Test Venue',
+                ]);
+            }
+            return new \WP_Post((object) [
+                'ID'         => (int) $id,
+                'post_type'  => 'hmw_event',
+                'post_status' => 'publish',
+                'post_title' => 'Test Event',
+            ]);
         });
 
         Functions\when('wp_get_object_terms')->alias(function ($id, $tax, $args) {
@@ -335,6 +368,7 @@ class EventListingServiceTest extends TestCase
         $this->assertEquals(150.0, $card['price']);
         $this->assertFalse($card['is_free']);
         $this->assertEquals('Test Venue', $card['venue']);
+        $this->assertEquals('123 Test St', $card['venue_address']);
         $this->assertEquals('in-person', $card['delivery_mode']);
         $this->assertEquals(20, $card['capacity']);
         $this->assertEquals(['parent-one-off-free'], $card['event_types']);
@@ -535,5 +569,218 @@ class EventListingServiceTest extends TestCase
     {
         $components = \HMWEvents\HMWEvents::get_components();
         $this->assertContains(EventListingService::class, $components);
+    }
+
+    // ============================================================
+    // parse_filter_params — event_type_filter_parent
+    // ============================================================
+
+    private function parse_filter_params(array $atts): array
+    {
+        $method = new \ReflectionMethod(EventListingService::class, 'parse_filter_params');
+        $method->setAccessible(true);
+        return $method->invoke($this->service, $atts);
+    }
+
+    private function filter_bar_atts(array $overrides = []): array
+    {
+        return array_merge([
+            'type'         => '',
+            'audience'     => '',
+            'topic'        => '',
+            'mode'         => '',
+            'state'        => '',
+            'free'         => '',
+            'limit'        => 12,
+            'show_filters' => 'yes',
+            'sort'         => 'date',
+            'sort_order'   => 'ASC',
+            'event_type_filter_parent' => '',
+        ], $overrides);
+    }
+
+    public function test_type_attr_only_hides_type_filter(): void
+    {
+        $filters = $this->parse_filter_params($this->filter_bar_atts(['type' => 'programs']));
+
+        $this->assertFalse($filters['show_type_filter']);
+        $this->assertSame(['programs'], $filters['event_type']);
+        $this->assertArrayNotHasKey('type_filter_parent', $filters);
+    }
+
+    public function test_type_attr_with_filter_parent_keeps_filter_visible(): void
+    {
+        $filters = $this->parse_filter_params($this->filter_bar_atts([
+            'type' => 'programs',
+            'event_type_filter_parent' => '23',
+        ]));
+
+        $this->assertTrue($filters['show_type_filter']);
+        $this->assertSame(['programs'], $filters['event_type']);
+        $this->assertSame(23, $filters['type_filter_parent']);
+        $this->assertTrue($filters['event_type_is_restriction']);
+    }
+
+    public function test_url_ev_type_overrides_type_restriction_when_parent_set(): void
+    {
+        $_GET['ev_type'] = ['workshops'];
+
+        $filters = $this->parse_filter_params($this->filter_bar_atts([
+            'type' => 'programs',
+            'event_type_filter_parent' => '23',
+        ]));
+
+        $this->assertSame(['workshops'], $filters['event_type']);
+        $this->assertTrue($filters['show_type_filter']);
+        $this->assertSame(23, $filters['type_filter_parent']);
+        $this->assertArrayNotHasKey('event_type_is_restriction', $filters);
+    }
+
+    public function test_url_ev_type_applies_without_type_attr(): void
+    {
+        $_GET['ev_type'] = ['workshops'];
+
+        $filters = $this->parse_filter_params($this->filter_bar_atts());
+
+        $this->assertSame(['workshops'], $filters['event_type']);
+        $this->assertTrue($filters['show_type_filter']);
+    }
+
+    public function test_filter_parent_without_type_or_url_sets_parent_only(): void
+    {
+        $filters = $this->parse_filter_params($this->filter_bar_atts([
+            'event_type_filter_parent' => '23',
+        ]));
+
+        $this->assertArrayNotHasKey('event_type', $filters);
+        $this->assertSame(23, $filters['type_filter_parent']);
+        $this->assertTrue($filters['show_type_filter']);
+    }
+
+    public function test_invalid_filter_parent_treated_as_absent(): void
+    {
+        foreach (['abc', '0'] as $parent) {
+            $filters = $this->parse_filter_params($this->filter_bar_atts([
+                'type' => 'programs',
+                'event_type_filter_parent' => $parent,
+            ]));
+
+            $this->assertArrayNotHasKey('type_filter_parent', $filters);
+            $this->assertFalse($filters['show_type_filter']);
+            $this->assertSame(['programs'], $filters['event_type']);
+        }
+    }
+
+    // ============================================================
+    // get_filter_terms — parent arg
+    // ============================================================
+
+    private function get_filter_terms(string $taxonomy, int $parent_id = 0): array
+    {
+        $method = new \ReflectionMethod(EventListingService::class, 'get_filter_terms');
+        $method->setAccessible(true);
+        return $method->invoke($this->service, $taxonomy, $parent_id);
+    }
+
+    public function test_get_filter_terms_passes_parent_arg(): void
+    {
+        $captured = [];
+        Functions\when('get_terms')->alias(function ($args) use (&$captured) {
+            $captured[] = $args;
+            return [];
+        });
+
+        $this->get_filter_terms('hmw_event_type', 23);
+
+        $this->assertSame([
+            'taxonomy'   => 'hmw_event_type',
+            'hide_empty' => true,
+            'parent'     => 23,
+        ], $captured[0]);
+    }
+
+    public function test_get_filter_terms_omits_parent_by_default(): void
+    {
+        $captured = [];
+        Functions\when('get_terms')->alias(function ($args) use (&$captured) {
+            $captured[] = $args;
+            return [];
+        });
+
+        $this->get_filter_terms('hmw_event_type');
+
+        $this->assertSame([
+            'taxonomy'   => 'hmw_event_type',
+            'hide_empty' => true,
+        ], $captured[0]);
+        $this->assertArrayNotHasKey('parent', $captured[0]);
+    }
+
+    public function test_get_filter_terms_returns_empty_for_wp_error(): void
+    {
+        Functions\when('get_terms')->justReturn(new \WP_Error('invalid_taxonomy'));
+
+        $this->assertSame([], $this->get_filter_terms('hmw_event_type'));
+    }
+
+    public function test_get_filter_terms_returns_empty_for_no_terms(): void
+    {
+        Functions\when('get_terms')->justReturn([]);
+
+        $this->assertSame([], $this->get_filter_terms('hmw_event_type'));
+    }
+
+    public function test_get_filter_terms_returns_terms(): void
+    {
+        $terms = [
+            (object) ['name' => 'Workshops', 'slug' => 'workshops'],
+            (object) ['name' => 'Webinars', 'slug' => 'webinars'],
+        ];
+        Functions\when('get_terms')->justReturn($terms);
+
+        $this->assertSame($terms, $this->get_filter_terms('hmw_event_type', 23));
+    }
+
+    // ============================================================
+    // render_active_filters — type chip gating
+    // ============================================================
+
+    private function render_active_filters(array $filters): string
+    {
+        $method = new \ReflectionMethod(EventListingService::class, 'render_active_filters');
+        $method->setAccessible(true);
+        ob_start();
+        $method->invoke($this->service, $filters);
+        return (string) ob_get_clean();
+    }
+
+    public function test_active_filters_skip_type_chips_when_restriction_set(): void
+    {
+        Functions\when('get_terms')->justReturn([
+            (object) ['name' => 'Programs', 'slug' => 'programs'],
+        ]);
+
+        $output = $this->render_active_filters([
+            'event_type'                => ['programs'],
+            'show_type_filter'          => true,
+            'event_type_is_restriction' => true,
+        ]);
+
+        $this->assertSame('', $output);
+    }
+
+    public function test_active_filters_render_type_chip_without_restriction(): void
+    {
+        Functions\when('get_terms')->justReturn([
+            (object) ['name' => 'Workshops', 'slug' => 'workshops'],
+        ]);
+
+        $output = $this->render_active_filters([
+            'event_type'       => ['workshops'],
+            'show_type_filter' => true,
+        ]);
+
+        $this->assertStringContainsString('Type', $output);
+        $this->assertStringContainsString('Workshops', $output);
     }
 }

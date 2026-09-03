@@ -2,6 +2,8 @@
 
 namespace HMWEvents\Admin;
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 use HMWEvents\Services\Emails\EmailTemplateRepository;
 use HMWEvents\Services\Emails\EmailService;
 use HMWEvents\Helpers\ConfigHelper;
@@ -21,19 +23,10 @@ class EmailTemplates
     add_action('admin_post_hmwevents_email_template_save', [$this, 'handle_save']);
     add_action('admin_post_hmwevents_email_template_create_defaults', [$this, 'handle_create_defaults']);
     add_action('admin_post_hmwevents_email_template_regenerate_defaults', [$this, 'handle_regenerate_defaults']);
-    add_action('admin_post_hmwevents_educator_email_template_save', [$this, 'handle_educator_save']);
-    add_action('admin_post_hmwevents_educator_email_template_reset', [$this, 'handle_educator_reset']);
-    add_action('admin_post_hmwevents_educator_email_template_regenerate_defaults', [$this, 'handle_educator_regenerate_defaults']);
-    add_action('admin_post_hmwevents_save_locked_templates', [$this, 'handle_save_locked_templates']);
-    add_action('show_user_profile', [$this, 'render_educator_profile_section']);
-    add_action('edit_user_profile', [$this, 'render_educator_profile_section']);
 
     // AJAX handlers
     add_action('wp_ajax_hmwevents_load_email_template', [$this, 'ajax_load_template']);
     add_action('wp_ajax_hmwevents_save_email_template_ajax', [$this, 'ajax_save_template']);
-    add_action('wp_ajax_hmwevents_save_educator_email_template_ajax', [$this, 'ajax_save_educator_template']);
-    add_action('wp_ajax_hmwevents_reset_educator_email_template_ajax', [$this, 'ajax_reset_educator_template']);
-    add_action('wp_ajax_hmwevents_regenerate_educator_templates_ajax', [$this, 'ajax_regenerate_educator_templates']);
     add_action('wp_ajax_hmwevents_preview_email_template', [$this, 'ajax_preview_template']);
     add_action('wp_ajax_hmwevents_send_test_email_template', [$this, 'ajax_send_test_email']);
     add_action('wp_ajax_hmwevents_get_available_bookings', [$this, 'ajax_get_available_bookings']);
@@ -99,36 +92,6 @@ class EmailTemplates
             <?php $this->render_template_editor($selected_template); ?>
           </div>
         <?php endif; ?>
-
-        <hr style="margin: 30px 0;">
-        <h2><?php esc_html_e('Educator Template Permissions', 'cms'); ?></h2>
-        <p><?php esc_html_e('Locked templates are hidden from educator profiles and cannot be customised. Educators will always receive the system version.', 'cms'); ?></p>
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-          <input type="hidden" name="action" value="hmwevents_save_locked_templates">
-          <?php wp_nonce_field('hmwevents_save_locked_templates'); ?>
-          <table class="wp-list-table widefat fixed striped" style="max-width: 600px;">
-            <thead>
-              <tr>
-                <th><?php esc_html_e('Template Key', 'cms'); ?></th>
-                <th style="width: 180px; text-align: center;"><?php esc_html_e('Locked (educators cannot customise)', 'cms'); ?></th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php $locked_templates = self::get_educator_locked_templates(); ?>
-              <?php foreach ($templates as $tpl): ?>
-              <tr>
-                <td><code><?php echo esc_html($tpl->template_key); ?></code></td>
-                <td style="text-align: center;">
-                  <input type="checkbox" name="hmwevents_locked_templates[]" value="<?php echo esc_attr($tpl->template_key); ?>" <?php checked(in_array($tpl->template_key, $locked_templates, true)); ?>>
-                </td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-          <p>
-            <button type="submit" class="button button-primary"><?php esc_html_e('Save Permissions', 'cms'); ?></button>
-          </p>
-        </form>
       <?php endif; ?>
     </div>
     <?php
@@ -159,7 +122,7 @@ class EmailTemplates
   }
 
   /**
-   * Render the template form (shared between system and educator templates)
+   * Render the template form
    *
    * @param array $args Form configuration arguments
    */
@@ -173,7 +136,6 @@ class EmailTemplates
       'editor_id'     => 'email_template_body',
       'editor_rows'   => 20,
       'submit_text'   => __('Save', 'cms'),
-      'status_message' => '',
     ];
 
     $args = wp_parse_args($args, $defaults);
@@ -277,116 +239,6 @@ class EmailTemplates
   }
 
   /**
-   * Render educator email templates in user profile
-   *
-   * @param \WP_User $user User object
-   */
-  public function render_educator_profile_section($user)
-  {
-    if (!$user || !$this->is_educator_user($user) || !current_user_can('edit_user', $user->ID)) {
-      return;
-    }
-
-    $template_repo = new EmailTemplateRepository();
-    $system_templates = $template_repo->get_system_templates();
-    $educator_templates = $template_repo->get_educator_templates($user->ID);
-
-    if (empty($system_templates)) {
-      ?>
-      <h2><?php esc_html_e('Email Templates', 'cms'); ?></h2>
-      <p><?php esc_html_e('No system templates found. Please ask an administrator to create default templates.', 'cms'); ?></p>
-      <?php
-      return;
-    }
-
-    $educator_templates_by_key = [];
-    foreach ($educator_templates as $template) {
-      $educator_templates_by_key[$template->template_key] = $template;
-    }
-
-    $selected_key = isset($_GET['hmwevents_template_key']) ? sanitize_text_field($_GET['hmwevents_template_key']) : $system_templates[0]->template_key;
-    $selected_system_template = null;
-
-    foreach ($system_templates as $template) {
-      if ($template->template_key === $selected_key) {
-        $selected_system_template = $template;
-        break;
-      }
-    }
-
-    if (!$selected_system_template) {
-      $selected_system_template = $system_templates[0];
-      $selected_key = $selected_system_template->template_key;
-    }
-
-    $selected_educator_template = $educator_templates_by_key[$selected_key] ?? null;
-    $active_template = $selected_educator_template ?: $selected_system_template;
-
-    ob_start();
-    ?>
-    <div class="hmwevents-educator-templates">
-      <h2><?php esc_html_e('Email Templates', 'cms'); ?></h2>
-      <p><?php esc_html_e('Customize your email templates. If you don\'t create an override, the system default will be used.', 'cms'); ?></p>
-
-      <div class="hmwevents-template-selector" style="margin-bottom: 12px;">
-        <input type="hidden" name="user_id" value="<?php echo intval($user->ID); ?>" class="hmwevents-template-user-id">
-        <select name="hmwevents_template_key" class="hmwevents-template-selector-dropdown">
-          <?php foreach ($system_templates as $template): ?>
-            <?php if (in_array($template->template_key, self::get_educator_locked_templates(), true)) continue; ?>
-            <?php $suffix = isset($educator_templates_by_key[$template->template_key]) ? ' (customized)' : ''; ?>
-            <option value="<?php echo esc_attr($template->template_key); ?>" <?php selected($template->template_key, $selected_key); ?>>
-              <?php echo esc_html($template->template_key . $suffix); ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-        <button type="button" class="button hmwevents-template-load-btn"><?php esc_html_e('Load', 'cms'); ?></button>
-      </div>
-
-      <div class="hmwevents-email-template-editor">
-        <?php
-    // Prepare status message
-    if ($selected_educator_template) {
-      $status_message = '<strong>' . esc_html__('Status:', 'cms') . '</strong> ' . esc_html__('Using your customized template.', 'cms');
-    } else {
-      $status_message = '<strong>' . esc_html__('Status:', 'cms') . '</strong> ' . esc_html__('Using system default. Save below to create your own override.', 'cms');
-    }
-
-    // Render the form using shared method
-    $this->render_template_form([
-      'template'       => $active_template,
-      'form_action'    => 'hmwevents_educator_email_template_save',
-      'nonce_action'   => 'hmwevents_educator_email_template_save',
-      'hidden_fields'  => [
-        'user_id'      => $user->ID,
-        'template_key' => $selected_key,
-      ],
-      'editor_id'      => 'educator_email_template_body_' . $user->ID . '_' . sanitize_key($selected_key),
-      'editor_rows'    => 15,
-      'submit_text'    => __('Save Email Template', 'cms'),
-      'status_message' => $status_message,
-    ]);
-
-    if ($selected_educator_template): ?>
-      <div class="hmwevents-template-reset-wrap" style="margin-top: 8px;">
-        <input type="hidden" class="hmwevents-reset-user-id" value="<?php echo intval($user->ID); ?>">
-        <input type="hidden" class="hmwevents-reset-template-key" value="<?php echo esc_attr($selected_key); ?>">
-        <?php wp_nonce_field('hmwevents_educator_email_template_reset', '_hmwevents_reset_nonce'); ?>
-        <button type="button" class="button hmwevents-reset-educator-template-btn"><?php esc_html_e('Reset to System Default', 'cms'); ?></button>
-      </div>
-    <?php endif; ?>
-
-      <div class="hmwevents-template-regenerate-wrap" style="margin-top: 8px;"
-           data-user-id="<?php echo intval($user->ID); ?>">
-        <?php wp_nonce_field('hmwevents_email_templates', '_hmwevents_regenerate_nonce'); ?>
-        <button type="button" class="button button-secondary hmwevents-regenerate-educator-templates-btn"><?php esc_html_e('Re-generate All Defaults (Overwrite Existing)', 'cms'); ?></button>
-      </div>
-      </div>
-    </div>
-    <?php
-    echo ob_get_clean();
-  }
-
-  /**
    * Handle saving email template
    */
   public function handle_save()
@@ -459,151 +311,6 @@ class EmailTemplates
   }
 
   /**
-   * Handle regenerating all default templates for a specific educator
-   */
-  public function handle_educator_regenerate_defaults()
-  {
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    check_admin_referer('hmwevents_educator_email_template_regenerate_defaults');
-
-    $user = get_userdata($user_id);
-    if (!$user || !$this->is_educator_user($user)) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    $service = new EmailService();
-    $service->create_educator_default_templates($user_id);
-
-    set_transient('hmwevents_success_notice', 'Default templates re-generated for this educator.', 30);
-    wp_safe_redirect(add_query_arg(['user_id' => $user_id], admin_url('user-edit.php')));
-    exit;
-  }
-
-  /**
-   * Handle saving the educator template locked list.
-   */
-  public function handle_save_locked_templates()
-  {
-    if (!current_user_can('manage_options')) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    check_admin_referer('hmwevents_save_locked_templates');
-
-    $locked = isset($_POST['hmwevents_locked_templates']) && is_array($_POST['hmwevents_locked_templates'])
-      ? array_map('sanitize_text_field', $_POST['hmwevents_locked_templates'])
-      : [];
-
-    update_option('hmwevents_educator_locked_templates', $locked);
-
-    set_transient('hmwevents_success_notice', 'Educator template permissions saved.', 30);
-    wp_safe_redirect(admin_url('admin.php?page=hmwevents-email-templates'));
-    exit;
-  }
-
-  /**
-   * Handle saving educator email template override
-   */
-  public function handle_educator_save()
-  {
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    check_admin_referer('hmwevents_educator_email_template_save');
-
-    $user = get_userdata($user_id);
-    if (!$user || !$this->is_educator_user($user)) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-
-    if (in_array($template_key, self::get_educator_locked_templates(), true)) {
-      wp_die(__('This template cannot be customised.'));
-    }
-
-    $subject = isset($_POST['subject']) ? wp_unslash($_POST['subject']) : '';
-    $body = isset($_POST['body']) ? wp_kses_post(wp_unslash($_POST['body'])) : '';
-    $is_active = isset($_POST['is_active']) ? 1 : 0;
-
-    $repo = new EmailTemplateRepository();
-    $saved = $repo->save([
-      'educator_id'  => $user_id,
-      'template_key' => $template_key,
-      'subject'      => $subject,
-      'body'         => $body,
-      'is_active'    => $is_active,
-    ]);
-
-    if ($saved) {
-      set_transient('hmwevents_success_notice', 'Template saved.', 30);
-    } else {
-      set_transient('hmwevents_error_notice', 'Failed to save template.', 30);
-    }
-
-    $redirect = add_query_arg(
-      ['hmwevents_template_key' => $template_key],
-      get_edit_user_link($user_id)
-    );
-    wp_safe_redirect($redirect);
-    exit;
-  }
-
-  /**
-   * Handle resetting educator email template override
-   */
-  public function handle_educator_reset()
-  {
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    check_admin_referer('hmwevents_educator_email_template_reset');
-
-    $user = get_userdata($user_id);
-    if (!$user || !$this->is_educator_user($user)) {
-      wp_die(__('You do not have sufficient permissions to access this page.'));
-    }
-
-    $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-
-    if (in_array($template_key, self::get_educator_locked_templates(), true)) {
-      wp_die(__('This template cannot be reset.'));
-    }
-
-    $repo = new EmailTemplateRepository();
-    $educator_templates = $repo->get_educator_templates($user_id);
-
-    $deleted = false;
-    foreach ($educator_templates as $template) {
-      if ($template->template_key === $template_key) {
-        $deleted = $repo->delete($template->id);
-        break;
-      }
-    }
-
-    if ($deleted) {
-      set_transient('hmwevents_success_notice', 'Template reset to system default.', 30);
-    } else {
-      set_transient('hmwevents_error_notice', 'Failed to reset template.', 30);
-    }
-
-    $redirect = add_query_arg(
-      ['hmwevents_template_key' => $template_key],
-      get_edit_user_link($user_id)
-    );
-    wp_safe_redirect($redirect);
-    exit;
-  }
-
-  /**
    * Get template variable help by template key
    *
    * @param string $template_key Template key
@@ -622,7 +329,7 @@ class EmailTemplates
       'course_changed'        => 'status_change',
       'payment_link'          => 'status_change',
       'remaining_payment_link'=> 'status_change',
-      'educator_new_booking'  => 'educator_new_booking',
+      'organizer_new_booking' => 'organizer_new_booking',
     ];
 
     $handler_type = $template_key_to_handler[$template_key] ?? null;
@@ -648,33 +355,17 @@ class EmailTemplates
    *
    * @param int $booking_id
    * @param string $template_key
-   * @param string $context
-   * @param int $user_id
    * @return array|false
    */
-  private function get_booking_variables($booking_id, $template_key, $context, $user_id)
+  private function get_booking_variables($booking_id, $template_key)
   {
     global $wpdb;
 
-    // Security check: verify access
-    if ($context === 'educator' && $user_id) {
-      // Educator must own the course
-      $booking = $wpdb->get_row($wpdb->prepare(
-        "SELECT b.*, c.post_author
-         FROM {$wpdb->prefix}hmwevents_bookings b
-         INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-         WHERE b.id = %d AND c.post_author = %d AND b.deleted_at IS NULL",
-        $booking_id,
-        $user_id
-      ));
-    } else {
-      // Admin sees all
-      $booking = $wpdb->get_row($wpdb->prepare(
-        "SELECT b.* FROM {$wpdb->prefix}hmwevents_bookings b
-         WHERE b.id = %d AND b.deleted_at IS NULL",
-        $booking_id
-      ));
-    }
+    $booking = $wpdb->get_row($wpdb->prepare(
+      "SELECT b.* FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+       WHERE b.id = %d AND b.deleted_at IS NULL",
+      $booking_id
+    ));
 
     if (!$booking) {
       return false;
@@ -694,7 +385,7 @@ class EmailTemplates
       'course_changed'         => 'status_change',
       'payment_link'           => 'status_change',
       'remaining_payment_link' => 'status_change',
-      'educator_new_booking'   => 'educator_new_booking',
+      'organizer_new_booking'  => 'organizer_new_booking',
     ];
     $handler_type = $template_key_to_handler[$template_key] ?? $template_key;
     $handler = $service->get_handler($handler_type);
@@ -710,37 +401,6 @@ class EmailTemplates
   }
 
   /**
-   * Check if user has educator role
-   *
-   * @param \WP_User $user
-   * @return bool
-   */
-  private function is_educator_user($user)
-  {
-    return in_array('educator', (array) $user->roles, true);
-  }
-
-  /**
-   * Return the list of template keys educators are not allowed to customise.
-   *
-   * Reads from the 'hmwevents_educator_locked_templates' option. Falls back to a
-   * sensible default when the option has never been saved.
-   *
-   * @return string[]
-   */
-  private static function get_educator_locked_templates(): array
-  {
-    $saved = get_option('hmwevents_educator_locked_templates', null);
-
-    if ($saved === null) {
-      // Default: lock templates that educators should never need to change.
-      return ['post_course_followup', 'pending_payment_link', 'educator_new_booking'];
-    }
-
-    return is_array($saved) ? $saved : [];
-  }
-
-  /**
    * AJAX handler to load a template
    */
   public function ajax_load_template()
@@ -748,70 +408,28 @@ class EmailTemplates
     check_ajax_referer('hmwevents_email_templates', 'nonce');
 
     $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-    $context = isset($_POST['context']) ? sanitize_text_field($_POST['context']) : 'system';
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
 
     if (empty($template_key)) {
       wp_send_json_error(['message' => 'Template key is required']);
     }
 
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error(['message' => 'Permission denied']);
+    }
+
     $template_repo = new EmailTemplateRepository();
     $template = null;
 
-    if ($context === 'educator' && $user_id > 0) {
-      // Check permissions
-      if (!current_user_can('edit_user', $user_id)) {
-        wp_send_json_error(['message' => 'Permission denied']);
+    // Get system template
+    $system_templates = $template_repo->get_system_templates();
+    foreach ($system_templates as $t) {
+      if ($t->template_key === $template_key) {
+        $template = $t;
+        break;
       }
-
-      if (in_array($template_key, self::get_educator_locked_templates(), true)) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
-
-      // Try to get educator override first
-      $educator_templates = $template_repo->get_educator_templates($user_id);
-      foreach ($educator_templates as $t) {
-        if ($t->template_key === $template_key) {
-          $template = $t;
-          break;
-        }
-      }
-
-      // Fall back to system template
-      if (!$template) {
-        $system_templates = $template_repo->get_system_templates();
-        foreach ($system_templates as $t) {
-          if ($t->template_key === $template_key) {
-            $template = $t;
-            break;
-          }
-        }
-      }
-
-      $editor_id = 'educator_email_template_body_' . $user_id . '_' . sanitize_key($template_key);
-      $is_customized = !empty($educator_templates) && isset($educator_templates[0]) && $educator_templates[0]->template_key === $template_key;
-      
-      $status_message = $is_customized 
-        ? '<strong>' . esc_html__('Status:', 'cms') . '</strong> ' . esc_html__('Using your customized template.', 'cms')
-        : '<strong>' . esc_html__('Status:', 'cms') . '</strong> ' . esc_html__('Using system default. Save below to create your own override.', 'cms');
-    } else {
-      // Check permissions
-      if (!current_user_can('manage_options')) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
-
-      // Get system template
-      $system_templates = $template_repo->get_system_templates();
-      foreach ($system_templates as $t) {
-        if ($t->template_key === $template_key) {
-          $template = $t;
-          break;
-        }
-      }
-
-      $editor_id = 'email_template_body';
-      $status_message = '';
     }
+
+    $editor_id = 'email_template_body';
 
     if (!$template) {
       wp_send_json_error(['message' => 'Template not found']);
@@ -837,10 +455,9 @@ class EmailTemplates
         'body' => $template->body,
         'is_active' => $template->is_active,
       ],
-      'context' => $context,
-      'user_id' => $user_id,
-      'editor_id' => $context === 'educator' ? 'educator_email_template_body_' . $user_id . '_' . sanitize_key($template_key) : 'email_template_body',
-      'status_message' => $context === 'educator' ? $status_message : '',
+      'context' => 'system',
+      'editor_id' => $editor_id,
+      'status_message' => '',
       'variables_html' => $variables_html,
       'variables' => $variables, // Add as object for TinyMCE button
     ]);
@@ -880,125 +497,6 @@ class EmailTemplates
   }
 
   /**
-   * AJAX handler to save educator template
-   */
-  public function ajax_save_educator_template()
-  {
-    check_ajax_referer('hmwevents_email_templates', 'ajax_nonce');
-
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    
-    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-      wp_send_json_error(['message' => 'Permission denied']);
-    }
-
-    $user = get_userdata($user_id);
-    if (!$user || !$this->is_educator_user($user)) {
-      wp_send_json_error(['message' => 'Invalid user']);
-    }
-
-    $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-
-    if (in_array($template_key, self::get_educator_locked_templates(), true)) {
-      wp_send_json_error(['message' => 'This template cannot be customised.']);
-    }
-
-    $subject = isset($_POST['subject']) ? wp_unslash($_POST['subject']) : '';
-    $body = isset($_POST['body']) ? wp_kses_post(wp_unslash($_POST['body'])) : '';
-    $is_active = isset($_POST['is_active']) ? 1 : 0;
-
-    $repo = new EmailTemplateRepository();
-    $saved = $repo->save([
-      'educator_id'  => $user_id,
-      'template_key' => $template_key,
-      'subject'      => $subject,
-      'body'         => $body,
-      'is_active'    => $is_active,
-    ]);
-
-    if ($saved) {
-      $status_message = '<strong>' . esc_html__('Status:', 'cms') . '</strong> ' . esc_html__('Using your customized template.', 'cms');
-      
-      wp_send_json_success([
-        'message' => 'Template saved successfully',
-        'status_message' => $status_message,
-      ]);
-    } else {
-      wp_send_json_error(['message' => 'Failed to save template']);
-    }
-  }
-
-  /**
-   * AJAX handler to regenerate all educator templates from system defaults.
-   */
-  public function ajax_regenerate_educator_templates()
-  {
-    check_ajax_referer('hmwevents_email_templates', 'ajax_nonce');
-
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-
-    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-      wp_send_json_error(['message' => 'Permission denied']);
-    }
-
-    $user = get_userdata($user_id);
-    if (!$user || !$this->is_educator_user($user)) {
-      wp_send_json_error(['message' => 'Invalid user']);
-    }
-
-    $service = new EmailService();
-    $service->create_educator_default_templates($user_id);
-
-    wp_send_json_success([
-      'message' => 'All templates re-generated from system defaults.',
-    ]);
-  }
-
-  /**
-   * AJAX handler to reset educator template
-   */
-  public function ajax_reset_educator_template()
-  {
-    check_ajax_referer('hmwevents_email_templates', 'ajax_nonce');
-
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    
-    if (!$user_id || !current_user_can('edit_user', $user_id)) {
-      wp_send_json_error(['message' => 'Permission denied']);
-    }
-
-    $user = get_userdata($user_id);
-    if (!$user || !$this->is_educator_user($user)) {
-      wp_send_json_error(['message' => 'Invalid user']);
-    }
-
-    $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-
-    if (in_array($template_key, self::get_educator_locked_templates(), true)) {
-      wp_send_json_error(['message' => 'This template cannot be reset.']);
-    }
-
-    $repo = new EmailTemplateRepository();
-    $educator_templates = $repo->get_educator_templates($user_id);
-
-    $deleted = false;
-    foreach ($educator_templates as $template) {
-      if ($template->template_key === $template_key) {
-        $deleted = $repo->delete($template->id);
-        break;
-      }
-    }
-
-    if ($deleted) {
-      wp_send_json_success([
-        'message' => 'Template reset to system default successfully',
-      ]);
-    } else {
-      wp_send_json_error(['message' => 'Failed to reset template']);
-    }
-  }
-
-  /**
    * AJAX handler to preview a rendered template using sample data.
    */
   public function ajax_preview_template()
@@ -1006,8 +504,6 @@ class EmailTemplates
     check_ajax_referer('hmwevents_email_templates', 'nonce');
 
     $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-    $context = isset($_POST['context']) ? sanitize_text_field($_POST['context']) : 'system';
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
     $subject = isset($_POST['subject']) ? wp_unslash($_POST['subject']) : '';
     $body = isset($_POST['body']) ? wp_unslash($_POST['body']) : '';
 
@@ -1015,21 +511,14 @@ class EmailTemplates
       wp_send_json_error(['message' => 'Template key is required']);
     }
 
-    if ($context === 'educator') {
-      if (!$user_id || !current_user_can('edit_user', $user_id)) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
-    } else {
-      if (!current_user_can('manage_options')) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error(['message' => 'Permission denied']);
     }
 
     $repo = new EmailTemplateRepository();
 
     if ($subject === '' && $body === '') {
-      $educator_id = ($context === 'educator' && $user_id > 0) ? $user_id : null;
-      $template = $repo->get_template($educator_id, $template_key);
+      $template = $repo->get_template(null, $template_key);
 
       if (!$template) {
         wp_send_json_error(['message' => 'Template not found']);
@@ -1044,7 +533,7 @@ class EmailTemplates
     // Check if using real booking data
     $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
     if ($booking_id > 0) {
-      $variables = $this->get_booking_variables($booking_id, $template_key, $context, $user_id);
+      $variables = $this->get_booking_variables($booking_id, $template_key);
       if (!is_array($variables) || empty($variables)) {
         wp_send_json_error(['message' => 'Could not load booking data, using sample data instead']);
       }
@@ -1069,8 +558,6 @@ class EmailTemplates
     check_ajax_referer('hmwevents_email_templates', 'nonce');
 
     $template_key = isset($_POST['template_key']) ? sanitize_text_field($_POST['template_key']) : '';
-    $context = isset($_POST['context']) ? sanitize_text_field($_POST['context']) : 'system';
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
     $subject = isset($_POST['subject']) ? wp_unslash($_POST['subject']) : '';
     $body = isset($_POST['body']) ? wp_unslash($_POST['body']) : '';
     $recipient_email = isset($_POST['recipient_email']) ? sanitize_email($_POST['recipient_email']) : '';
@@ -1083,21 +570,14 @@ class EmailTemplates
       wp_send_json_error(['message' => 'A valid test recipient email is required']);
     }
 
-    if ($context === 'educator') {
-      if (!$user_id || !current_user_can('edit_user', $user_id)) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
-    } else {
-      if (!current_user_can('manage_options')) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error(['message' => 'Permission denied']);
     }
 
     $repo = new EmailTemplateRepository();
 
     if ($subject === '' && $body === '') {
-      $educator_id = ($context === 'educator' && $user_id > 0) ? $user_id : null;
-      $template = $repo->get_template($educator_id, $template_key);
+      $template = $repo->get_template(null, $template_key);
 
       if (!$template) {
         wp_send_json_error(['message' => 'Template not found']);
@@ -1112,7 +592,7 @@ class EmailTemplates
     // Check if using real booking data
     $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
     if ($booking_id > 0) {
-      $variables = $this->get_booking_variables($booking_id, $template_key, $context, $user_id);
+      $variables = $this->get_booking_variables($booking_id, $template_key);
       if (!is_array($variables) || empty($variables)) {
         wp_send_json_error(['message' => 'Could not load booking data']);
       }
@@ -1145,38 +625,22 @@ class EmailTemplates
   {
     check_ajax_referer('hmwevents_email_templates', 'nonce');
 
-    $context = isset($_POST['context']) ? sanitize_text_field($_POST['context']) : 'system';
-    $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
-
-    // Determine who can view bookings
-    if ($context === 'educator') {
-      if (!$user_id || !current_user_can('edit_user', $user_id)) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
-      $educator_id = $user_id;
-    } else {
-      if (!current_user_can('manage_options')) {
-        wp_send_json_error(['message' => 'Permission denied']);
-      }
-      $educator_id = null; // Admin sees all
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error(['message' => 'Permission denied']);
     }
+
+    $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
 
     global $wpdb;
 
     $query = "SELECT b.id, b.booking_number, c.post_title as course_name, 
                      cu.post_title as customer_name, b.created_at
-              FROM {$wpdb->prefix}hmwevents_bookings b
+              FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
               INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-              INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
+              INNER JOIN {$wpdb->posts} cu ON b.registrant_post_id = cu.ID
               WHERE b.deleted_at IS NULL";
 
     $params = [];
-
-    if ($educator_id) {
-      $query .= " AND c.post_author = %d";
-      $params[] = $educator_id;
-    }
 
     if ($search) {
       $query .= " AND (b.booking_number LIKE %s OR cu.post_title LIKE %s OR c.post_title LIKE %s)";
@@ -1216,7 +680,6 @@ class EmailTemplates
   private function get_preview_variables($template_key)
   {
     $course_location = '123 Calm Street, Brisbane QLD 4000 - (Sample)';
-    $free_audio_url  = ConfigHelper::get_option('hmwevents_free_pre_course_audio_url', '');
 
     $sample_values = [
       'mothers_first_name' => 'Jane',
@@ -1241,27 +704,25 @@ class EmailTemplates
     $sample_all_fields = '<table style="border-collapse:collapse;width:100%;">' . $sample_rows . '</table>';
 
     $base = [
-      'customer_name'               => 'Jane Smith',
-      'registrant_email'              => 'jane.smith@example.com',
-      'course_name'                 => 'Calmbirth Weekend Intensive - (Sample Title)',
-      'course_date'                 => 'Saturday, June 15, 2026 - (Sample)',
-      'booking_number'              => 'CB-2026-00123',
-      'course_location'             => $course_location,
-      'get_directions'              => "<a href='https://www.google.com/maps/dir/?api=1&destination=" . rawurlencode($course_location) . "' target='_blank'>Get Directions</a>",
-      'download_audio_track'         => "<a href='" . ConfigHelper::get_option('hmwevents_audio_download_url', '') . "' target='_blank'>Download Audio Track</a>",
-      'download_relaxation_track'   => "<a href='" . $free_audio_url . "' target='_blank'>Download Relaxation Track</a>",
-      'feedback_survey'             => "<a href='" . ConfigHelper::get_option('hmwevents_feedback_form_url', 'https://example.com/feedback') . "' target='_blank'>Take the educator and course feedback survey</a>",
-      'all_fields'                  => $sample_all_fields,
+      'customer_name'     => 'Jane Smith',
+      'registrant_email'  => 'jane.smith@example.com',
+      'organiser_name'    => 'Sarah Smith',
+      'organiser_email'   => 'sarah@example.com',
+      'event_title'       => 'Calmbirth Weekend Intensive - (Sample Title)',
+      'event_date'        => 'Saturday, June 15, 2026 - (Sample)',
+      'event_start_time'  => '9:00 AM (Sample)',
+      'event_location'    => $course_location,
+      'booking_number'    => 'CB-2026-00123',
+      'get_directions'    => "<a href='https://www.google.com/maps/dir/?api=1&destination=" . rawurlencode($course_location) . "' target='_blank'>Get Directions</a>",
+      'all_fields'        => $sample_all_fields,
     ];
 
     $specific = [
       'booking_confirmation' => [
-        'booking_amount'    => '$840.00',
-        'course_start_time' => '9:00 AM (Sample)',
+        'booking_amount' => '$840.00',
       ],
       'course_reminder' => [
-        'days_until'        => '7',
-        'course_start_time' => '9:00 AM (Sample)',
+        'days_until'     => '7',
       ],
       'post_course_feedback' => [
         'days_after' => '1',
@@ -1288,7 +749,7 @@ class EmailTemplates
       'course_changed' => [
         'status_change' => 'course_changed',
         'changed_fields' => 'Start time moved from 9:00 AM (Sample) to 9:30 AM (Sample)',
-        'old_values' => '{"course_start_time":"9:00 AM (Sample)"}',
+        'old_values' => '{"event_start_time":"9:00 AM (Sample)"}',
         'new_course_date' => 'Sunday, June 16, 2026 (Sample)',
       ],
       'pending_payment_link' => [

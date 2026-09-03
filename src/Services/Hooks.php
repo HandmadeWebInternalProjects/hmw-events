@@ -22,6 +22,8 @@ class Hooks
 
     add_action('hmwevents_after_event_content', [static::class, 'render_session_schedule']);
 
+    add_action('hmwevents_after_event_content', [static::class, 'render_same_day_slots'], 10);
+
     add_action('transition_post_status', [static::class, 'on_event_cancelled'], 10, 3);
 
     add_action('wp_head', [static::class, 'noindex_archived_events']);
@@ -197,14 +199,156 @@ class Hooks
 
   public static function render_session_schedule(\WP_Post $event): void
   {
-    $session_service = new SessionService();
-    $sessions = $session_service->get_sessions($event->ID, 'publish');
+    $sessions = self::get_all_sessions($event);
 
     if (empty($sessions)) {
       return;
     }
 
+    self::enqueue_session_schedule_styles();
+
     hmwevents_get_template_part('session-schedule', null, ['event' => $event, 'sessions' => $sessions]);
+  }
+
+  /**
+   * All published sessions to display on the parent event's schedule:
+   * child sessions (pattern recurrence) plus standalone custom-date
+   * clones (_cloned_from), merged and sorted by start datetime.
+   *
+   * @return \WP_Post[]
+   */
+  public static function get_all_sessions(\WP_Post $event): array
+  {
+    $sessions = (new SessionService())->get_sessions($event->ID, 'publish');
+
+    $clones = get_posts([
+      'post_type'      => Event::POST_TYPE,
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'meta_key'       => '_cloned_from',
+      'meta_value'     => $event->ID,
+    ]) ?: [];
+
+    if (empty($clones)) {
+      return $sessions;
+    }
+
+    $all = array_merge($sessions, $clones);
+
+    usort($all, static function ($a, $b) {
+      return strcmp(
+        (string) get_post_meta($a->ID, '_event_start_date', true),
+        (string) get_post_meta($b->ID, '_event_start_date', true)
+      );
+    });
+
+    return $all;
+  }
+
+  /**
+   * Render an "Other sessions on {date}" strip above the booking form on
+   * session pages that share their date with sibling sessions.
+   *
+   * Covers both child sessions (pattern recurrence) and standalone
+   * custom-date clones (via _cloned_from).
+   */
+  public static function render_same_day_slots(\WP_Post $event): void
+  {
+    if (!$event instanceof \WP_Post || $event->post_type !== Event::POST_TYPE) {
+      return;
+    }
+
+    $slots = self::get_same_day_slots($event);
+
+    if (empty($slots)) {
+      return;
+    }
+
+    self::enqueue_session_schedule_styles();
+
+    hmwevents_get_template_part('same-day-slots', null, ['event' => $event, 'slots' => $slots]);
+  }
+
+  /**
+   * Same-day slots markup as a string, for themes placing it in custom
+   * positions (e.g. Blade components).
+   */
+  public static function get_same_day_slots_html(\WP_Post $event): string
+  {
+    ob_start();
+    self::render_same_day_slots($event);
+    return (string) ob_get_clean();
+  }
+
+  /**
+   * Get published sibling sessions sharing the event's start date.
+   *
+   * @return array[] List of ['session' => WP_Post, 'start' => string, 'end' => string]
+   *                 sorted by start datetime.
+   */
+  public static function get_same_day_slots(\WP_Post $event): array
+  {
+    $is_child_session = (bool) $event->post_parent;
+    $parent_id = $is_child_session
+      ? (int) $event->post_parent
+      : (int) get_post_meta($event->ID, '_cloned_from', true);
+
+    if (!$parent_id) {
+      return [];
+    }
+
+    $event_data = new EventDataService();
+    $own_start = $event_data->get_start_date($event->ID);
+    if (!$own_start) {
+      return [];
+    }
+    $own_date = substr($own_start, 0, 10);
+
+    if ($is_child_session) {
+      $candidates = (new SessionService())->get_sessions((int) $parent_id, 'publish');
+    } else {
+      $candidates = get_posts([
+        'post_type'      => Event::POST_TYPE,
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'meta_key'       => '_cloned_from',
+        'meta_value'     => $parent_id,
+        'exclude'        => [$event->ID],
+      ]) ?: [];
+    }
+
+    $slots = [];
+    foreach ($candidates as $sibling) {
+      if ((int) $sibling->ID === (int) $event->ID) {
+        continue;
+      }
+      $start = $event_data->get_start_date($sibling->ID);
+      if (!$start || substr($start, 0, 10) !== $own_date) {
+        continue;
+      }
+      $slots[] = [
+        'session' => $sibling,
+        'start'   => $start,
+        'end'     => $event_data->get_end_date($sibling->ID),
+      ];
+    }
+
+    usort($slots, static function ($a, $b) {
+      return strcmp($a['start'], $b['start']);
+    });
+
+    return apply_filters('hmwevents_same_day_slots', $slots, $event);
+  }
+
+  private static function enqueue_session_schedule_styles(): void
+  {
+    $css_path = \HMWEvents\HMWEvents::plugin_path() . '/assets/css/session-schedule.css';
+    wp_enqueue_style(
+      'hmwevents-session-schedule',
+      \HMWEvents\HMWEvents::plugin_url() . '/assets/css/session-schedule.css',
+      [],
+      file_exists($css_path) ? filemtime($css_path) : '1.0.0'
+    );
   }
 
   public static function on_event_cancelled(string $new_status, string $old_status, \WP_Post $post): void

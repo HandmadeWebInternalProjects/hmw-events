@@ -26,25 +26,30 @@ class EmailEventHooksReceiptTest extends TestCase
         Functions\when('esc_html')->returnArg();
         Functions\when('esc_attr')->returnArg();
         Functions\when('sanitize_text_field')->returnArg();
+        Functions\when('sanitize_email')->returnArg();
         Functions\when('do_action')->justReturn(null);
         Functions\when('error_log')->justReturn(true);
         Functions\when('wp_json_encode')->alias('json_encode');
         Functions\when('get_option')->justReturn(false);
+
+        $GLOBALS['wpdb'] = (object) ['prefix' => 'wp_'];
     }
 
     protected function tearDown(): void
     {
+        \Patchwork\restoreAll();
+        unset($GLOBALS['wpdb']);
         Mockery::close();
         Monkey\tearDown();
         parent::tearDown();
     }
 
-    public function test_on_payment_received_queues_booking_confirmation(): void
+    public function test_on_payment_received_queues_payment_receipt(): void
     {
         $booking_id = 123;
 
         $emailServiceMock = Mockery::mock(EmailService::class);
-        $emailServiceMock->shouldReceive('queue_booking_confirmation')
+        $emailServiceMock->shouldReceive('queue_payment_receipt')
             ->once()
             ->with($booking_id)
             ->andReturn(456);
@@ -55,23 +60,24 @@ class EmailEventHooksReceiptTest extends TestCase
         $reflection->setAccessible(true);
         $reflection->setValue($hooks, $emailServiceMock);
 
-        $hooks->on_payment_received($booking_id, [
-            'payment_status' => 'paid',
-            'amount'         => 100.00,
-        ]);
+        $hooks->on_payment_received($booking_id, ['payment_status' => 'paid']);
 
         $this->assertTrue(true);
     }
 
-    public function test_on_payment_received_called_without_data_extra_param(): void
+    public function test_on_payment_received_skips_when_email_disabled(): void
     {
-        $booking_id = 42;
+        $booking_id = 123;
+
+        Functions\when('get_option')->alias(function ($key, $default = false) {
+            if ($key === 'hmwevents_disabled_emails') {
+                return ['payment_received'];
+            }
+            return $default;
+        });
 
         $emailServiceMock = Mockery::mock(EmailService::class);
-        $emailServiceMock->shouldReceive('queue_booking_confirmation')
-            ->once()
-            ->with($booking_id)
-            ->andReturn(99);
+        $emailServiceMock->shouldReceive('queue_payment_receipt')->never();
 
         $hooks = new EmailEventHooks();
 
@@ -79,7 +85,7 @@ class EmailEventHooksReceiptTest extends TestCase
         $reflection->setAccessible(true);
         $reflection->setValue($hooks, $emailServiceMock);
 
-        $hooks->on_payment_received($booking_id, []);
+        $hooks->on_payment_received($booking_id, ['payment_status' => 'paid']);
 
         $this->assertTrue(true);
     }

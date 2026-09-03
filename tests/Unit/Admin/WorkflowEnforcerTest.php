@@ -74,12 +74,13 @@ class WorkflowEnforcerTest extends TestCase
         parent::tearDown();
     }
 
-    private function create_event_post(string $post_type, string $post_status): \WP_Post
+    private function create_event_post(string $post_type, string $post_status, int $post_parent = 0): \WP_Post
     {
         $post = new \WP_Post();
         $post->ID = 123;
         $post->post_type = $post_type;
         $post->post_status = $post_status;
+        $post->post_parent = $post_parent;
         return $post;
     }
 
@@ -129,6 +130,65 @@ class WorkflowEnforcerTest extends TestCase
         $this->set_event_type_term('parent-course');
         $this->enforcer->enforce_workflow('publish', 'cancelled', $this->create_event_post('hmw_event', 'cancelled'));
         $this->assertWorkflowAllowed();
+    }
+
+    // ============================================================
+    // WordPress core 'new' sentinel (previous status of fresh inserts)
+    // ============================================================
+
+    public function test_fresh_insert_new_to_auto_draft_is_allowed(): void
+    {
+        Functions\when('wp_get_post_terms')->justReturn([]);
+        $this->enforcer->enforce_workflow('auto-draft', 'new', $this->create_event_post('hmw_event', 'new'));
+        $this->assertWorkflowAllowed();
+        $this->assertCount(0, $this->errorLogCalls);
+    }
+
+    public function test_parent_event_new_to_publish_is_allowed_when_taxonomy_missing(): void
+    {
+        Functions\when('wp_get_post_terms')->justReturn([]);
+        $this->enforcer->enforce_workflow('publish', 'new', $this->create_event_post('hmw_event', 'publish'));
+        $this->assertWorkflowAllowed();
+        $this->assertCount(0, $this->errorLogCalls);
+    }
+
+    public function test_child_session_new_to_publish_is_allowed_when_taxonomy_missing(): void
+    {
+        Functions\when('wp_get_post_terms')->justReturn([]);
+        $this->enforcer->enforce_workflow('publish', 'new', $this->create_event_post('hmw_event', 'publish', 99));
+        $this->assertWorkflowAllowed();
+        $this->assertCount(0, $this->errorLogCalls);
+    }
+
+    public function test_child_session_new_to_publish_is_allowed_when_taxonomy_present(): void
+    {
+        $this->set_event_type_term('parent-course');
+        $this->enforcer->enforce_workflow('publish', 'new', $this->create_event_post('hmw_event', 'publish', 99));
+        $this->assertWorkflowAllowed();
+        $this->assertCount(0, $this->errorLogCalls);
+    }
+
+    public function test_auto_draft_to_draft_is_allowed(): void
+    {
+        $this->set_event_type_term('parent-course');
+        $this->enforcer->enforce_workflow('draft', 'auto-draft', $this->create_event_post('hmw_event', 'auto-draft'));
+        $this->assertWorkflowAllowed();
+        $this->assertCount(0, $this->errorLogCalls);
+    }
+
+    public function test_future_to_publish_is_allowed(): void
+    {
+        $this->set_event_type_term('parent-course');
+        $this->enforcer->enforce_workflow('publish', 'future', $this->create_event_post('hmw_event', 'future'));
+        $this->assertWorkflowAllowed();
+        $this->assertCount(0, $this->errorLogCalls);
+    }
+
+    public function test_child_session_later_transition_is_still_enforced(): void
+    {
+        $this->set_event_type_term('parent-course');
+        $this->enforcer->enforce_workflow('draft', 'archived', $this->create_event_post('hmw_event', 'archived', 99));
+        $this->assertWorkflowBlocked('archived');
     }
 
     // ============================================================

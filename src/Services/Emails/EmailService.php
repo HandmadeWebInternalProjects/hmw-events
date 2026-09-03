@@ -17,6 +17,7 @@ use HMWEvents\Services\Emails\Handlers\PostEventHandler;
 use HMWEvents\Services\Emails\Handlers\StatusChangeHandler;
 use HMWEvents\Services\Emails\Handlers\OrganizerNewBookingHandler;
 use HMWEvents\Services\Emails\Handlers\PaymentLinkHandler;
+use HMWEvents\Services\Emails\Handlers\NotificationHandler;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -60,8 +61,9 @@ class EmailService
             'reminder'              => new ReminderHandler(),
             'post_course'           => new PostEventHandler(),
             'status_change'         => new StatusChangeHandler(),
-            'educator_new_booking'  => new OrganizerNewBookingHandler(),
+            'organizer_new_booking' => new OrganizerNewBookingHandler(),
             'payment_link'          => new PaymentLinkHandler(),
+            'notification'          => new NotificationHandler(),
         ];
     }
 
@@ -77,15 +79,15 @@ class EmailService
     }
 
     /**
-     * Queue educator new-booking notification email.
+     * Queue organizer new-booking notification email.
      *
      * @param int   $booking_id   Booking ID.
      * @param array $booking_data Optional booking data.
      * @return int|false Email ID or false on failure.
      */
-    public function queue_educator_new_booking($booking_id, $booking_data = [])
+    public function queue_organizer_new_booking($booking_id, $booking_data = [])
     {
-        $handler = new OrganizerNewBookingHandler();
+        $handler = $this->get_handler('organizer_new_booking');
         return $handler->queue_for_booking($booking_id, $booking_data);
     }
 
@@ -105,7 +107,7 @@ class EmailService
      */
     public function queue_payment_link($booking_id, $educator_id, $recipient_email, $recipient_name, $subject, $html_body)
     {
-        $handler = new PaymentLinkHandler();
+        $handler = $this->get_handler('payment_link');
         return $handler->queue_email($booking_id, $educator_id, $recipient_email, $recipient_name, $subject, $html_body);
     }
 
@@ -118,7 +120,20 @@ class EmailService
      */
     public function queue_booking_confirmation($booking_id, $booking_data = [])
     {
-        $handler = new BookingConfirmationHandler();
+        global $wpdb;
+
+        $queue_table = \HMWEvents\Services\DatabaseService::get_table_name('email_queue');
+        $existing_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$queue_table} WHERE booking_id = %d AND email_type = %s AND status IN ('pending', 'processing', 'sent') ORDER BY id DESC LIMIT 1",
+            (int) $booking_id,
+            'booking_confirmation'
+        ));
+
+        if ($existing_id) {
+            return (int) $existing_id;
+        }
+
+        $handler = $this->get_handler('booking_confirmation');
         return $handler->queue_for_booking($booking_id, $booking_data);
     }
 
@@ -132,7 +147,7 @@ class EmailService
      */
     public function queue_course_reminder($booking_id, $days_before = 7, $booking_data = [])
     {
-        $handler = new ReminderHandler();
+        $handler = $this->get_handler('reminder');
         return $handler->queue_for_booking($booking_id, $days_before, $booking_data);
     }
 
@@ -146,7 +161,7 @@ class EmailService
      */
     public function queue_post_course_email($booking_id, $days_after = 1, $booking_data = [])
     {
-        $handler = new PostEventHandler();
+        $handler = $this->get_handler('post_course');
         return $handler->queue_for_booking($booking_id, $days_after, $booking_data);
     }
 
@@ -160,8 +175,219 @@ class EmailService
      */
     public function queue_status_change_email($booking_id, $status_type, $additional_data = [])
     {
-        $handler = new StatusChangeHandler();
+        $handler = $this->get_handler('status_change');
         return $handler->queue_for_status_change($booking_id, $status_type, $additional_data);
+    }
+
+    /**
+     * Queue a notification email (payment receipts, waitlist promotions,
+     * invoices, invitations) rendered from stored template data.
+     *
+     * @param array $data See NotificationHandler::queue_notification().
+     * @return int|false Queue row ID or false on failure.
+     */
+    public function queue_notification(array $data)
+    {
+        $handler = $this->get_handler('notification');
+        return $handler->queue_notification($data);
+    }
+
+    /**
+     * Queue ONE confirmation email for a multi-session booking group,
+     * listing every booked session.
+     *
+     * @param int   $primary_booking_id Bookings-table ID of the primary row.
+     * @param array $booking_ids        All booking rows in the group.
+     * @param array $data               Optional gateway booking payload.
+     * @return int|false Queue row ID or false on failure.
+     */
+    public function queue_group_booking_confirmation(int $primary_booking_id, array $booking_ids, array $data = [])
+    {
+        global $wpdb;
+
+        $booking_ids = array_values(array_unique(array_filter(array_map('intval', $booking_ids))));
+        if (!$primary_booking_id || empty($booking_ids)) {
+            return false;
+        }
+
+        $primary = $wpdb->get_row($wpdb->prepare(
+            "SELECT booking_number, registrant_post_id, event_post_id, booking_group_id
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . "
+             WHERE id = %d",
+            $primary_booking_id
+        ));
+
+        if (!$primary) {
+            return false;
+        }
+
+        $customer_id = (int) $primary->registrant_post_id;
+        $recipient_email = sanitize_email((string) get_post_meta($customer_id, 'registrant_email', true));
+        if ($recipient_email === '') {
+            return false;
+        }
+
+        $first_name = sanitize_text_field((string) get_post_meta($customer_id, 'registrant_first_name', true));
+
+        $session_ids = [];
+        foreach ($booking_ids as $booking_id) {
+            $session_ids[] = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT event_post_id FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
+                $booking_id
+            ));
+        }
+        $session_ids = array_values(array_filter($session_ids));
+
+        $lines = [];
+        $event_title = '';
+        foreach ($session_ids as $session_id) {
+            $session_post = get_post($session_id);
+            if (!$session_post) {
+                continue;
+            }
+
+            $start = (string) get_post_meta($session_id, '_event_start_date', true);
+            $when = $start !== ''
+                ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($start))
+                : __('Date TBA', 'hmw-events');
+            $lines[] = '<li>' . esc_html($when) . ' — ' . esc_html($session_post->post_title) . '</li>';
+
+            if ($event_title === '') {
+                $root_id = $session_post->post_parent ? wp_get_post_parent_id($session_id) : $session_id;
+                $root_post = $root_id ? get_post($root_id) : null;
+                $event_title = $root_post ? $root_post->post_title : $session_post->post_title;
+            }
+        }
+
+        if (empty($lines)) {
+            return false;
+        }
+
+        $root_post = null;
+        foreach ($session_ids as $session_id) {
+            $session_post = get_post($session_id);
+            if (!$session_post) {
+                continue;
+            }
+            $root_id = $session_post->post_parent ? (int) $session_post->post_parent : $session_id;
+            $root_post = get_post($root_id);
+            if ($root_post) {
+                break;
+            }
+        }
+
+        $organizer_id = $root_post ? (int) $root_post->post_author : null;
+
+        $amount = '';
+        $group = $wpdb->get_row($wpdb->prepare(
+            "SELECT booking_reference, total_amount, currency FROM " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " WHERE id = %d",
+            $primary->booking_group_id
+        ));
+        if ($group) {
+            $currency = $group->currency ?: 'AUD';
+            $symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
+            $amount = $symbol . number_format((float) $group->total_amount, 2);
+        }
+
+        return $this->queue_notification([
+            'email_type'      => \HMWEvents\Services\Emails\Handlers\NotificationHandler::TYPE_BOOKING_CONFIRMATION_MULTIPLE,
+            'recipient_email' => $recipient_email,
+            'recipient_name'  => $first_name,
+            'booking_id'      => $primary_booking_id,
+            'organizer_id'    => $organizer_id,
+            'template_data'   => [
+                'first_name'        => $first_name,
+                'event_title'       => $event_title,
+                'session_count'     => (string) count($lines),
+                'session_list'      => '<ul>' . implode('', $lines) . '</ul>',
+                'booking_reference' => $group->booking_reference ?? '',
+                'amount'            => $amount,
+            ],
+        ]);
+    }
+
+    /**
+     * Queue a payment receipt email for a paid booking.
+     *
+     * Resolves the recipient, first name, event title and amount from the
+     * booking record and queues a 'payment_received' notification with a
+     * paid tax-invoice PDF attached.
+     *
+     * @param int $booking_id Bookings-table row ID.
+     * @return int|false Queue row ID or false on failure.
+     */
+    public function queue_payment_receipt(int $booking_id)
+    {
+        global $wpdb;
+
+        $booking = $wpdb->get_row($wpdb->prepare(
+            "SELECT booking_number, booking_amount, event_post_id, registrant_post_id, booking_group_id
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . "
+             WHERE id = %d",
+            $booking_id
+        ));
+
+        if (!$booking) {
+            return false;
+        }
+
+        $event_id    = (int) $booking->event_post_id;
+        $customer_id = (int) $booking->registrant_post_id;
+
+        $recipient_email = sanitize_email((string) get_post_meta($customer_id, 'registrant_email', true));
+        if ($recipient_email === '') {
+            return false;
+        }
+
+        $first_name = sanitize_text_field((string) get_post_meta($customer_id, 'registrant_first_name', true));
+
+        $organizer_id = null;
+        $event_post   = get_post($event_id);
+        if ($event_post) {
+            $organizer_id = (int) $event_post->post_author;
+        }
+
+        $email_id = $this->queue_notification([
+            'email_type'      => NotificationHandler::TYPE_PAYMENT_RECEIVED,
+            'recipient_email' => $recipient_email,
+            'recipient_name'  => trim($first_name),
+            'organizer_id'    => $organizer_id,
+            'booking_id'      => $booking_id,
+            'template_data'   => [
+                'first_name'  => $first_name,
+                'event_title' => get_the_title($event_id),
+                'amount'      => number_format((float) $booking->booking_amount, 2),
+            ],
+        ]);
+
+        if ($email_id) {
+            $this->attach_receipt_pdf((int) $email_id, (int) $booking->booking_group_id);
+        }
+
+        return $email_id;
+    }
+
+    /**
+     * Generate the paid tax-invoice PDF for a booking group and attach it
+     * to a queued receipt email.
+     *
+     * @param int $email_id Email queue row ID.
+     * @param int $group_id Booking group ID.
+     * @return void
+     */
+    protected function attach_receipt_pdf(int $email_id, int $group_id): void
+    {
+        $invoice = new \HMWEvents\Services\InvoiceService();
+
+        $pdf_path = $invoice->generate_receipt_pdf($group_id);
+        if ($pdf_path === null) {
+            return;
+        }
+
+        $filename = $invoice->assign_invoice_number($group_id) . '.pdf';
+
+        $attachment_service = new EmailAttachmentService();
+        $attachment_service->add($email_id, $pdf_path, $filename);
     }
 
     /**
@@ -233,8 +459,14 @@ class EmailService
             'booking_cancelled'     => 'status_change',
             'refund_issued'         => 'status_change',
             'course_changed'        => 'status_change',
+            'event_changed'         => 'status_change',
             'payment_link'          => 'payment_link',
-            'educator_new_booking'  => 'educator_new_booking',
+            'organizer_new_booking' => 'organizer_new_booking',
+            'payment_received'      => 'notification',
+            'waitlist_promotion'    => 'notification',
+            'waitlist_joined'       => 'notification',
+            'invoice_issued'        => 'notification',
+            'invitation_sent'       => 'notification',
         ];
 
         $handler_type = $mapping[$email_type] ?? null;
@@ -359,30 +591,6 @@ class EmailService
     }
 
     /**
-     * Create or overwrite all default templates for a specific educator.
-     *
-     * Pulls from the system (master) templates in the DB so that any formatting
-     * or edits made to the masters are inherited. Falls back to the hardcoded
-     * defaults only if a system template does not yet exist in the DB.
-     *
-     * @param int $educator_id Educator user ID.
-     */
-    public function create_educator_default_templates($educator_id)
-    {
-        foreach ($this->get_default_templates_data() as $template) {
-            $system_template = $this->template_repo->get_template(null, $template['template_key']);
-
-            if ($system_template) {
-                $template['subject'] = $system_template->subject;
-                $template['body']    = $system_template->body;
-            }
-
-            $template['educator_id'] = $educator_id;
-            $this->template_repo->save($template);
-        }
-    }
-
-    /**
      * Get the array of default template definitions.
      *
      * @return array
@@ -392,22 +600,22 @@ class EmailService
         return [
             [
                 'template_key' => 'booking_confirmation',
-                'subject'      => 'Your Course Booking Confirmation - {{course_name}}',
+                'subject'      => 'Your Event Booking Confirmation - {{event_title}}',
                 'body'         => $this->get_default_template_body('booking_confirmation'),
             ],
             [
                 'template_key' => 'course_reminder',
-                'subject'      => 'Reminder: {{course_name}} is in {{days_until}} days',
+                'subject'      => 'Reminder: {{event_title}} is in {{days_until}} days',
                 'body'         => $this->get_default_template_body('course_reminder'),
             ],
             [
                 'template_key' => 'post_course_feedback',
-                'subject'      => 'How was {{course_name}}? We\'d love your feedback',
+                'subject'      => 'How was {{event_title}}? We\'d love your feedback',
                 'body'         => $this->get_default_template_body('post_course_feedback'),
             ],
             [
                 'template_key' => 'booking_cancelled',
-                'subject'      => 'Your booking for {{course_name}} has been cancelled',
+                'subject'      => 'Your booking for {{event_title}} has been cancelled',
                 'body'         => $this->get_default_template_body('booking_cancelled'),
             ],
             [
@@ -417,18 +625,18 @@ class EmailService
             ],
             [
                 'template_key' => 'remaining_payment_link',
-                'subject'      => 'Complete Your Payment for {{course_name}}',
+                'subject'      => 'Complete Your Payment for {{event_title}}',
                 'body'         => $this->get_default_template_body('remaining_payment_link'),
             ],
             [
                 'template_key' => 'course_changed',
-                'subject'      => 'Course Update: {{course_name}} Has Changed',
+                'subject'      => 'Event Update: {{event_title}} Has Changed',
                 'body'         => $this->get_default_template_body('course_changed'),
             ],
             [
-                'template_key' => 'educator_new_booking',
-                'subject'      => 'New Booking: {{customer_name}} has booked {{course_name}}',
-                'body'         => $this->get_default_template_body('educator_new_booking'),
+                'template_key' => 'organizer_new_booking',
+                'subject'      => 'New Booking: {{customer_name}} has booked {{event_title}}',
+                'body'         => $this->get_default_template_body('organizer_new_booking'),
             ],
         ];
     }
@@ -443,71 +651,52 @@ class EmailService
     {
         $templates = [
                         'booking_confirmation' => '<p>Dear {{customer_name}},</p>
-                            <p>Thank you for choosing Calmbirth&reg; as your childbirth education provider. We are pleased to have received your online booking as below. Your booking has been secured, so we will see you on the day!</p>
-                            <p>As a token of our appreciation here is a one time 10% discount coupon to use on our online shop! Your discount voucher code is <strong>REE6XMZC</strong> and can be redeemed on any purchase.</p>
-                            <p>While preparing for your course, Calmbirth&reg; is pleased to provide you with this complimentary guided relaxation audio track. {{download_relaxation_track}}.</p>
+                            <p>Thank you for your booking. We are pleased to confirm that your place has been secured, and we look forward to seeing you at the event.</p>
                             <p><strong>Your Booking Details:</strong><br>
                             Booking Number: {{booking_number}}<br>
-                            Course: {{course_name}}<br>
-                            Date: {{course_date}}<br>
-                            Start time: {{course_start_time}}<br>
+                            Event: {{event_title}}<br>
+                            Date: {{event_date}}<br>
+                            Start time: {{event_start_time}}<br>
                             Payment: {{booking_amount}} ({{payment_type_label}})<br>
-                            Location: {{course_location}} {{get_directions}}</p>
-                            <p>To finalise your booking and assist our Educator in understanding your needs please kindly answer some further questions via the Calmbirth Enrolment Form.</p>
-                            <p>If something arises between now and the date of your course which necessitates you cancelling your booking, let us know as soon as possible so any couples on our waiting list have the chance to take your place. You can review our cancellation policy here.</p>
+                            Location: {{event_location}} {{get_directions}}</p>
+                            <p>To finalise your booking and assist the event organizer in understanding your needs, please answer any remaining questions in the event registration form.</p>
+                            <p>If something arises between now and the event date that means you need to cancel your booking, please let the event organizer know as soon as possible.</p>
                             <p>Kind regards,</p>',
               
             'course_reminder' => '<p>Dear {{customer_name}},</p>
-              <p>This is a friendly reminder that {{course_name}} is coming up in {{days_until}} days!</p>
-              <p>Could you please confirm by return email that you have received this email and will be attending the course?</p>
-              <p><strong>Course Details:</strong><br>
-              Date: {{course_date}}<br>
-              Location: {{course_location}} {{get_directions}}<br>
-              Start Time: {{course_start_time}}</p>
-              <p>Please arrive 15 minutes early to courses attended in person. If you have any questions, please don\'t hesitate to contact us.</p>',
+              <p>This is a friendly reminder that {{event_title}} is coming up in {{days_until}} days!</p>
+               <p>Could you please confirm by return email that you have received this email and will be attending the event?</p>
+               <p><strong>Event Details:</strong><br>
+              Date: {{event_date}}<br>
+              Location: {{event_location}} {{get_directions}}<br>
+              Start Time: {{event_start_time}}</p>
+               <p>Please arrive 15 minutes early for events attended in person. If you have any questions, please don\'t hesitate to contact us.</p>',
 
                           'post_course_feedback' => '<p>Dear {{customer_name}},</p>
-              <p>Thank you for attending {{course_name}}!</p>
-              <p>We hope you\'ve enjoyed your Calmbirth course. Please find below important information and resources to support your ongoing preparation for birth.</p>
-              <p>Please download your Calmbirth Guided Relaxations via the Audio Downloads here: {{download_audio_track}}.<br>
-              This link takes you to a dropbox where you can download the files directly to your phone.</p>
-              <p><strong>Calmbirth Relaxations and Breathing Practice</strong></p>
-              <p>We encourage you to practice your Calmbirth breathing techniques several times per day and listen to one Calmbirth Relaxation daily.</p>
-              <p>These Relaxations have been specifically written to build upon and solidify what you\'ve learnt in your Calmbirth Course. They have a therapeutic component which is accumulative and best results happen when one or more relaxations are listened to daily up until birth.</p>
-              <p>The best time each day to do the Calmbirth Relaxations is anytime that you make the time to sit and do them. This could be first thing in the morning, at lunchtime, when you get home from work or even as you are going to bed.</p>
-              <p>Remember &ldquo;Practice Makes Permanent&rdquo;.</p>
-              <p><strong>Your Calmbirth Course Feedback Survey</strong></p>
-              <p>As a Calmbirth couple, your feedback is important and valuable to us and we would appreciate you taking a few minutes to fill in a quick survey on how you found your recent Calmbirth Course to be.</p>
-              <p>{{feedback_survey}}</p>
-              <p><strong>Other Important Links</strong></p>
-              <p>Calmbirth Acupressure Video<br>
-              3 Ways to Shorten Labor eBook Spinning Babies</p>
-              <p><strong>Other Recommended Resources</strong></p>
-              <p>Possums is offering Calmbirth attendees a 30% discount on their Possums Sleep Program - Possums. Use the code Calmbirth30</p>
-              <p>Finally, don\'t forget to follow us on Facebook and Instagram (@hmwevents), or visit our HMWEvents Blog where we share lots of positive birth stories and information about birth and parenting.</p>
-              <p>We would like to wish you well for your birth. Please do not hesitate to contact us at any time if we can help in any way with your preparation for birth.</p>
-              <p>Warm Regards,<br>
-              The Calmbirth Team</p>',
+              <p>Thank you for attending {{event_title}}!</p>
+               <p>We hope you enjoyed {{event_title}}. Please find below any follow-up information and resources provided by the event organizer.</p>
+               <p>Thank you for taking part in the event.</p>
+               <p>Warm regards, {{organiser_name}}</p>',
 
                           'post_course_followup' => '<p>Dear {{customer_name}},</p>
-              <p>It\'s been {{days_after}} days since you attended {{course_name}}. We hope you\'ve found the information valuable!</p>
+              <p>It\'s been {{days_after}} days since you attended {{event_title}}. We hope you\'ve found the information valuable!</p>
               <p>If you have any follow-up questions or need additional support, please don\'t hesitate to reach out.</p>',
 
                           'booking_cancelled' => '<p>Dear {{customer_name}},</p>
-              <p>Your booking for {{course_name}} has been cancelled.</p>
+              <p>Your booking for {{event_title}} has been cancelled.</p>
               <p>If you have any questions about this cancellation, please contact us.</p>',
 
                           'refund_issued' => '<p>Dear {{customer_name}},</p>
               <p>Your refund of {{amount}} has been processed.</p>
               <p>This refund will appear in your account within 3-5 business days depending on your bank.</p>
-              <p>With thanks,</p>',
+              <p>With thanks, {{organiser_name}}</p>',
 
                           'pending_payment_link' => '<p>Dear {{customer_name}},</p>
-              <p>You started booking <strong>{{course_name}}</strong> but didn\'t complete the payment. We\'ve saved your spot!</p>
+              <p>You started booking <strong>{{event_title}}</strong> but didn\'t complete the payment. We\'ve saved your spot!</p>
               <p><strong>Booking Details:</strong></p>
               <ul>
                 <li>Booking Number: {{booking_number}}</li>
-                <li>Course: {{course_name}}</li>
+                 <li>Event: {{event_title}}</li>
                 <li>Amount Due: ${{amount_due}}</li>
               </ul>
               <p>To complete your booking, please click the button below:</p>
@@ -517,10 +706,10 @@ class EmailService
               <p><small style="color: #666;">This payment link will expire on {{expires_at}}. If you need assistance, please contact us.</small></p>',
 
                           'remaining_payment_link' => '<p>Dear {{customer_name}},</p>
-              <p>You have paid a deposit for <strong>{{course_name}}</strong> and we\'ve saved your spot. The outstanding amount of ${{amount_due}} is now due.</p>
+              <p>You have paid a deposit for <strong>{{event_title}}</strong> and we\'ve saved your spot. The outstanding amount of ${{amount_due}} is now due.</p>
               <p><strong>Booking Details:</strong><br>
               Booking Number: {{booking_number}}<br>
-              Course: {{course_name}}<br>
+               Event: {{event_title}}<br>
               Amount Due: ${{amount_due}}</p>
               <p>To complete your booking and pay your outstanding amount, please click the button below:</p>
               <p style="text-align: center; margin: 30px 0;">
@@ -529,30 +718,31 @@ class EmailService
               <p><small style="color: #666;">This payment link will expire on {{expires_at}}. If you need assistance, please contact us.</small></p>',
 
                           'course_changed' => '<p>Dear {{customer_name}},</p>
-              <p>We wanted to let you know that <strong>{{course_name}}</strong> has been updated.</p>
+              <p>We wanted to let you know that <strong>{{event_title}}</strong> has been updated.</p>
               <p><strong>Booking Details:</strong></p>
               <ul>
                 <li>Booking Number: {{booking_number}}</li>
-                <li>Course: {{course_name}}</li>
-                <li>Date: {{course_date}}</li>
+                 <li>Event: {{event_title}}</li>
+                <li>Date: {{event_date}}</li>
               </ul>
               <p><strong>What changed:</strong></p>
               <p>{{changed_fields}}</p>
               <p>If you have any questions or concerns about these changes, please don\'t hesitate to contact us.</p>',
 
-                          'educator_new_booking' => '<p>Hi,</p>
-              <p>A new booking has been made for <strong>{{course_name}}</strong>.</p>
+                          'organizer_new_booking' => '<p>Hi,</p>
+              <p>A new booking has been made for <strong>{{event_title}}</strong>.</p>
               <p><strong>Booking Details:</strong><br>
               Booking Number: {{booking_number}}<br>
-              Course: {{course_name}}<br>
-              Date: {{course_date}}<br>
-              Start Time: {{course_start_time}}<br>
+               Event: {{event_title}}<br>
+              Date: {{event_date}}<br>
+              Start Time: {{event_start_time}}<br>
               Payment: {{booking_amount}} ({{payment_type}})</p>
               <p><strong>Customer Details:</strong><br>
               Name: {{customer_name}}<br>
-              Email: {{registrant_email}}<br>
-              Phone: {{customer_phone}}</p>
-              <p>{{customer_link}}</p>',
+               Email: {{registrant_email}}<br>
+               Phone: {{customer_phone}}</p>
+               <p><strong>Registration Details:</strong><br>{{all_fields}}</p>
+               <p>{{customer_link}}</p>',
         ];
 
         return $templates[$template_key] ?? '<p>Hello {{customer_name}},</p><p>Email content here</p>';

@@ -4,6 +4,13 @@
   var statusEl;
   var currentModalSectionId = '';
   var currentModalFieldKey = '';
+  var ATTENDANCE_OPTION_TYPES = {
+    individual: 'Individual',
+    parent: 'Parent',
+    parent_child: 'Parent + Child',
+    couple: 'Couple',
+    professional: 'Professional'
+  };
 
   function notice(type, msg) {
     if (!statusEl) { statusEl = $('#hmwevents-template-save-status'); }
@@ -141,17 +148,7 @@
     }
 
     var sections = initReg.sections || [];
-    var mb = initReg.multi_booking || { enabled: false, min: 1, max: 10 };
-
     var html = '';
-
-    html += '<div style="margin-bottom:12px; padding:8px 12px; background:#f0f6fc; border-left:4px solid #2271b1;">';
-    html += '<label><input type="checkbox" id="hmwevents-multi-booking-toggle"' + (mb.enabled ? ' checked' : '') + '> <strong>Enable multi-attendee booking</strong></label>';
-    html += '<p class="description" style="margin:4px 0 0 20px;">Allows customers to register multiple attendees in one booking. Mark fields as "per-attendee" in field settings.</p>';
-    html += '<div id="hmwevents-multi-booking-settings"' + (mb.enabled ? '' : ' style="display:none"') + '>';
-    html += '<label style="margin-top:8px;display:inline-block;">Min attendees: <input type="number" id="hmwevents-mb-min" value="' + (mb.min || 1) + '" min="1" max="100" style="width:60px;"></label>';
-    html += '<label style="margin-left:12px;">Max attendees: <input type="number" id="hmwevents-mb-max" value="' + (mb.max || 10) + '" min="1" max="100" style="width:60px;"></label>';
-    html += '</div></div>';
 
     html += '<div id="hmwevents-fb-sections">';
     sections.forEach(function (section) {
@@ -164,8 +161,6 @@
 
     initSectionsSortable();
     initFieldsSortable();
-    initMultiBookingToggle();
-
     $('#hmwevents-fb-sections .hmwevents-fb-section-fields').each(function () {
       HmwFormBuilder.initFieldSortable($(this), saveJSON);
     });
@@ -275,6 +270,13 @@
       $('#hmwevents-multi-booking-settings').toggle(this.checked);
       saveJSON();
     });
+
+    $(document).off('change.mbmode', '#hmwevents-mb-mode');
+    $(document).on('change.mbmode', '#hmwevents-mb-mode', function () {
+      var isParentChildren = $(this).val() === 'parent_children';
+      $('#hmwevents-mb-child-fields').toggle(isParentChildren);
+      saveJSON();
+    });
   }
 
   function initEventHandlers() {
@@ -315,6 +317,11 @@
 
     $(document).off('change.mb', '#hmwevents-mb-min, #hmwevents-mb-max');
     $(document).on('change.mb', '#hmwevents-mb-min, #hmwevents-mb-max', function () {
+      saveJSON();
+    });
+
+    $(document).off('change.mb', '#hmwevents-cf-name-enabled, #hmwevents-cf-name-required, #hmwevents-cf-age-enabled, #hmwevents-cf-age-required');
+    $(document).on('change.mb', '#hmwevents-cf-name-enabled, #hmwevents-cf-name-required, #hmwevents-cf-age-enabled, #hmwevents-cf-age-required', function () {
       saveJSON();
     });
   }
@@ -405,8 +412,21 @@
   function readMultiBookingState() {
     return {
       enabled: $('#hmwevents-multi-booking-toggle').prop('checked') || false,
+      mode: $('#hmwevents-mb-mode').val() || 'attendees',
       min: parseInt($('#hmwevents-mb-min').val(), 10) || 1,
-      max: parseInt($('#hmwevents-mb-max').val(), 10) || 10
+      max: parseInt($('#hmwevents-mb-max').val(), 10) || 10,
+      child_fields: {
+        name: {
+          enabled: $('#hmwevents-cf-name-enabled').prop('checked'),
+          required: $('#hmwevents-cf-name-required').prop('checked'),
+          label: 'Child Name'
+        },
+        age: {
+          enabled: $('#hmwevents-cf-age-enabled').prop('checked'),
+          required: $('#hmwevents-cf-age-required').prop('checked'),
+          label: 'Date of Birth'
+        }
+      }
     };
   }
 
@@ -426,6 +446,192 @@
       }
     });
     return defaults;
+  }
+
+  // ================================================================
+  // PANEL 4: ATTENDANCE OPTIONS EDITOR
+  // ================================================================
+
+  function renderAttendanceOptions(container, initialData) {
+    var options = (initialData.defaults && initialData.defaults.attendance_options)
+      ? initialData.defaults.attendance_options
+      : [];
+
+    var initReg = initialData.registration_fields || { multi_booking: { enabled: false, min: 1, max: 10 } };
+    var mb = initReg.multi_booking || { enabled: false, min: 1, max: 10 };
+    var mbMode = mb.mode || 'attendees';
+    var childFields = mb.child_fields || {};
+    var cfName = childFields.name || {};
+    var cfAge = childFields.age || {};
+    var html = '<div class="hmwevents-attendance-multi-booking">';
+    html += '<label><input type="checkbox" id="hmwevents-multi-booking-toggle"' + (mb.enabled ? ' checked' : '') + '> <strong>Enable multi-attendee booking</strong></label>';
+    html += '<p class="description">Allows customers to register multiple attendees in one booking. Mark fields as "per-attendee" in field settings.</p>';
+    html += '<div id="hmwevents-multi-booking-settings"' + (mb.enabled ? '' : ' style="display:none"') + '>';
+    html += '<label>Minimum attendees <input type="number" id="hmwevents-mb-min" value="' + (mb.min || 1) + '" min="1" max="100"></label>';
+    html += '<label>Maximum attendees <input type="number" id="hmwevents-mb-max" value="' + (mb.max || 10) + '" min="1" max="100"></label>';
+    html += '<label style="display:block;margin-top:8px;">Mode <select id="hmwevents-mb-mode">';
+    html += '<option value="attendees"' + (mbMode === 'attendees' ? ' selected' : '') + '>Attendees (repeat per-attendee fields)</option>';
+    html += '<option value="parent_children"' + (mbMode === 'parent_children' ? ' selected' : '') + '>Parent + Children</option>';
+    html += '</select></label>';
+    html += '<div id="hmwevents-mb-child-fields"' + (mbMode === 'parent_children' ? '' : ' style="display:none"') + '>';
+    html += '<p class="description" style="margin-top:8px;">Child block fields shown for each child. Custom child fields are the per-attendee fields in the form builder.</p>';
+    html += '<label><input type="checkbox" id="hmwevents-cf-name-enabled"' + (cfName.enabled !== false ? ' checked' : '') + '> Show child name</label>';
+    html += '<label style="margin-left:8px;"><input type="checkbox" id="hmwevents-cf-name-required"' + (cfName.required !== false ? ' checked' : '') + '> Name required</label><br>';
+    html += '<label><input type="checkbox" id="hmwevents-cf-age-enabled"' + (cfAge.enabled !== false ? ' checked' : '') + '> Show child age (date of birth)</label>';
+    html += '<label style="margin-left:8px;"><input type="checkbox" id="hmwevents-cf-age-required"' + (cfAge.required ? ' checked' : '') + '> Age required</label>';
+    html += '</div>';
+    html += '</div></div>';
+    html += '<ul class="hmwevents-attendance-options-list hmwevents-dnd-sortable" id="hmwevents-attendance-options-list">';
+    options.forEach(function (opt) {
+      html += buildAttendanceOptionRowHtml(opt);
+    });
+    html += '</ul>';
+    html += '<button type="button" class="button hmwevents-add-attendance-option" style="margin-top:8px;">+ ' + escHtml('Add Option') + '</button>';
+    container.html(html);
+    initMultiBookingToggle();
+
+    $('#hmwevents-attendance-options-list').sortable({
+      handle: '.hmwevents-dnd-handle',
+      placeholder: 'hmwevents-dnd-placeholder',
+      opacity: 0.6,
+      stop: function () { saveJSON(); }
+    }).disableSelection();
+  }
+
+  function buildAttendanceOptionRowHtml(opt) {
+    opt = opt || {};
+    var type = opt.option_type || 'individual';
+    var label = opt.label || '';
+    var price = (opt.price !== undefined && opt.price !== null) ? opt.price : '';
+    var capacity = (opt.capacity !== undefined && opt.capacity !== null) ? opt.capacity : '';
+    var mode = opt.price_mode || 'flat';
+    var rules = opt.pricing_rules || [];
+
+    var adultPrice = '';
+    var childPrice = '';
+    rules.forEach(function (r) {
+      if ((r.role || 'any') === 'adult') adultPrice = r.price;
+      if ((r.role || 'any') === 'child') childPrice = r.price;
+    });
+    var ageBands = (mode === 'age_band' && rules.length) ? rules : [{ role: 'any', min_age: 0, max_age: '', price: 0 }];
+
+    var html = '<li class="hmwevents-attendance-option-row">';
+    html += '<span class="hmwevents-dnd-handle">&#9776;</span>';
+    html += '<div class="hmwevents-attendance-option-main">';
+    html += '<select class="hmwevents-attendance-option-type">';
+    Object.keys(ATTENDANCE_OPTION_TYPES).forEach(function (t) {
+      html += '<option value="' + t + '"' + (t === type ? ' selected' : '') + '>' + escHtml(ATTENDANCE_OPTION_TYPES[t]) + '</option>';
+    });
+    html += '</select>';
+    html += '<input type="text" class="hmwevents-attendance-option-label" placeholder="' + escAttr('Label') + '" value="' + escAttr(label) + '">';
+    html += '<select class="hmwevents-attendance-option-mode">';
+    html += '<option value="flat"' + (mode === 'flat' ? ' selected' : '') + '>Flat price</option>';
+    html += '<option value="per_attendee"' + (mode === 'per_attendee' ? ' selected' : '') + '>Per attendee</option>';
+    html += '<option value="age_band"' + (mode === 'age_band' ? ' selected' : '') + '>Age bands</option>';
+    html += '</select>';
+    html += '</div>';
+
+    html += '<div class="hmwevents-attendance-panel hmwevents-attendance-panel--flat"' + (mode === 'flat' ? '' : ' style="display:none"') + '>';
+    html += '<p class="hmwevents-attendance-panel-help">One price for the complete booking.</p>';
+    html += '<label class="hmwevents-attendance-control"><span>Booking price ($)</span><input type="number" class="hmwevents-attendance-option-price" min="0" step="0.01" value="' + escAttr(price) + '"></label>';
+    html += '</div>';
+
+    html += '<div class="hmwevents-attendance-panel hmwevents-attendance-panel--per_attendee"' + (mode === 'per_attendee' ? '' : ' style="display:none"') + '>';
+    html += '<p class="hmwevents-attendance-panel-help">Each attendee is charged the Adult or Child price below, based on their Attendee Type.</p>';
+    html += '<div class="hmwevents-attendance-control-grid">';
+    html += '<label class="hmwevents-attendance-control"><span>Adult / parent ($)</span><input type="number" class="hmwevents-attendance-adult-price" min="0" step="0.01" value="' + escAttr(adultPrice) + '"></label>';
+    html += '<label class="hmwevents-attendance-control"><span>Child ($)</span><input type="number" class="hmwevents-attendance-child-price" min="0" step="0.01" value="' + escAttr(childPrice) + '"></label>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="hmwevents-attendance-panel hmwevents-attendance-panel--age_band"' + (mode === 'age_band' ? '' : ' style="display:none"') + '>';
+    html += '<p class="hmwevents-attendance-panel-help">Set the price for each age range. Select whether the range applies to adults, children, or everyone.</p>';
+    html += '<div class="hmwevents-attendance-age-bands">';
+    ageBands.forEach(function (rule) {
+      html += buildAgeBandRuleHtml(rule);
+    });
+    html += '</div>';
+    html += '<button type="button" class="button button-small hmwevents-add-age-band-rule">+ Add age band</button>';
+    html += '</div>';
+
+    html += '<label class="hmwevents-attendance-capacity"><span>Maximum bookings</span><input type="number" class="hmwevents-attendance-option-capacity" min="0" step="1" value="' + escAttr(capacity) + '"><small>Leave blank for unlimited</small></label>';
+    html += '<button type="button" class="button-link-delete hmwevents-remove-attendance-option">&times;</button>';
+    html += '</li>';
+    return html;
+  }
+
+  function buildAgeBandRuleHtml(rule) {
+    rule = rule || {};
+    var role = rule.role || 'any';
+    var minAge = (rule.min_age !== undefined && rule.min_age !== null) ? rule.min_age : 0;
+    var maxAge = (rule.max_age !== undefined && rule.max_age !== null) ? rule.max_age : '';
+    var price = (rule.price !== undefined && rule.price !== null) ? rule.price : 0;
+
+    var html = '<div class="hmwevents-age-band-rule">';
+    html += '<label class="hmwevents-age-band-control"><span>Applies to</span><select class="hmwevents-age-band-role">';
+    html += '<option value="any"' + (role === 'any' ? ' selected' : '') + '>Any</option>';
+    html += '<option value="adult"' + (role === 'adult' ? ' selected' : '') + '>Adult</option>';
+    html += '<option value="child"' + (role === 'child' ? ' selected' : '') + '>Child</option>';
+    html += '</select></label>';
+    html += '<label class="hmwevents-age-band-control"><span>From age</span><span class="hmwevents-age-band-field"><input type="number" class="hmwevents-age-band-min" min="0" step="1" value="' + escAttr(minAge) + '"><small>years</small></span></label>';
+    html += '<label class="hmwevents-age-band-control"><span>To age</span><span class="hmwevents-age-band-field"><input type="number" class="hmwevents-age-band-max" min="0" step="1" value="' + escAttr(maxAge) + '"><small>blank = no limit</small></span></label>';
+    html += '<label class="hmwevents-age-band-control"><span>Price per attendee ($)</span><input type="number" class="hmwevents-age-band-price" min="0" step="0.01" value="' + escAttr(price) + '"></label>';
+    html += '<button type="button" class="hmwevents-age-band-remove" aria-label="Remove age band">&times;</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function readAttendanceOptionsState() {
+    var options = [];
+    $('#hmwevents-attendance-options-list .hmwevents-attendance-option-row').each(function () {
+      var $row = $(this);
+      var label = $row.find('.hmwevents-attendance-option-label').val().trim();
+      if (!label) return;
+
+      var mode = $row.find('.hmwevents-attendance-option-mode').val() || 'flat';
+
+      var price = parseFloat($row.find('.hmwevents-attendance-option-price').val());
+      if (isNaN(price)) price = 0;
+
+      var capacityRaw = $row.find('.hmwevents-attendance-option-capacity').val();
+      var capacity = (capacityRaw === '' || capacityRaw === null) ? null : parseInt(capacityRaw, 10);
+      if (isNaN(capacity)) capacity = null;
+
+      var option = {
+        option_type: $row.find('.hmwevents-attendance-option-type').val() || 'individual',
+        label: label,
+        price: price,
+        capacity: capacity,
+        price_mode: mode,
+        pricing_rules: []
+      };
+
+      if (mode === 'per_attendee') {
+        var adult = parseFloat($row.find('.hmwevents-attendance-adult-price').val());
+        var child = parseFloat($row.find('.hmwevents-attendance-child-price').val());
+        option.pricing_rules = [
+          { role: 'adult', min_age: 0, max_age: null, price: isNaN(adult) ? 0 : adult },
+          { role: 'child', min_age: 0, max_age: null, price: isNaN(child) ? 0 : child }
+        ];
+      } else if (mode === 'age_band') {
+        $row.find('.hmwevents-age-band-rule').each(function () {
+          var $rule = $(this);
+          var minAge = parseInt($rule.find('.hmwevents-age-band-min').val(), 10);
+          var maxAgeRaw = $rule.find('.hmwevents-age-band-max').val();
+          var maxAge = (maxAgeRaw === '' || maxAgeRaw === null) ? null : parseInt(maxAgeRaw, 10);
+          var rulePrice = parseFloat($rule.find('.hmwevents-age-band-price').val());
+          option.pricing_rules.push({
+            role: $rule.find('.hmwevents-age-band-role').val() || 'any',
+            min_age: isNaN(minAge) ? 0 : minAge,
+            max_age: isNaN(maxAge) ? null : maxAge,
+            price: isNaN(rulePrice) ? 0 : rulePrice
+          });
+        });
+      }
+
+      options.push(option);
+    });
+    return options;
   }
 
   // ================================================================
@@ -462,7 +668,7 @@
           attendance_default: 'individual',
           field_overrides: {}
         },
-        attendance_options: []
+        attendance_options: readAttendanceOptionsState()
       }
     };
 
@@ -472,9 +678,6 @@
         var prev = JSON.parse(raw);
         if (prev && prev.template_version) {
           data.template_version = parseInt(prev.template_version, 10) || 1;
-        }
-        if (prev && prev.defaults && prev.defaults.attendance_options && prev.defaults.attendance_options.length) {
-          data.defaults.attendance_options = prev.defaults.attendance_options;
         }
         if (prev && prev.defaults && prev.defaults.registration) {
           data.defaults.registration = prev.defaults.registration;
@@ -571,6 +774,17 @@
       });
     }
 
+    if (preset.attendance_option_presets && preset.attendance_option_presets.length) {
+      var currentOptions = readAttendanceOptionsState();
+      if (currentOptions.length === 0) {
+        $('#hmwevents-attendance-options-list').empty();
+        preset.attendance_option_presets.forEach(function (opt) {
+          $('#hmwevents-attendance-options-list').append(buildAttendanceOptionRowHtml(opt));
+        });
+        saveJSON();
+      }
+    }
+
     notice('success', 'Presets loaded for <strong>' + escHtml(slug) + '</strong>. Review and adjust as needed.');
   }
 
@@ -593,6 +807,7 @@
     renderAcfDndPanel($('#hmwevents-event-fields-container'), initialData);
     renderFormBuilder($('#hmwevents-registration-fields-container'), initialData);
     renderEventMetaDefaults();
+    renderAttendanceOptions($('#hmwevents-attendance-options-container'), initialData);
 
     if (initMeta) {
       Object.keys(initMeta).forEach(function (k) {
@@ -649,6 +864,42 @@
   // ================================================================
 
   $(document).on('change', '.hmwevents-meta-default', function () {
+    saveJSON();
+  });
+
+  $(document).on('click', '.hmwevents-add-attendance-option', function () {
+    $('#hmwevents-attendance-options-list').append(buildAttendanceOptionRowHtml({
+      option_type: 'individual',
+      label: '',
+      price: '',
+      capacity: ''
+    }));
+    saveJSON();
+  });
+
+  $(document).on('click', '.hmwevents-remove-attendance-option', function () {
+    $(this).closest('.hmwevents-attendance-option-row').remove();
+    saveJSON();
+  });
+
+  $(document).on('change input', '.hmwevents-attendance-option-type, .hmwevents-attendance-option-label, .hmwevents-attendance-option-price, .hmwevents-attendance-option-capacity, .hmwevents-attendance-option-mode, .hmwevents-attendance-adult-price, .hmwevents-attendance-child-price, .hmwevents-age-band-role, .hmwevents-age-band-min, .hmwevents-age-band-max, .hmwevents-age-band-price', function () {
+    saveJSON();
+  });
+
+  $(document).on('change', '.hmwevents-attendance-option-mode', function () {
+    var $row = $(this).closest('.hmwevents-attendance-option-row');
+    var mode = $(this).val();
+    $row.find('.hmwevents-attendance-panel').hide();
+    $row.find('.hmwevents-attendance-panel--' + mode).show();
+  });
+
+  $(document).on('click', '.hmwevents-add-age-band-rule', function () {
+    $(this).siblings('.hmwevents-attendance-age-bands').append(buildAgeBandRuleHtml({ role: 'any', min_age: 0, max_age: '', price: 0 }));
+    saveJSON();
+  });
+
+  $(document).on('click', '.hmwevents-age-band-remove', function () {
+    $(this).closest('.hmwevents-age-band-rule').remove();
     saveJSON();
   });
 

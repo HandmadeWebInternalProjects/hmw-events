@@ -1,5 +1,7 @@
 <?php
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 /**
  * Server-Side Rendering for Voucher Code Element
  */

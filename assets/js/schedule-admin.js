@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
                     if (data.success) {
+                        window.onbeforeunload = null;
+                        if (window.jQuery) {
+                            window.jQuery(window).off('beforeunload');
+                        }
                         window.location.reload();
                     } else {
                         alert(data.data && data.data.message ? data.data.message : 'Error');
@@ -61,6 +65,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
                     if (data.success) {
+                        window.onbeforeunload = null;
+                        if (window.jQuery) {
+                            window.jQuery(window).off('beforeunload');
+                        }
                         window.location.reload();
                     } else {
                         alert(data.data && data.data.message ? data.data.message : 'Failed to clear excluded dates.');
@@ -79,6 +87,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.hmwevents-cascade-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var nonce = this.dataset.nonce;
+
+            if (window.jQuery && window.jQuery('#post').hasClass('dirty')) {
+                alert('Please click Update to save the parent event before updating its sessions.');
+                return;
+            }
 
             if (!confirm(hmwScheduleAdmin.cascadeConfirm)) {
                 return;

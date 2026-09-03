@@ -64,7 +64,7 @@ class PaymentLinkHandler extends AbstractEmailHandler
     {
         return $this->queue_repo->add([
             'booking_id'      => $booking_id,
-            'educator_id'     => $educator_id,
+            'organizer_id'    => $educator_id,
             'recipient_email' => $recipient_email,
             'recipient_name'  => $recipient_name,
             'email_type'      => $this->email_type,
@@ -93,8 +93,9 @@ class PaymentLinkHandler extends AbstractEmailHandler
             }
 
             $educator_email = '';
-            if (!empty($email->educator_id)) {
-                $educator_user = get_userdata((int) $email->educator_id);
+            $organizer_id = $email->organizer_id ?? $email->educator_id ?? null;
+            if (!empty($organizer_id)) {
+                $educator_user = get_userdata((int) $organizer_id);
                 if ($educator_user) {
                     $educator_email = $educator_user->user_email;
                 }
@@ -103,7 +104,7 @@ class PaymentLinkHandler extends AbstractEmailHandler
             if (!empty($email->booking_id)) {
                 global $wpdb;
                 $event_post_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT event_post_id FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+                    "SELECT event_post_id FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
                     $email->booking_id
                 ));
                 if ($event_post_id) {

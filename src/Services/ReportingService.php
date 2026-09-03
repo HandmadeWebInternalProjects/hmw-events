@@ -34,8 +34,6 @@ class ReportingService
     public function register(): void
     {
         add_action('hmwevents_daily_compliance_check', [$this, 'run_compliance_jobs']);
-        add_action('wp_ajax_hmwevents_export_csv', [$this, 'ajax_export']);
-        add_action('wp_ajax_hmwevents_save_report_filter', [$this, 'ajax_save_filter']);
         add_action('wp_ajax_hmwevents_remove_test_data', [$this, 'ajax_remove_test_data']);
         add_action('pre_get_posts', [$this, 'exclude_archived_events_from_frontend']);
 
@@ -355,8 +353,8 @@ class ReportingService
         $doc_handler = new DocumentUploadHandler();
         $doc_purged = $doc_handler->purge_expired_documents();
 
-        $email_service = new EmailDispatchService();
-        $emails_purged = $email_service->cleanup_old(90);
+        $email_service = new \HMWEvents\Services\Emails\EmailService();
+        $emails_purged = $email_service->cleanup_old_emails(90);
 
         error_log("HMWEvents Compliance: Purged {$doc_purged} documents, {$emails_purged} emails.");
     }
@@ -382,72 +380,12 @@ class ReportingService
     // ================================================================
 
     /**
-     * AJAX export handler.
-     */
-    public function ajax_export(): void
-    {
-        if (!current_user_can('edit_hmw_events')) {
-            wp_die(-1);
-        }
-
-        $export_type       = sanitize_text_field($_POST['export_type'] ?? 'registrations');
-        $event_id          = (int) ($_POST['event_id'] ?? 0);
-        $date_from         = sanitize_text_field($_POST['date_from'] ?? '');
-        $date_to           = sanitize_text_field($_POST['date_to'] ?? '');
-        $payment_status    = sanitize_text_field($_POST['payment_status'] ?? '');
-        $attendance_status = sanitize_text_field($_POST['attendance_status'] ?? '');
-        $event_type        = sanitize_text_field($_POST['event_type'] ?? '');
-        $audience          = sanitize_text_field($_POST['audience'] ?? '');
-
-        $filters = [
-            'date_from'         => $date_from,
-            'date_to'           => $date_to,
-            'payment_status'    => $payment_status,
-            'attendance_status' => $attendance_status,
-            'event_type'        => $event_type,
-            'audience'          => $audience,
-        ];
-
-        if ($event_id) {
-            $filters['event_id'] = $event_id;
-        }
-
-        $csv = match ($export_type) {
-            'payments'    => $this->export_payments($filters),
-            'attendees'   => $export_type === 'attendees' && $event_id
-                ? $this->export_attendees($event_id)
-                : $this->export_registrations($filters),
-            default       => $this->export_registrations($filters),
-        };
-
-        wp_send_json_success(['csv' => $csv, 'filename' => "hmwevents-{$export_type}-" . date('Y-m-d') . '.csv']);
-    }
-
-    /**
-     * AJAX save filter handler.
-     */
-    public function ajax_save_filter(): void
-    {
-        if (!current_user_can('edit_hmw_events')) {
-            wp_die(-1);
-        }
-
-        $user_id    = get_current_user_id();
-        $label      = sanitize_text_field($_POST['label'] ?? '');
-        $report_type = sanitize_text_field($_POST['report_type'] ?? 'registrations');
-        $filter_data = json_decode(wp_unslash($_POST['filter_data'] ?? '{}'), true) ?: [];
-        $is_default  = !empty($_POST['is_default']);
-
-        $id = $this->save_filter($user_id, $label, $report_type, $filter_data, $is_default);
-
-        wp_send_json_success(['id' => $id]);
-    }
-
-    /**
      * AJAX handler to remove stale pending (abandoned) test bookings.
      */
     public function ajax_remove_test_data(): void
     {
+        check_ajax_referer('hmwevents_remove_test_data', 'nonce');
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => __('Permission denied.', 'hmw-events')]);
         }

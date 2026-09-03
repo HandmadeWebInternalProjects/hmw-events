@@ -47,9 +47,9 @@ class BookingConfirmationHandler extends AbstractEmailHandler
         // Get booking details
         if (empty($booking_data)) {
             $booking = $wpdb->get_row($wpdb->prepare(
-                "SELECT b.*, c.post_title as customer_name
-                 FROM {$wpdb->prefix}hmwevents_bookings b
-                 INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
+                "SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_title as customer_name
+                 FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+                 INNER JOIN {$wpdb->posts} c ON b.registrant_post_id = c.ID
                  WHERE b.id = %d",
                 $booking_id
             ));
@@ -67,9 +67,6 @@ class BookingConfirmationHandler extends AbstractEmailHandler
             $booking_data['customer_post_id'] ?? null,
             $booking_data['customer_name'] ?? ''
         );
-
-        error_log('Customer name for booking ' . $booking_id . ': ' . $customer_name);
-        error_log('Booking Data for booking ' . $booking_id . ': ' . print_r($booking_data, true));
 
         // Get customer email
         $registrant_email = $this->get_registrant_email($booking_data['customer_post_id'] ?? null);
@@ -103,17 +100,6 @@ class BookingConfirmationHandler extends AbstractEmailHandler
                 'booking_amount'    => $this->format_currency($booking_data['booking_amount'] ?? 0, $currency),
             ]
         ));
-
-        $event_id     = (int) ($booking_data['event_post_id'] ?? 0);
-        $is_free_event = $event_id && (
-            get_post_meta($event_id, '_event_is_free', true) ||
-            (float) get_post_meta($event_id, '_event_price', true) <= 0
-        );
-
-        if ($is_free_event) {
-            $cancel_service = new \HMWEvents\Services\BookingSelfCancelService();
-            $template_data['cancel_link'] = $cancel_service->generate_cancel_token((int) $booking_id);
-        }
 
         // Queue the email
         return $this->queue([
@@ -150,34 +136,11 @@ class BookingConfirmationHandler extends AbstractEmailHandler
         return true;
     }
 
-    /**
-     * Get customer email from customer post.
-     *
-     * @param int $customer_post_id Customer post ID.
-     * @return string|false Email address or false.
-     */
     private function get_registrant_email($customer_post_id)
     {
-        if (!$customer_post_id) {
-            return false;
-        }
-
-        // Try post meta first
-        $email = get_post_meta($customer_post_id, 'registrant_email', true);
-        if ($email) {
-            return $email;
-        }
-
-        // Try ACF field if available
-        if (function_exists('get_field')) {
-            $email = get_field('registrant_email', $customer_post_id);
-            if ($email) {
-                return $email;
-            }
-        }
-
-        return false;
+        return $this->get_registrant_email_address($customer_post_id);
     }
+
 
     /**
      * Get course date.
@@ -187,11 +150,9 @@ class BookingConfirmationHandler extends AbstractEmailHandler
      */
     private function get_course_date($course_id)
     {
-        if (function_exists('get_field')) {
-            $date = get_field('course_start_date', $course_id);
-            if ($date) {
-                return $this->format_date($date);
-            }
+        $date = $this->event_data()->get_start_date($course_id);
+        if ($date) {
+            return $this->format_date($date);
         }
 
         return get_the_date('F j, Y', $course_id);
@@ -205,13 +166,11 @@ class BookingConfirmationHandler extends AbstractEmailHandler
      */
     private function get_course_time($course_id)
     {
-        if (function_exists('get_field')) {
-            $datetime = get_field('course_start_date', $course_id);
-            if ($datetime) {
-                $timestamp = strtotime($datetime);
-                if ($timestamp !== false) {
-                    return date('g:i A', $timestamp);
-                }
+        $datetime = $this->event_data()->get_start_date($course_id);
+        if ($datetime) {
+            $timestamp = strtotime($datetime);
+            if ($timestamp !== false) {
+                return date('g:i A', $timestamp);
             }
         }
 
@@ -229,34 +188,17 @@ class BookingConfirmationHandler extends AbstractEmailHandler
         return $this->get_course_location_address($course_id);
     }
 
-    /**
-     * Format date from various formats.
-     *
-     * @param string $date Date string.
-     * @return string Formatted date.
-     */
     private function format_date($date)
     {
-        $timestamp = strtotime($date);
-        if ($timestamp === false) {
-            return $date;
-        }
-
-        return date('F j, Y', $timestamp);
+        return $this->format_event_date($date);
     }
 
-    /**
-     * Format currency value.
-     *
-     * @param float $amount Amount.
-     * @param string $currency Currency code (defaults to AUD).
-     * @return string Formatted currency.
-     */
+
     private function format_currency($amount, $currency = 'AUD')
     {
-        $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
-        return $currency_symbol . number_format($amount, 2);
+        return $this->format_money($amount, $currency);
     }
+
 
     /**
      * Prepare fresh template data from booking ID.
@@ -270,9 +212,9 @@ class BookingConfirmationHandler extends AbstractEmailHandler
 
         // Get fresh booking details
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT b.*, c.post_title as customer_name
-             FROM {$wpdb->prefix}hmwevents_bookings b
-             INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
+            "SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_title as customer_name
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+              INNER JOIN {$wpdb->posts} c ON b.registrant_post_id = c.ID
              WHERE b.id = %d",
             $booking_id
         ));
@@ -301,7 +243,9 @@ class BookingConfirmationHandler extends AbstractEmailHandler
 
         $payment_type       = $booking_data['ticket_type'] ?? ($booking_data['payment_type'] ?? 'full');
         $payment_status     = $booking_data['payment_status'] ?? 'pending';
-        if ($payment_status !== 'paid') {
+        if ($payment_type === 'net_terms') {
+            $payment_type_label = 'Pay by Invoice';
+        } elseif ($payment_status !== 'paid') {
             $payment_type_label = 'Awaiting Payment';
         } else {
             $payment_type_label = ($payment_type === 'deposit') ? 'Deposit' : 'Full Payment';
@@ -331,7 +275,7 @@ class BookingConfirmationHandler extends AbstractEmailHandler
 
         if ($is_free_event) {
             $cancel_service = new \HMWEvents\Services\BookingSelfCancelService();
-            $template_data['cancel_link'] = $cancel_service->generate_cancel_token((int) $booking_id);
+            $template_data['cancel_link'] = $cancel_service->generate_cancel_link((int) $booking_id);
         }
 
         return $template_data;
@@ -345,15 +289,9 @@ class BookingConfirmationHandler extends AbstractEmailHandler
     public function get_template_variables_description()
     {
         return array_merge(parent::get_template_variables_description(), [
-            'booking_amount'              => 'Booking amount (formatted)',
-            'payment_type_label'          => 'Payment type label ("Full Payment", "Deposit", or "Awaiting Payment")',
-            'payment_status'              => 'Raw payment status (pending, paid, refunded, failed)',
-            'course_start_time'           => 'Course start time',
-            'course_location'             => 'Course location address',
-            'get_directions'              => 'Google Maps directions URL to the course location',
-            'download_audio_track'        => 'Download link to audio file (if configured)',
-            'free_pre_course_audio_track' => 'Free pre-course audio track link',
-            'download_relaxation_track'   => 'Download link to free pre-course relaxation track',
+            'booking_amount'     => 'Booking amount (formatted)',
+            'payment_type_label' => 'Payment type label ("Full Payment", "Deposit", or "Awaiting Payment")',
+            'payment_status'     => 'Raw payment status (pending, paid, refunded, failed)',
         ]);
     }
 }

@@ -217,6 +217,8 @@ class Event
             var current = <?php echo wp_json_encode($current_status, JSON_HEX_TAG); ?>;
             var opts = <?php echo wp_json_encode((object) $custom_options, JSON_HEX_TAG | JSON_FORCE_OBJECT); ?>;
             var publishBtn = document.getElementById('publish');
+            var statusDisplay = document.getElementById('post-status-display');
+            var postForm = document.getElementById('post');
 
             Object.keys(opts).forEach(function(slug) {
                 var o = document.createElement('option');
@@ -232,6 +234,10 @@ class Event
 
                 function updatePublishButton() {
                     var val = select.value;
+                    if (statusDisplay && opts.hasOwnProperty(val)) {
+                        statusDisplay.textContent = opts[val];
+                    }
+
                     if (opts.hasOwnProperty(val)) {
                         publishBtn.setAttribute('name', 'save');
                         publishBtn.value = 'Save as ' + opts[val];
@@ -243,6 +249,16 @@ class Event
 
                 select.addEventListener('change', updatePublishButton);
                 updatePublishButton();
+            } else if (statusDisplay && opts.hasOwnProperty(current)) {
+                statusDisplay.textContent = opts[current];
+            }
+
+            if (postForm && current !== 'cancelled') {
+                postForm.addEventListener('submit', function(event) {
+                    if (select.value === 'cancelled' && !window.confirm('<?php echo esc_js(__('This will cancel all confirmed bookings for this event. Continue?', 'hmw-events')); ?>')) {
+                        event.preventDefault();
+                    }
+                });
             }
         });
         </script>
@@ -335,8 +351,12 @@ class Event
             return;
         }
 
-        $value = !empty($_POST[self::META_INVITATION_ONLY]) ? '1' : '';
-        update_post_meta($post_id, self::META_INVITATION_ONLY, $value);
+        if (empty($_POST[self::META_INVITATION_ONLY])) {
+            delete_post_meta($post_id, self::META_INVITATION_ONLY);
+            return;
+        }
+
+        update_post_meta($post_id, self::META_INVITATION_ONLY, '1');
     }
 
     /**

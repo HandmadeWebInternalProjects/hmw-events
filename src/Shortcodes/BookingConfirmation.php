@@ -12,10 +12,23 @@
 
 namespace HMWEvents\Shortcodes;
 
+use HMWEvents\Services\EventDataService;
+use HMWEvents\Services\SessionFlash;
+
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class BookingConfirmation
 {
+    private ?EventDataService $event_data_service = null;
+
+    private function event_data(): EventDataService
+    {
+        if ($this->event_data_service === null) {
+            $this->event_data_service = new EventDataService();
+        }
+        return $this->event_data_service;
+    }
+
   /**
    * Register the shortcode.
    *
@@ -34,14 +47,30 @@ class BookingConfirmation
   }
 
   /**
+   * Create an expiring token that authorizes a PDF download for a booking.
+   */
+  private function create_pdf_token(string $booking_number): string
+  {
+    $token = bin2hex(random_bytes(16));
+    set_transient('hmwevents_pdf_' . hash('sha256', $token), sanitize_text_field($booking_number), 15 * MINUTE_IN_SECONDS);
+    return $token;
+  }
+
+  /**
    * AJAX handler: Generate and stream PDF download.
    */
   public function ajax_download_pdf()
   {
-    $booking_number = isset($_GET['booking']) ? sanitize_text_field($_GET['booking']) : '';
+    $pdf_token = isset($_GET['pdf_token']) ? sanitize_text_field($_GET['pdf_token']) : '';
 
-    if (empty($booking_number)) {
-      wp_die('Invalid booking reference.');
+    if (empty($pdf_token)) {
+      wp_die('Invalid or expired download link.');
+    }
+
+    $booking_number = (string) get_transient('hmwevents_pdf_' . hash('sha256', $pdf_token));
+
+    if ($booking_number === '') {
+      wp_die('Invalid or expired download link.');
     }
 
     // Fetch booking data (same query as render)
@@ -59,11 +88,11 @@ class BookingConfirmation
         pt.amount as paid_amount,
         pt.gateway_transaction_id,
         pt.created_at as payment_date
-      FROM {$wpdb->prefix}hmwevents_bookings b
-      LEFT JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+      FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+      LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
       LEFT JOIN {$wpdb->prefix}posts c ON b.event_post_id = c.ID
       LEFT JOIN {$wpdb->prefix}posts cust ON b.registrant_post_id = cust.ID
-      LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
+      LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt ON bg.id = pt.booking_group_id
       WHERE b.booking_number = %s
       AND b.deleted_at IS NULL
       ORDER BY pt.created_at DESC
@@ -76,16 +105,16 @@ class BookingConfirmation
 
     $registrant_email = get_post_meta($booking->registrant_post_id, 'registrant_email', true);
     $registrant_phone = get_post_meta($booking->registrant_post_id, 'registrant_phone', true);
-    $event_date = get_field('_event_start_date', $booking->event_id);
-    $event_time = get_field('_event_end_date', $booking->event_id);
-    $event_location = get_field('_event_venue_name', $booking->event_id);
+    $event_date = $this->event_data()->get_start_date($booking->event_id);
+    $event_time = $this->event_data()->get_end_date($booking->event_id);
+    $event_location = $this->event_data()->get_venue_name($booking->event_id);
     $event_organizer = get_the_author_meta('display_name', get_post_field('post_author', $booking->event_id));
 
-    $currency = !empty($booking->currency) ? $booking->currency : \HMWEvents\Meta\CourseMeta::get_course_currency($booking->event_id);
+    $currency = !empty($booking->currency) ? $booking->currency : $this->event_data()->get_currency($booking->event_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
 
     $voucher_usage = $wpdb->get_row($wpdb->prepare("
-      SELECT * FROM {$wpdb->prefix}hmwevents_voucher_usage
+      SELECT * FROM " . \HMWEvents\Services\DatabaseService::get_table_name('voucher_usage') . "
       WHERE booking_id = %d
     ", $booking->id));
 
@@ -116,6 +145,16 @@ class BookingConfirmation
     if (!$post) {
       return;
     }
+
+    if (has_shortcode($post->post_content, 'hmwevents_booking_confirmation')) {
+      wp_enqueue_style(
+        'hmwevents-booking-confirmation',
+        plugin_dir_url(dirname(__DIR__)) . 'assets/css/booking-confirmation.css',
+        [],
+        '1.0.0'
+      );
+    }
+
     // Check Breakdance content if function exists
     if (function_exists('\Breakdance\Data\get_tree')) {
       $breakdance_tree = \Breakdance\Data\get_tree($post->ID);
@@ -141,8 +180,35 @@ class BookingConfirmation
   {
     global $wpdb;
 
-    // Get booking number from URL
-    $booking_number = isset($_GET['booking']) ? sanitize_text_field($_GET['booking']) : '';
+    $confirmed_booking = sanitize_text_field((string) SessionFlash::get('hmwevents_confirmed_booking', ''));
+    if ($confirmed_booking !== '') {
+      unset($_SESSION['hmwevents_confirmed_booking']);
+    }
+
+    $confirmation_token = isset($_GET['hmwevents_token'])
+      ? sanitize_text_field(wp_unslash($_GET['hmwevents_token']))
+      : '';
+    $token_booking = '';
+    if ($confirmation_token !== '') {
+      $token_key = 'hmwevents_confirmation_' . hash('sha256', $confirmation_token);
+      $token_booking = sanitize_text_field((string) get_transient($token_key));
+      delete_transient($token_key);
+    }
+
+    $cookie_booking = isset($_COOKIE['hmwevents_confirmation'])
+      ? sanitize_text_field(wp_unslash($_COOKIE['hmwevents_confirmation']))
+      : '';
+    if ($cookie_booking !== '') {
+      setcookie('hmwevents_confirmation', '', time() - HOUR_IN_SECONDS, defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/');
+    }
+
+    $booking_number = $confirmed_booking !== ''
+      ? $confirmed_booking
+      : ($token_booking !== ''
+        ? $token_booking
+        : ($cookie_booking !== ''
+          ? $cookie_booking
+          : (isset($_GET['booking']) ? sanitize_text_field($_GET['booking']) : '')));
 
     if (empty($booking_number)) {
       return $this->render_error('No booking reference provided.');
@@ -162,11 +228,11 @@ class BookingConfirmation
                 pt.amount as paid_amount,
                 pt.gateway_transaction_id,
                 pt.created_at as payment_date
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            LEFT JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
             LEFT JOIN {$wpdb->prefix}posts c ON b.event_post_id = c.ID
             LEFT JOIN {$wpdb->prefix}posts cust ON b.registrant_post_id = cust.ID
-            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt ON bg.id = pt.booking_group_id
             WHERE b.booking_number = %s
             AND b.deleted_at IS NULL
             ORDER BY pt.created_at DESC
@@ -181,20 +247,27 @@ class BookingConfirmation
     $registrant_email = get_post_meta($booking->registrant_post_id, 'registrant_email', true);
     $registrant_phone = get_post_meta($booking->registrant_post_id, 'registrant_phone', true);
 
-    $event_date = get_field('_event_start_date', $booking->event_id);
-    $event_time = get_field('_event_end_date', $booking->event_id);
-    $event_location = get_field('_event_venue_name', $booking->event_id);
+    $event_date = $this->event_data()->get_start_date($booking->event_id);
+    $event_time = $this->event_data()->get_end_date($booking->event_id);
+    $event_location = $this->event_data()->get_venue_name($booking->event_id);
     $event_organizer = get_the_author_meta('display_name', get_post_field('post_author', $booking->event_id));
 
     // Get currency for display
-    $currency = !empty($booking->currency) ? $booking->currency : \HMWEvents\Meta\CourseMeta::get_course_currency($booking->event_id);
+    $currency = !empty($booking->currency) ? $booking->currency : $this->event_data()->get_currency($booking->event_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
 
     // Get voucher usage if any
     $voucher_usage = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}hmwevents_voucher_usage
+            SELECT * FROM " . \HMWEvents\Services\DatabaseService::get_table_name('voucher_usage') . "
             WHERE booking_id = %d
         ", $booking->id));
+
+    $is_invoiced = ($booking->group_payment_type === 'net_terms') || ($booking->payment_status === 'invoiced');
+    $invoice_data = null;
+    if ($is_invoiced) {
+        $invoice_service = new \HMWEvents\Services\InvoiceService();
+        $invoice_data = $invoice_service->get_invoice_data((int) $booking->booking_group_id);
+    }
 
     ob_start();
 ?>
@@ -221,13 +294,13 @@ class BookingConfirmation
           <h2>Event Details</h2>
           <div class="hmwevents-detail-grid">
             <div class="hmwevents-detail-item">
-              <span class="hmwevents-detail-label">Course:</span>
+              <span class="hmwevents-detail-label">Event:</span>
               <span class="hmwevents-detail-value"><?php echo esc_html($booking->event_name); ?></span>
             </div>
 
             <?php if ($event_organizer): ?>
               <div class="hmwevents-detail-item">
-                <span class="hmwevents-detail-label">Educator:</span>
+                <span class="hmwevents-detail-label">Organizer:</span>
                 <span class="hmwevents-detail-value"><?php echo esc_html($event_organizer); ?></span>
               </div>
             <?php endif; ?>
@@ -291,7 +364,7 @@ class BookingConfirmation
 
             <div class="hmwevents-payment-row">
               <span class="hmwevents-payment-label">Payment Type:</span>
-              <span class="hmwevents-payment-value"><?php echo esc_html(ucfirst($booking->group_payment_type)); ?></span>
+              <span class="hmwevents-payment-value"><?php echo esc_html($this->payment_type_label($booking->group_payment_type)); ?></span>
             </div>
 
             <?php if ($voucher_usage): ?>
@@ -305,13 +378,13 @@ class BookingConfirmation
             <?php endif; ?>
 
             <div class="hmwevents-payment-row hmwevents-payment-total">
-              <span class="hmwevents-payment-label">Amount Paid:</span>
-              <span class="hmwevents-payment-value"><?php echo $currency_symbol ?><?php echo number_format($booking->paid_amount, 2); ?></span>
+              <span class="hmwevents-payment-label"><?php echo $is_invoiced ? esc_html__('Amount Due:', 'hmw-events') : esc_html__('Amount Paid:', 'hmw-events'); ?></span>
+              <span class="hmwevents-payment-value"><?php echo $currency_symbol ?><?php echo number_format($is_invoiced ? (float) $booking->total_amount : (float) $booking->paid_amount, 2); ?></span>
             </div>
 
             <?php if ($booking->group_payment_type === 'deposit'): ?>
               <div class="hmwevents-payment-notice">
-                <strong>Note:</strong> This is a deposit payment. The remaining balance will be organised by the educator on or before your course date.
+                <strong>Note:</strong> This is a deposit payment. The remaining balance will be organised by the event organizer on or before your event date.
               </div>
             <?php endif; ?>
 
@@ -323,6 +396,50 @@ class BookingConfirmation
             <?php endif; ?>
           </div>
         </div>
+
+        <?php if ($is_invoiced && $invoice_data): ?>
+        <!-- Invoice Details -->
+        <div class="hmwevents-confirmation-section hmwevents-invoice-section">
+          <h2><?php esc_html_e('Payment by Invoice', 'hmw-events'); ?></h2>
+
+          <div class="hmwevents-payment-summary">
+            <div class="hmwevents-payment-row">
+              <span class="hmwevents-payment-label"><?php esc_html_e('Invoice Number:', 'hmw-events'); ?></span>
+              <span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['invoice_number']); ?></span>
+            </div>
+            <div class="hmwevents-payment-row">
+              <span class="hmwevents-payment-label"><?php esc_html_e('Amount Due:', 'hmw-events'); ?></span>
+              <span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['amount_formatted']); ?></span>
+            </div>
+            <?php if (!empty($invoice_data['due_date_formatted'])): ?>
+            <div class="hmwevents-payment-row">
+              <span class="hmwevents-payment-label"><?php esc_html_e('Due Date:', 'hmw-events'); ?></span>
+              <span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['due_date_formatted']); ?></span>
+            </div>
+            <?php endif; ?>
+          </div>
+
+          <?php if (!empty($invoice_data['bank']['account_name']) || !empty($invoice_data['bank']['bsb']) || !empty($invoice_data['bank']['account_number'])): ?>
+          <div class="hmwevents-invoice-bank-details">
+            <p class="hmwevents-payment-label"><?php esc_html_e('Pay by Electronic Funds Transfer (EFT):', 'hmw-events'); ?></p>
+            <?php if (!empty($invoice_data['bank']['account_name'])): ?>
+              <div class="hmwevents-payment-row"><span class="hmwevents-payment-label"><?php esc_html_e('Account Name:', 'hmw-events'); ?></span><span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['bank']['account_name']); ?></span></div>
+            <?php endif; ?>
+            <?php if (!empty($invoice_data['bank']['bsb'])): ?>
+              <div class="hmwevents-payment-row"><span class="hmwevents-payment-label"><?php esc_html_e('BSB:', 'hmw-events'); ?></span><span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['bank']['bsb']); ?></span></div>
+            <?php endif; ?>
+            <?php if (!empty($invoice_data['bank']['account_number'])): ?>
+              <div class="hmwevents-payment-row"><span class="hmwevents-payment-label"><?php esc_html_e('Account Number:', 'hmw-events'); ?></span><span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['bank']['account_number']); ?></span></div>
+            <?php endif; ?>
+            <?php if (!empty($invoice_data['bank']['reference_note'])): ?>
+              <div class="hmwevents-payment-row"><span class="hmwevents-payment-label"><?php esc_html_e('Reference:', 'hmw-events'); ?></span><span class="hmwevents-payment-value"><?php echo esc_html($invoice_data['bank']['reference_note']); ?></span></div>
+            <?php endif; ?>
+          </div>
+          <?php endif; ?>
+
+          <p class="hmwevents-invoice-note"><?php esc_html_e('A tax invoice has been emailed to you. Please forward it to your accounts department for payment.', 'hmw-events'); ?></p>
+        </div>
+        <?php endif; ?>
 
         <!-- Next Steps -->
         <div class="hmwevents-confirmation-section">
@@ -343,7 +460,7 @@ class BookingConfirmation
 
         <!-- Actions -->
         <div class="hmwevents-confirmation-actions">
-          <a href="<?php echo esc_url(admin_url('admin-ajax.php?action=hmwevents_booking_pdf&booking=' . urlencode($booking->booking_number))); ?>" class="hmwevents-btn hmwevents-btn-secondary">
+          <a href="<?php echo esc_url(admin_url('admin-ajax.php?action=hmwevents_booking_pdf&pdf_token=' . urlencode($this->create_pdf_token($booking->booking_number)))); ?>" class="hmwevents-btn hmwevents-btn-secondary">
             <span>Download &amp; Print Confirmation (PDF)</span>
           </a>
           <a href="<?php echo home_url(); ?>" class="hmwevents-btn hmwevents-btn-primary">
@@ -354,6 +471,23 @@ class BookingConfirmation
     </div>
   <?php
     return ob_get_clean();
+  }
+
+  /**
+   * Render a human-friendly label for a payment type.
+   *
+   * @param string $type Raw payment type (full, deposit, net_terms).
+   * @return string
+   */
+  private function payment_type_label($type)
+  {
+    $labels = [
+      'full'      => __('Full Payment', 'hmw-events'),
+      'deposit'   => __('Deposit', 'hmw-events'),
+      'net_terms' => __('Pay by Invoice', 'hmw-events'),
+    ];
+
+    return $labels[$type] ?? ucfirst((string) $type);
   }
 
   /**

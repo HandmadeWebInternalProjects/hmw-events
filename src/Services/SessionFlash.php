@@ -2,6 +2,8 @@
 
 namespace HMWEvents\Services;
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 class SessionFlash
 {
 

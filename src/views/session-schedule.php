@@ -10,6 +10,19 @@ if (!$event || empty($sessions)) {
 
 $date_format = get_option('date_format');
 $time_format = get_option('time_format');
+$event_data  = new \HMWEvents\Services\EventDataService();
+
+$grouped = [];
+foreach ($sessions as $session) {
+    $start = $event_data->get_start_date($session->ID);
+    $end   = $event_data->get_end_date($session->ID);
+    $key   = $start ? substr($start, 0, 10) : 'unknown';
+    $grouped[$key][] = [
+        'session' => $session,
+        'start'   => $start,
+        'end'     => $end,
+    ];
+}
 ?>
 
 <div class="hmwevents-session-schedule">
@@ -17,33 +30,48 @@ $time_format = get_option('time_format');
     <table class="hmwevents-session-table">
         <thead>
             <tr>
-                <th><?php esc_html_e('Session', 'hmw-events'); ?></th>
                 <th><?php esc_html_e('Date', 'hmw-events'); ?></th>
-                <th><?php esc_html_e('Time', 'hmw-events'); ?></th>
+                <th><?php esc_html_e('Sessions', 'hmw-events'); ?></th>
             </tr>
         </thead>
         <tbody>
-            <?php $index = 1; foreach ($sessions as $session): ?>
+            <?php foreach ($grouped as $day => $slots): ?>
                 <?php
-                $start = get_post_meta($session->ID, '_event_start_date', true);
-                $end   = get_post_meta($session->ID, '_event_end_date', true);
+                $day_label = $day !== 'unknown'
+                    ? esc_html(date_i18n($date_format, strtotime($day)))
+                    : '&mdash;';
+                $multiple = count($slots) > 1;
                 ?>
                 <tr>
-                    <td><?php echo (int) $index; ?></td>
-                    <td><?php echo $start ? esc_html(date_i18n($date_format, strtotime($start))) : '&mdash;'; ?></td>
+                    <td><?php echo $day_label; ?></td>
                     <td>
-                        <?php if ($start && $end): ?>
-                            <?php echo esc_html(date_i18n($time_format, strtotime($start))); ?>
-                            &ndash;
-                            <?php echo esc_html(date_i18n($time_format, strtotime($end))); ?>
-                        <?php elseif ($start): ?>
-                            <?php echo esc_html(date_i18n($time_format, strtotime($start))); ?>
-                        <?php else: ?>
-                            &mdash;
-                        <?php endif; ?>
+                        <div class="<?php echo esc_attr(implode(' ', apply_filters('hmwevents_session_slot_classes', $multiple ? ['hmwevents-session-slots'] : [], $day, $slots))); ?>">
+                            <?php foreach ($slots as $slot): ?>
+                                <?php
+                                $start = $slot['start'];
+                                $end   = $slot['end'];
+                                $permalink = get_permalink($slot['session']->ID);
+
+                                if ($start && $end) {
+                                    $time_text = date_i18n($time_format, strtotime($start)) . ' &ndash; ' . date_i18n($time_format, strtotime($end));
+                                } elseif ($start) {
+                                    $time_text = date_i18n($time_format, strtotime($start));
+                                } else {
+                                    $time_text = __('Time TBA', 'hmw-events');
+                                }
+                                ?>
+                                <span class="<?php echo esc_attr(implode(' ', apply_filters('hmwevents_session_slot_item_classes', ['hmwevents-session-slot'], $slot['session'], $day))); ?>">
+                                    <?php if ($permalink) : ?>
+                                        <a href="<?php echo esc_url($permalink); ?>"><?php echo wp_kses_post($time_text); ?></a>
+                                    <?php else : ?>
+                                        <?php echo wp_kses_post($time_text); ?>
+                                    <?php endif; ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
                     </td>
                 </tr>
-            <?php $index++; endforeach; ?>
+            <?php endforeach; ?>
         </tbody>
     </table>
 </div>

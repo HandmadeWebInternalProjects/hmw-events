@@ -50,6 +50,37 @@ class DocumentUploadHandler
     {
         // Cron job for PII document retention cleanup (90 day purge)
         add_action('hmwevents_daily_retention_cleanup', [$this, 'purge_expired_documents']);
+
+        if (function_exists('as_next_scheduled_action')) {
+            add_action('action_scheduler_init', [$this, 'schedule_cleanup']);
+        } else {
+            add_action('init', [$this, 'schedule_cleanup']);
+        }
+    }
+
+    /**
+     * Ensure the document retention cleanup cron is scheduled.
+     */
+    public function schedule_cleanup(): void
+    {
+        $hook = 'hmwevents_daily_retention_cleanup';
+
+        if (function_exists('as_next_scheduled_action')) {
+            if (!as_next_scheduled_action($hook, [], 'hmw-events')) {
+                as_schedule_recurring_action(
+                    strtotime('tomorrow 4:30 AM'),
+                    DAY_IN_SECONDS,
+                    $hook,
+                    [],
+                    'hmw-events'
+                );
+            }
+            return;
+        }
+
+        if (!wp_next_scheduled($hook)) {
+            wp_schedule_event(strtotime('tomorrow 4:30 AM'), 'daily', $hook);
+        }
     }
 
     /**

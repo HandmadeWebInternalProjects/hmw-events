@@ -14,10 +14,13 @@ namespace HMWEvents\Api\Routes;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_Error;
+use HMWEvents\PostTypes\Event;
+use HMWEvents\Registry\RegistrationFieldRegistry;
 use HMWEvents\Services\Emails\EmailService;
 use HMWEvents\Services\Gateways\ManualBookingGateway;
 use HMWEvents\Services\BookingDetailsService;
 use HMWEvents\Services\DatabaseService;
+use HMWEvents\Services\EventFormFieldsResolver;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -43,7 +46,7 @@ class BookingActions
      */
     public function register_routes()
     {
-        // Transfer booking to another course
+        // Transfer booking to another event
         register_rest_route('hmwevents/v1', '/booking/transfer', [
             'methods' => 'POST',
             'callback' => [$this, 'transfer_booking'],
@@ -56,7 +59,7 @@ class BookingActions
                         return is_numeric($value) && $value > 0;
                     },
                 ],
-                'new_course_id' => [
+                'new_event_id' => [
                     'required' => true,
                     'type' => 'integer',
                     'validate_callback' => function($value) {
@@ -104,15 +107,20 @@ class BookingActions
             'callback' => [$this, 'create_manual_booking'],
             'permission_callback' => [$this, 'check_educator_permission'],
             'args' => [
-                'course_id'          => ['required' => true, 'type' => 'integer', 'minimum' => 1],
-                'customer_first_name' => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
-                'customer_last_name'  => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
-                'registrant_email'      => ['required' => true, 'type' => 'string', 'format' => 'email', 'sanitize_callback' => 'sanitize_email'],
+                'event_id'          => ['required' => true, 'type' => 'integer', 'minimum' => 1],
+                'customer_first_name' => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
+                'customer_last_name'  => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
+                'registrant_email'      => ['required' => false, 'type' => 'string', 'format' => 'email', 'sanitize_callback' => 'sanitize_email'],
                 'customer_phone'      => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'street_address'      => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'city'                => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'postcode'            => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
                 'dietary_requirements' => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
+                'attendance_type'     => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_key'],
+                'ticket_quantity'     => ['required' => false, 'type' => 'integer', 'minimum' => 1],
+                'attendee_count'      => ['required' => false, 'type' => 'integer', 'minimum' => 1],
+                'attendees'           => ['required' => false, 'type' => 'array', 'sanitize_callback' => [$this, 'sanitize_attendees_arg']],
+                'session_ids'         => ['required' => false, 'type' => 'array', 'sanitize_callback' => [$this, 'sanitize_session_ids_arg']],
                 'send_confirmation'   => ['required' => false, 'type' => 'boolean', 'default' => true],
             ],
         ]);
@@ -148,6 +156,25 @@ class BookingActions
             'permission_callback' => [$this, 'check_educator_permission'],
             'args' => [
                 'booking_id' => ['required' => true, 'type' => 'integer', 'minimum' => 1],
+            ],
+        ]);
+
+        register_rest_route('hmwevents/v1', '/booking/resend-invoice', [
+            'methods'             => 'POST',
+            'callback'            => [$this, 'resend_invoice'],
+            'permission_callback' => [$this, 'check_educator_permission'],
+            'args' => [
+                'booking_id' => ['required' => true, 'type' => 'integer', 'minimum' => 1],
+            ],
+        ]);
+
+        register_rest_route('hmwevents/v1', '/booking/mark-invoice-paid', [
+            'methods'             => 'POST',
+            'callback'            => [$this, 'mark_invoice_paid'],
+            'permission_callback' => [$this, 'check_educator_permission'],
+            'args' => [
+                'booking_id' => ['required' => true, 'type' => 'integer', 'minimum' => 1],
+                'reference'  => ['required' => false, 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field'],
             ],
         ]);
     }
@@ -192,14 +219,15 @@ class BookingActions
     {
         global $wpdb;
 
+        $bookings_table = DatabaseService::get_table_name('bookings');
+
         $booking_id = $request->get_param('booking_id');
-        $new_course_id = $request->get_param('new_course_id');
+        $new_event_id = $request->get_param('new_event_id');
         $current_user_id = get_current_user_id();
 
-        // Get booking with course info
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM {$bookings_table} b
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d
             AND b.deleted_at IS NULL
@@ -213,44 +241,39 @@ class BookingActions
             );
         }
 
-        // Security check: Only course owner or admin can transfer
         if (!current_user_can('manage_options') && $booking->post_author != $current_user_id) {
             return new WP_Error(
                 'rest_forbidden',
-                __('You can only transfer bookings for your own courses.', 'hmw-events'),
+                __('You can only transfer bookings for your own events.', 'hmw-events'),
                 ['status' => 403]
             );
         }
 
-        // Verify new course exists and is correct post type
-        $new_course = get_post($new_course_id);
-        if (!$new_course || $new_course->post_type !== 'educator_course') {
+        $new_event = get_post($new_event_id);
+        if (!$new_event || $new_event->post_type !== Event::POST_TYPE) {
             return new WP_Error(
                 'invalid_course',
-                __('Invalid course selected.', 'hmw-events'),
+                __('Invalid event selected.', 'hmw-events'),
                 ['status' => 400]
             );
         }
 
-        // Check ownership of new course
-        if (!current_user_can('manage_options') && $new_course->post_author != $current_user_id) {
+        if (!current_user_can('manage_options') && $new_event->post_author != $current_user_id) {
             return new WP_Error(
                 'rest_forbidden',
-                __('You can only transfer to your own courses.', 'hmw-events'),
+                __('You can only transfer to your own events.', 'hmw-events'),
                 ['status' => 403]
             );
         }
 
-        // Update booking
         $updated = $wpdb->update(
-            $wpdb->prefix . 'hmwevents_bookings',
-            ['event_post_id' => $new_course_id],
+            $bookings_table,
+            ['event_post_id' => $new_event_id],
             ['id' => $booking_id],
             ['%d'],
             ['%d']
         );
 
-        // Last Error
         error_log('Booking transfer error: ' . $wpdb->last_error);
 
         if ($updated === false) {
@@ -265,7 +288,7 @@ class BookingActions
             'success' => true,
             'message' => sprintf(
                 __('Booking transferred to %s successfully.', 'hmw-events'),
-                get_the_title($new_course_id)
+                get_the_title($new_event_id)
             ),
         ], 200);
     }
@@ -281,16 +304,16 @@ class BookingActions
     {
         global $wpdb;
 
+        $bookings_table = DatabaseService::get_table_name('bookings');
         $booking_id = $request->get_param('booking_id');
         $current_user_id = get_current_user_id();
 
-        // Get booking with course info
         $booking = $wpdb->get_row($wpdb->prepare("
-            SELECT b.*, c.post_author, c.post_title as course_name,
+            SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_author, c.post_title as course_name,
                    cust.post_title as customer_name
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM {$bookings_table} b
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->posts} cust ON b.customer_post_id = cust.ID
+            INNER JOIN {$wpdb->posts} cust ON b.registrant_post_id = cust.ID
             WHERE b.id = %d
             AND b.deleted_at IS NULL
         ", $booking_id));
@@ -363,19 +386,22 @@ class BookingActions
     {
         global $wpdb;
 
+        $bookings_table = DatabaseService::get_table_name('bookings');
+        $booking_groups_table = DatabaseService::get_table_name('booking_groups');
+        $payment_transactions_table = DatabaseService::get_table_name('payment_transactions');
+
         $booking_id = $request->get_param('booking_id');
         $current_user_id = get_current_user_id();
 
-        // Get booking with course and payment info
         $booking = $wpdb->get_row($wpdb->prepare("
-            SELECT b.*, c.post_author, c.post_title as course_name,
+            SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_author, c.post_title as course_name,
                    cust.post_title as customer_name,
                    pt.gateway_transaction_id, pt.amount as paid_amount
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM {$bookings_table} b
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->posts} cust ON b.customer_post_id = cust.ID
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
+            INNER JOIN {$wpdb->posts} cust ON b.registrant_post_id = cust.ID
+            INNER JOIN {$booking_groups_table} bg ON b.booking_group_id = bg.id
+            LEFT JOIN {$payment_transactions_table} pt ON bg.id = pt.booking_group_id
             WHERE b.id = %d
             AND b.deleted_at IS NULL
         ", $booking_id));
@@ -418,7 +444,7 @@ class BookingActions
         }
 
         $email_service = new EmailService();
-        $queued = $email_service->queue_booking_confirmation((int) $booking_id);
+        $queued = $email_service->queue_payment_receipt((int) $booking_id);
 
         if (!$queued) {
             return new WP_Error(
@@ -446,25 +472,24 @@ class BookingActions
      */
     public function create_manual_booking($request)
     {
-        $course_id       = $request->get_param('course_id');
+        $event_id        = $request->get_param('event_id');
         $current_user_id = get_current_user_id();
 
-        // Verify the course exists and belongs to this educator (or user is admin)
-        $course = get_post($course_id);
-        if (!$course || !in_array($course->post_type, ['educator_course', 'hmw_event'], true)) {
-            return new WP_Error('invalid_course', __('Invalid course.', 'hmw-events'), ['status' => 400]);
+        $event = get_post($event_id);
+        if (!$event || $event->post_type !== Event::POST_TYPE) {
+            return new WP_Error('invalid_event', __('Invalid event.', 'hmw-events'), ['status' => 400]);
         }
 
-        if (!current_user_can('manage_options') && $course->post_author != $current_user_id) {
+        if (!current_user_can('manage_options') && $event->post_author != $current_user_id) {
             return new WP_Error(
                 'rest_forbidden',
-                __('You can only add bookings to your own courses.', 'hmw-events'),
+                __('You can only add bookings to your own events.', 'hmw-events'),
                 ['status' => 403]
             );
         }
 
         $booking_data = array_merge($request->get_params(), [
-            'educator_id' => (int) $course->post_author,
+            'organizer_id' => (int) $event->post_author,
         ]);
 
         $gateway = new ManualBookingGateway();
@@ -491,6 +516,42 @@ class BookingActions
                 $result['booking_number']
             ),
         ], 201);
+    }
+
+    /**
+     * Sanitize the nested attendees array for the create-manual endpoint.
+     *
+     * @param mixed $value Raw attendees payload.
+     * @return array<int, array<string, string>>
+     */
+    public function sanitize_attendees_arg($value)
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_map(static function ($attendee) {
+            if (!is_array($attendee)) {
+                return [];
+            }
+
+            return array_map(static fn($v) => is_scalar($v) ? sanitize_text_field((string) $v) : '', $attendee);
+        }, $value));
+    }
+
+    /**
+     * Sanitize the session_ids array for the create-manual endpoint.
+     *
+     * @param mixed $value Raw session IDs payload.
+     * @return array<int, int>
+     */
+    public function sanitize_session_ids_arg($value)
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map('intval', $value), fn($id) => $id > 0)));
     }
 
     /**
@@ -531,13 +592,13 @@ class BookingActions
     {
         global $wpdb;
 
+        $bookings_table  = DatabaseService::get_table_name('bookings');
         $booking_id      = $request->get_param('booking_id');
         $current_user_id = get_current_user_id();
 
-        // Fetch booking + course author for permission check
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM {$bookings_table} b
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d AND b.deleted_at IS NULL
         ", $booking_id));
@@ -554,45 +615,63 @@ class BookingActions
             );
         }
 
-        $customer_id = (int) $booking->customer_post_id;
+        $customer_id = (int) $booking->registrant_post_id;
+        $event_id    = (int) $booking->event_post_id;
 
         $details_service    = new BookingDetailsService();
         $existing_form_data = $details_service->get_form_data($booking_id) ?? [];
         $updated_form_data  = $existing_form_data;
         $name_fields_changed = false;
 
-        foreach (\HMWEvents\Registry\RegistrationFieldRegistry::for_admin_display() as $key => $field) {
+        $fields = EventFormFieldsResolver::for_event($event_id);
+
+        foreach ($fields as $key => $field) {
             $value = $request->get_param($key);
             if ($value === null) {
                 continue;
             }
 
-            $sanitized = $field['type'] === 'email'
-                ? sanitize_email($value)
-                : sanitize_text_field($value);
+            $type   = $field['type'] ?? 'text';
+            $source = $field['source'] ?? '';
 
-            if ($field['source'] === 'customer_meta') {
-                // Skip invalid email rather than clearing a valid stored value
-                if ($field['type'] === 'email' && !empty($value) && !is_email($value)) {
+            if ($source === RegistrationFieldRegistry::SOURCE_REGISTRANT_META) {
+                $meta_key = $field['meta_key'] ?? '';
+                if ($meta_key === '') {
                     continue;
                 }
-                update_post_meta($customer_id, $field['meta_key'], $sanitized);
-                if (in_array($field['meta_key'], ['customer_first_name', 'customer_last_name'], true)) {
+
+                // Skip invalid email rather than clearing a valid stored value
+                if ($type === 'email' && !empty($value) && !is_email($value)) {
+                    continue;
+                }
+
+                $sanitized = $type === 'email' ? sanitize_email($value) : sanitize_text_field((string) $value);
+                update_post_meta($customer_id, $meta_key, $sanitized);
+
+                if (in_array($key, ['first_name', 'last_name'], true)) {
                     $name_fields_changed = true;
                 }
             } else {
-                $updated_form_data[$key] = $sanitized;
-                // Write convenience copy to CPT meta for fields that declare a meta_key
-                if (!empty($field['meta_key'])) {
-                    update_post_meta($customer_id, $field['meta_key'], $sanitized);
+                if ($type === 'checkbox') {
+                    if (in_array((string) $value, ['1', 'true', 'on'], true)) {
+                        $updated_form_data[$key] = '1';
+                    } else {
+                        unset($updated_form_data[$key]);
+                    }
+                } elseif ($type === 'textarea') {
+                    $updated_form_data[$key] = sanitize_textarea_field((string) $value);
+                } elseif ($type === 'email') {
+                    $updated_form_data[$key] = sanitize_email($value);
+                } else {
+                    $updated_form_data[$key] = sanitize_text_field((string) $value);
                 }
             }
         }
 
         // Rebuild customer post title if a name field changed
         if ($name_fields_changed) {
-            $first = get_post_meta($customer_id, 'customer_first_name', true);
-            $last  = get_post_meta($customer_id, 'customer_last_name', true);
+            $first = get_post_meta($customer_id, 'registrant_first_name', true);
+            $last  = get_post_meta($customer_id, 'registrant_last_name', true);
             $title = trim("$first $last");
             if ($title) {
                 wp_update_post(['ID' => $customer_id, 'post_title' => $title]);
@@ -620,17 +699,20 @@ class BookingActions
     {
         global $wpdb;
 
+        $bookings_table       = DatabaseService::get_table_name('bookings');
+        $booking_groups_table = DatabaseService::get_table_name('booking_groups');
+
         $booking_id      = $request->get_param('booking_id');
         $current_user_id = get_current_user_id();
 
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.id, b.booking_number, b.payment_status, b.currency,
                    b.event_post_id, b.deleted_at,
-                   bg.id AS booking_group_id, bg.customer_post_id,
+                   bg.id AS booking_group_id, bg.registrant_post_id AS customer_post_id,
                    bg.payment_type AS group_payment_type, bg.total_amount,
                    c.post_author, c.post_title AS course_name
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM {$bookings_table} b
+            INNER JOIN {$booking_groups_table} bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d AND b.deleted_at IS NULL
         ", $booking_id));
@@ -795,6 +877,89 @@ class BookingActions
         return new WP_REST_Response([
             'success' => true,
             'message' => __('Payment marked as paid successfully.', 'hmw-events'),
+        ], 200);
+    }
+
+    public function resend_invoice($request)
+    {
+        global $wpdb;
+
+        $booking_id      = $request->get_param('booking_id');
+        $current_user_id = get_current_user_id();
+
+        $bookings_table = DatabaseService::get_table_name('bookings');
+
+        $booking = $wpdb->get_row($wpdb->prepare("
+            SELECT b.id, b.booking_group_id, b.event_post_id, b.deleted_at, c.post_author
+            FROM {$bookings_table} b
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
+            WHERE b.id = %d AND b.deleted_at IS NULL
+        ", $booking_id));
+
+        if (!$booking) {
+            return new WP_Error('booking_not_found', __('Booking not found.', 'hmw-events'), ['status' => 404]);
+        }
+
+        if (!current_user_can('manage_options') && (int) $booking->post_author !== $current_user_id) {
+            return new WP_Error(
+                'rest_forbidden',
+                __('You can only resend invoices for your own events.', 'hmw-events'),
+                ['status' => 403]
+            );
+        }
+
+        $invoice_service = new \HMWEvents\Services\InvoiceService();
+        $result = $invoice_service->resend_invoice((int) $booking_id);
+
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'message' => __('Invoice resent successfully.', 'hmw-events'),
+        ], 200);
+    }
+
+    public function mark_invoice_paid($request)
+    {
+        global $wpdb;
+
+        $booking_id      = $request->get_param('booking_id');
+        $reference       = (string) $request->get_param('reference');
+        $current_user_id = get_current_user_id();
+
+        $bookings_table = DatabaseService::get_table_name('bookings');
+
+        $booking = $wpdb->get_row($wpdb->prepare("
+            SELECT b.id, b.booking_group_id, b.event_post_id, b.deleted_at, c.post_author
+            FROM {$bookings_table} b
+            INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
+            WHERE b.id = %d AND b.deleted_at IS NULL
+        ", $booking_id));
+
+        if (!$booking) {
+            return new WP_Error('booking_not_found', __('Booking not found.', 'hmw-events'), ['status' => 404]);
+        }
+
+        if (!current_user_can('manage_options') && (int) $booking->post_author !== $current_user_id) {
+            return new WP_Error(
+                'rest_forbidden',
+                __('You can only reconcile invoices for your own events.', 'hmw-events'),
+                ['status' => 403]
+            );
+        }
+
+        $invoice_service = new \HMWEvents\Services\InvoiceService();
+        $result = $invoice_service->mark_paid((int) $booking->booking_group_id, $reference);
+
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'message' => __('Invoice marked as paid and receipt email queued.', 'hmw-events'),
         ], 200);
     }
 }

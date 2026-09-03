@@ -29,11 +29,17 @@ class CalculateAmountTest extends TestCase
         ];
 
         $test = $this;
-        Functions\when('get_field')->alias(function ($field_name, $course_id) use ($test) {
-            return $test->fieldValues[$field_name] ?? null;
+        Functions\when('get_post_meta')->alias(function ($event_id, $meta_key, $single = true) use ($test) {
+            $value = $test->fieldValues[$meta_key] ?? null;
+            // CourseMeta::get_course_currency mock
+            if ($meta_key === 'currency') {
+                return 'AUD';
+            }
+            return $value;
         });
-
-        Functions\when('get_post_meta')->justReturn('AUD');
+        Functions\when('get_post')->alias(function ($id) {
+            return (object) ['post_type' => 'hmw_event'];
+        });
         Functions\when('is_wp_error')->alias(function ($thing) {
             return $thing instanceof \WP_Error;
         });
@@ -251,8 +257,8 @@ class ConcreteGateway extends AbstractPaymentGateway
         return true;
     }
 
-    public function calculateAmount($course_id, $is_deposit = false)
+    public function calculateAmount($event_id, $is_deposit = false)
     {
-        return $this->calculate_amount($course_id, $is_deposit);
+        return $this->calculate_amount($event_id, $is_deposit);
     }
 }

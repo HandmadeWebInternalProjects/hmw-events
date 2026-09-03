@@ -95,7 +95,21 @@ class EventOrganizerRole
             'delete_published_hmw_coupons',
         ];
 
-        foreach (array_merge($event_caps, $registrant_caps, $coupon_caps) as $cap) {
+        // Venue capabilities
+        $venue_caps = [
+            'read_event_location',
+            'edit_event_location',
+            'edit_event_locations',
+            'edit_others_event_locations',
+            'edit_published_event_locations',
+            'publish_event_locations',
+            'delete_event_location',
+            'delete_event_locations',
+            'delete_others_event_locations',
+            'delete_published_event_locations',
+        ];
+
+        foreach (array_merge($event_caps, $registrant_caps, $coupon_caps, $venue_caps) as $cap) {
             $role->add_cap($cap);
         }
     }
@@ -136,6 +150,16 @@ class EventOrganizerRole
             'delete_hmw_coupon',
             'delete_hmw_coupons',
             'delete_published_hmw_coupons',
+            'read_event_location',
+            'edit_event_location',
+            'edit_event_locations',
+            'edit_others_event_locations',
+            'edit_published_event_locations',
+            'publish_event_locations',
+            'delete_event_location',
+            'delete_event_locations',
+            'delete_others_event_locations',
+            'delete_published_event_locations',
         ];
 
         foreach ($caps as $cap) {

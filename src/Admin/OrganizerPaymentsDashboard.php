@@ -128,10 +128,10 @@ class OrganizerPaymentsDashboard
         // Get total count for pagination
         $count_query = $wpdb->prepare("
             SELECT COUNT(*)
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+            INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
+            INNER JOIN {$wpdb->posts} cu ON b.registrant_post_id = cu.ID
             WHERE {$where_sql}
             AND b.deleted_at IS NULL
         ", $where_values);
@@ -169,24 +169,24 @@ class OrganizerPaymentsDashboard
                 cuu.discount_amount as coupon_amount,
                 COALESCE((
                     SELECT SUM(pt_total.amount)
-                    FROM {$wpdb->prefix}hmwevents_payment_transactions pt_total
+                    FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt_total
                     WHERE pt_total.booking_group_id = bg.id
                     AND pt_total.status = 'succeeded'
                 ), 0) as total_paid,
                 COALESCE((
                     SELECT SUM(pt_remaining.amount)
-                    FROM {$wpdb->prefix}hmwevents_payment_transactions pt_remaining
+                    FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt_remaining
                     WHERE pt_remaining.booking_group_id = bg.id
                     AND pt_remaining.status = 'succeeded'
                     AND pt_remaining.metadata LIKE '%remaining%'
                 ), 0) as remaining_paid
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+            INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
-            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
-            LEFT JOIN {$wpdb->prefix}hmwevents_voucher_usage vu ON b.id = vu.booking_id
-            LEFT JOIN {$wpdb->prefix}hmwevents_coupon_usage cuu ON b.id = cuu.booking_id
+            INNER JOIN {$wpdb->posts} cu ON b.registrant_post_id = cu.ID
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt ON bg.id = pt.booking_group_id
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('voucher_usage') . " vu ON b.id = vu.booking_id
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('coupon_usage') . " cuu ON b.id = cuu.booking_id
             WHERE {$where_sql}
             AND b.deleted_at IS NULL
             ORDER BY b.created_at DESC
@@ -221,10 +221,10 @@ class OrganizerPaymentsDashboard
                 SUM(CASE WHEN b.payment_status = 'paid' THEN b.booking_amount ELSE 0 END) as total_revenue,
                 SUM(CASE WHEN b.payment_status = 'pending' THEN b.booking_amount ELSE 0 END) as pending_revenue,
                 SUM(CASE WHEN b.payment_status = 'refunded' THEN b.booking_amount ELSE 0 END) as refunded_amount
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+            INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
+            INNER JOIN {$wpdb->posts} cu ON b.registrant_post_id = cu.ID
             WHERE {$where_sql}
             AND b.deleted_at IS NULL
         ", $where_values);
@@ -273,13 +273,13 @@ class OrganizerPaymentsDashboard
                 vu.redeemed_value as voucher_amount,
                 cuu.coupon_code,
                 cuu.discount_amount as coupon_amount
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+            INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->posts} cu ON b.customer_post_id = cu.ID
-            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
-            LEFT JOIN {$wpdb->prefix}hmwevents_voucher_usage vu ON b.id = vu.booking_id
-            LEFT JOIN {$wpdb->prefix}hmwevents_coupon_usage cuu ON b.id = cuu.booking_id
+            INNER JOIN {$wpdb->posts} cu ON b.registrant_post_id = cu.ID
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt ON bg.id = pt.booking_group_id
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('voucher_usage') . " vu ON b.id = vu.booking_id
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('coupon_usage') . " cuu ON b.id = cuu.booking_id
             WHERE c.post_author = %d
             AND b.deleted_at IS NULL
             ORDER BY b.created_at DESC
@@ -378,7 +378,7 @@ class OrganizerPaymentsDashboard
         // Verify this booking belongs to the educator
         $booking = $wpdb->get_row($wpdb->prepare("
             SELECT b.*, c.post_author
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d
             AND c.post_author = %d
@@ -396,7 +396,7 @@ class OrganizerPaymentsDashboard
 
         // Update booking status
         $updated = $wpdb->update(
-            $wpdb->prefix . 'hmwevents_bookings',
+            \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
             [
                 'status' => 'cancelled',
                 'cancelled_at' => current_time('mysql'),
@@ -408,7 +408,7 @@ class OrganizerPaymentsDashboard
 
         // Update payment status if pending
         $wpdb->update(
-            $wpdb->prefix . 'hmwevents_bookings',
+            \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
             [
                 'payment_status' => 'failed',
             ],
@@ -426,7 +426,7 @@ class OrganizerPaymentsDashboard
 
         // Update course availability (add spot back)
         $wpdb->query($wpdb->prepare("
-            UPDATE {$wpdb->prefix}hmwevents_course_availability
+            UPDATE " . \HMWEvents\Services\DatabaseService::get_table_name('course_availability') . "
             SET booked_count = IF(booked_count > 0, booked_count - 1, 0),
                 available_count = available_count + 1
             WHERE event_post_id = %d
@@ -472,10 +472,10 @@ class OrganizerPaymentsDashboard
                 pt.gateway_transaction_id,
                 pt.gateway,
                 pt.id as transaction_id
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
-            LEFT JOIN {$wpdb->prefix}hmwevents_payment_transactions pt ON bg.id = pt.booking_group_id
+            INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . " pt ON bg.id = pt.booking_group_id
             WHERE b.id = %d
             AND c.post_author = %d
             AND b.deleted_at IS NULL
@@ -523,7 +523,7 @@ class OrganizerPaymentsDashboard
 
         // Update booking payment status
         $wpdb->update(
-            $wpdb->prefix . 'hmwevents_bookings',
+            \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
             [
                 'payment_status' => 'refunded',
                 'status' => 'cancelled',
@@ -536,7 +536,7 @@ class OrganizerPaymentsDashboard
 
         // Update payment transaction
         $wpdb->update(
-            $wpdb->prefix . 'hmwevents_payment_transactions',
+            \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions'),
             [
                 'status' => 'refunded',
                 'refund_id' => $refund_result['refund_id'],
@@ -550,7 +550,7 @@ class OrganizerPaymentsDashboard
 
         // Update course availability (add spot back)
         $wpdb->query($wpdb->prepare("
-            UPDATE {$wpdb->prefix}hmwevents_course_availability
+            UPDATE " . \HMWEvents\Services\DatabaseService::get_table_name('course_availability') . "
             SET booked_count = IF(booked_count > 0, booked_count - 1, 0),
                 available_count = available_count + 1
             WHERE event_post_id = %d
@@ -600,13 +600,13 @@ class OrganizerPaymentsDashboard
                 b.event_post_id,
                 b.deleted_at,
                 bg.id as booking_group_id,
-                bg.customer_post_id,
+                bg.registrant_post_id,
                 bg.payment_type as group_payment_type,
                 bg.total_amount,
                 c.post_author,
                 c.post_title as course_name
-            FROM {$wpdb->prefix}hmwevents_bookings b
-            INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+            INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
             INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
             WHERE b.id = %d
             AND c.post_author = %d
@@ -631,7 +631,7 @@ class OrganizerPaymentsDashboard
 
             $remaining_paid = $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*)
-                FROM {$wpdb->prefix}hmwevents_payment_transactions
+                FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . "
                 WHERE booking_group_id = %d
                 AND status = 'succeeded'
                 AND metadata LIKE %s",

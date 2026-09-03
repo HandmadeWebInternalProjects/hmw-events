@@ -11,6 +11,8 @@
 
 namespace HMWEvents\Services\Emails;
 
+use HMWEvents\Services\DatabaseService;
+
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 /**
@@ -30,8 +32,7 @@ class EmailQueueRepository
      */
     public function __construct()
     {
-        global $wpdb;
-        $this->table = $wpdb->prefix . 'email_queue';
+        $this->table = DatabaseService::get_table_name('email_queue');
     }
 
     /**
@@ -46,7 +47,7 @@ class EmailQueueRepository
 
         $defaults = [
             'booking_id'      => null,
-            'educator_id'     => null,
+            'organizer_id'    => null,
             'recipient_email' => '',
             'recipient_name'  => '',
             'email_type'      => '',
@@ -71,7 +72,7 @@ class EmailQueueRepository
             $this->table,
             [
                 'booking_id'      => $data['booking_id'],
-                'educator_id'     => $data['educator_id'],
+                'organizer_id'   => $data['organizer_id'],
                 'recipient_email' => $data['recipient_email'],
                 'recipient_name'  => $data['recipient_name'],
                 'email_type'      => $data['email_type'],

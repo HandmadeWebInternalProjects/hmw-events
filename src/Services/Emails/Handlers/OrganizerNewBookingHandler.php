@@ -1,8 +1,8 @@
 <?php
 /**
- * Educator New Booking Notification Handler.
+ * Organizer New Booking Notification Handler.
  *
- * Sends the educator an email when a customer books their course.
+ * Sends the event organizer an email when a customer books their event.
  *
  * @package HMWEvents
  * @since 1.0.0
@@ -15,7 +15,7 @@ use HMWEvents\Services\Emails\AbstractEmailHandler;
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
 /**
- * Educator New Booking Notification Handler.
+ * Organizer New Booking Notification Handler.
  */
 class OrganizerNewBookingHandler extends AbstractEmailHandler
 {
@@ -24,17 +24,17 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
      *
      * @var string
      */
-    protected $template_key = 'educator_new_booking';
+    protected $template_key = 'organizer_new_booking';
 
     /**
      * Email type.
      *
      * @var string
      */
-    protected $email_type = 'educator_new_booking';
+    protected $email_type = 'organizer_new_booking';
 
     /**
-     * Queue educator new-booking notification email.
+     * Queue organizer new-booking notification email.
      *
      * @param int   $booking_id   Booking ID.
      * @param array $booking_data Optional booking data.
@@ -44,51 +44,51 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
     {
         global $wpdb;
 
-        $educator_id = null;
+        $organizer_id = null;
         $event_post_id = !empty($booking_data['event_post_id']) ? (int) $booking_data['event_post_id'] : 0;
 
-        if (!empty($booking_data['educator_id'])) {
-            $educator_id = (int) $booking_data['educator_id'];
+        if (!empty($booking_data['organizer_id'])) {
+            $organizer_id = (int) $booking_data['organizer_id'];
         } else {
             $row = $wpdb->get_row($wpdb->prepare(
-                "SELECT b.event_post_id FROM {$wpdb->prefix}hmwevents_bookings b WHERE b.id = %d",
+                "SELECT b.event_post_id FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b WHERE b.id = %d",
                 $booking_id
             ));
             if ($row) {
                 $event_post_id = (int) $row->event_post_id;
-                $course = get_post($row->event_post_id);
-                if ($course) {
-                    $educator_id = (int) $course->post_author;
+                $event = get_post($row->event_post_id);
+                if ($event) {
+                    $organizer_id = (int) $event->post_author;
                 }
             }
         }
 
-        if (!$educator_id) {
-            error_log('EducatorNewBookingHandler: Could not resolve educator for booking ' . $booking_id);
+        if (!$organizer_id) {
+            error_log('OrganizerNewBookingHandler: Could not resolve organizer for booking ' . $booking_id);
             return false;
         }
 
-        $educator_user = get_userdata($educator_id);
-        if (!$educator_user || !$educator_user->user_email) {
-            error_log('EducatorNewBookingHandler: No email address for educator ' . $educator_id);
+        $organizer_user = get_userdata($organizer_id);
+        if (!$organizer_user || !$organizer_user->user_email) {
+            error_log('OrganizerNewBookingHandler: No email address for organizer ' . $organizer_id);
             return false;
         }
 
-        $educator_email = $educator_user->user_email;
-        $educator_name  = $educator_user->display_name ?: $educator_user->user_login;
+        $organizer_email = $organizer_user->user_email;
+        $organizer_name  = $organizer_user->display_name ?: $organizer_user->user_login;
 
         if ($event_post_id) {
             $override = get_post_meta($event_post_id, '_event_notification_email', true);
             if ($override && is_email($override)) {
-                $educator_email = $override;
+                $organizer_email = $override;
             }
         }
 
         return $this->queue([
             'booking_id'      => $booking_id,
-            'educator_id'     => $educator_id,
-            'recipient_email' => $educator_email,
-            'recipient_name'  => $educator_name,
+            'organizer_id'    => $organizer_id,
+            'recipient_email' => $organizer_email,
+            'recipient_name'  => $organizer_name,
             'scheduled_at'    => current_time('mysql'),
         ]);
     }
@@ -104,12 +104,12 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
         global $wpdb;
 
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT b.* FROM {$wpdb->prefix}hmwevents_bookings b WHERE b.id = %d",
+            "SELECT b.* FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b WHERE b.id = %d",
             $booking_id
         ));
 
         if (!$booking) {
-            error_log('EducatorNewBookingHandler: Booking not found: ' . $booking_id);
+            error_log('OrganizerNewBookingHandler: Booking not found: ' . $booking_id);
             return [];
         }
 
@@ -117,13 +117,13 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
         $currency     = $booking_data['currency'] ?? 'AUD';
 
         // Customer details.
-        $customer_post_id = $booking_data['customer_post_id'] ?? null;
+        $customer_post_id = $booking_data['registrant_post_id'] ?? ($booking_data['customer_post_id'] ?? null);
         $customer_name    = $this->get_customer_name($customer_post_id);
         $registrant_email   = $customer_post_id
             ? (get_post_meta($customer_post_id, 'registrant_email', true) ?: '')
             : '';
         $customer_phone   = $customer_post_id
-            ? (get_post_meta($customer_post_id, 'customer_phone', true) ?: '')
+            ? (get_post_meta($customer_post_id, 'registrant_phone', true) ?: get_post_meta($customer_post_id, 'customer_phone', true))
             : '';
 
         // Admin link to the customer CPT.
@@ -136,7 +136,7 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
         // Course details.
         $course = get_post($booking_data['event_post_id'] ?? null);
         if (!$course) {
-            error_log('EducatorNewBookingHandler: Course not found for booking: ' . $booking_id);
+            error_log('OrganizerNewBookingHandler: Event not found for booking: ' . $booking_id);
             return [];
         }
 
@@ -177,12 +177,10 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
      */
     private function get_course_date($course_id)
     {
-        if (function_exists('get_field')) {
-            $date = get_field('course_start_date', $course_id);
-            if ($date) {
-                $timestamp = strtotime($date);
-                return $timestamp ? date('F j, Y', $timestamp) : $date;
-            }
+        $date = $this->event_data()->get_start_date($course_id);
+        if ($date) {
+            $timestamp = strtotime($date);
+            return $timestamp ? date('F j, Y', $timestamp) : $date;
         }
 
         return get_the_date('F j, Y', $course_id);
@@ -196,13 +194,11 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
      */
     private function get_course_time($course_id)
     {
-        if (function_exists('get_field')) {
-            $datetime = get_field('course_start_date', $course_id);
-            if ($datetime) {
-                $timestamp = strtotime($datetime);
-                if ($timestamp !== false) {
-                    return date('g:i A', $timestamp);
-                }
+        $datetime = $this->event_data()->get_start_date($course_id);
+        if ($datetime) {
+            $timestamp = strtotime($datetime);
+            if ($timestamp !== false) {
+                return date('g:i A', $timestamp);
             }
         }
 
@@ -217,14 +213,12 @@ class OrganizerNewBookingHandler extends AbstractEmailHandler
     public function get_template_variables_description()
     {
         return array_merge(parent::get_template_variables_description(), [
-            'registrant_email'    => 'Customer email address',
-            'customer_phone'    => 'Customer phone number',
-            'customer_link'     => 'Clickable admin link to the customer record',
-            'course_location'   => 'Course location address',
-            'booking_amount'    => 'Booking amount (formatted)',
-            'payment_type'      => 'Payment type label ("Full Payment", "Deposit", or "Awaiting Payment")',
-            'payment_status'    => 'Raw payment status (pending, paid, refunded, failed)',
-            'course_start_time' => 'Course start time',
+            'registrant_email' => 'Customer email address',
+            'customer_phone'   => 'Customer phone number',
+            'customer_link'    => 'Clickable admin link to the customer record',
+            'booking_amount'   => 'Booking amount (formatted)',
+            'payment_type'     => 'Payment type label ("Full Payment", "Deposit", or "Awaiting Payment")',
+            'payment_status'   => 'Raw payment status (pending, paid, refunded, failed)',
         ]);
     }
 }

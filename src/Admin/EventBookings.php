@@ -2,9 +2,14 @@
 
 namespace HMWEvents\Admin;
 
+use HMWEvents\Services\AttendancePricingService;
 use HMWEvents\Services\DatabaseService;
+use HMWEvents\Services\EventDataService;
+use HMWEvents\Services\EventFormFieldsResolver;
+use HMWEvents\Services\FormConfigResolver;
 use HMWEvents\PostTypes\Event;
 use HMWEvents\Registry\EventTypeRegistry;
+use HMWEvents\Registry\RegistrationFieldRegistry;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -33,6 +38,7 @@ class EventBookings
     public function render_meta_box(\WP_Post $post): void
     {
         $bookings = $this->get_bookings_for_event($post->ID);
+        $group_labels = $this->get_group_labels($bookings);
 
         $type_terms = wp_get_object_terms($post->ID, 'hmw_event_type', ['fields' => 'slugs']);
         $type_slug = (!is_wp_error($type_terms) && !empty($type_terms)) ? sanitize_key((string) $type_terms[0]) : '';
@@ -70,6 +76,9 @@ class EventBookings
                             <tr>
                                 <td>
                                     <strong><?php echo esc_html($booking->booking_number); ?></strong>
+                                    <?php if (!empty($group_labels[(int) $booking->id])): ?>
+                                        <br><span class="hmwevents-group-badge" style="display:inline-block;margin-top:3px;padding:1px 8px;border-radius:10px;background:#f0f6fc;color:#1d4ed8;border:1px solid #c3d4e8;font-size:11px;"><?php echo esc_html($group_labels[(int) $booking->id]); ?></span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?php echo esc_html(trim($booking->customer_first_name . ' ' . $booking->customer_last_name) ?: $booking->customer_name); ?></td>
                                 <td><?php echo esc_html($booking->registrant_email); ?></td>
@@ -88,11 +97,23 @@ class EventBookings
                                        data-booking-id="<?php echo (int) $booking->id; ?>">
                                         <?php esc_html_e('Resend', 'hmw-events'); ?>
                                     </a>
-                                    <?php if ($booking->payment_status === 'pending' || $booking->payment_status === 'invoiced'): ?>
+                                    <?php if ($booking->payment_status === 'pending'): ?>
                                         <span class="separator">|</span>
                                         <a href="#" class="hmwevents-send-payment-link"
                                            data-booking-id="<?php echo (int) $booking->id; ?>">
                                             <?php esc_html_e('Payment Link', 'hmw-events'); ?>
+                                        </a>
+                                    <?php endif; ?>
+                                    <?php if ($booking->payment_status === 'invoiced'): ?>
+                                        <span class="separator">|</span>
+                                        <a href="#" class="hmwevents-resend-invoice"
+                                           data-booking-id="<?php echo (int) $booking->id; ?>">
+                                            <?php esc_html_e('Resend Invoice', 'hmw-events'); ?>
+                                        </a>
+                                        <span class="separator">|</span>
+                                        <a href="#" class="hmwevents-mark-invoice-paid"
+                                           data-booking-id="<?php echo (int) $booking->id; ?>">
+                                            <?php esc_html_e('Mark Paid (EFT)', 'hmw-events'); ?>
                                         </a>
                                     <?php endif; ?>
                                     <?php if ($booking->booking_source === 'manual' && in_array($booking->payment_status, ['pending', 'failed'], true)): ?>
@@ -154,8 +175,8 @@ class EventBookings
 
             <?php if (!$external_registration): ?>
                 <p style="margin-top:12px;">
-                    <a href="#TB_inline?width=600&height=450&inlineId=hmwevents-add-booking-modal"
-                       class="thickbox button button-primary"
+                    <a href="#"
+                       class="button button-primary"
                        id="hmwevents-add-booking-btn">
                         <?php esc_html_e('Add Manual Booking', 'hmw-events'); ?>
                     </a>
@@ -184,39 +205,181 @@ class EventBookings
         <?php endif; ?>
 
         <?php if (!$external_registration): ?>
-        <div id="hmwevents-add-booking-modal" style="display:none;">
-            <div style="padding:10px 20px;">
+        <?php $manual_ctx = $this->manual_booking_context($post->ID); ?>
+        <div id="hmwevents-add-booking-modal" class="hmwevents-modal" style="display:none;">
+            <div class="hmwevents-modal-content">
+                <span id="hmwevents-add-booking-modal-close" class="hmwevents-modal-close">&times;</span>
                 <h2><?php esc_html_e('Add Manual Booking', 'hmw-events'); ?></h2>
 
+                <?php
+                $selection = $manual_ctx['selection'];
+                $allowed_roles = $selection['allowed_roles'];
+                $effective_multi = $selection['effective_multi'];
+                $has_age_pricing = $selection['has_age_pricing'];
+                $needs_identity = $manual_ctx['needs_identity'];
+                $is_parent_children = $manual_ctx['parent_children'];
+                ?>
+
                 <div id="hmwevents-add-booking-form">
-                    <input type="hidden" name="course_id" value="<?php echo (int) $post->ID; ?>">
+                    <input type="hidden" name="event_id" value="<?php echo (int) $post->ID; ?>">
+
+                    <?php if (count($selection['options']) <= 1): ?>
+                        <input type="hidden" name="attendance_type" value="<?php echo esc_attr($selection['default_option_type']); ?>" />
+                    <?php endif; ?>
 
                     <table class="form-table">
-                        <tr>
-                            <th><label for="hmw-manual-first-name"><?php esc_html_e('First Name', 'hmw-events'); ?> <span class="required">*</span></label></th>
-                            <td><input type="text" name="customer_first_name" id="hmw-manual-first-name" class="regular-text" data-required></td>
-                        </tr>
-                        <tr>
-                            <th><label for="hmw-manual-last-name"><?php esc_html_e('Last Name', 'hmw-events'); ?> <span class="required">*</span></label></th>
-                            <td><input type="text" name="customer_last_name" id="hmw-manual-last-name" class="regular-text" data-required></td>
-                        </tr>
-                        <tr>
-                            <th><label for="hmw-manual-email"><?php esc_html_e('Email', 'hmw-events'); ?> <span class="required">*</span></label></th>
-                            <td><input type="email" name="registrant_email" id="hmw-manual-email" class="regular-text" data-required></td>
-                        </tr>
-                        <tr>
-                            <th><label for="hmw-manual-phone"><?php esc_html_e('Phone', 'hmw-events'); ?></label></th>
-                            <td><input type="text" name="customer_phone" id="hmw-manual-phone" class="regular-text"></td>
-                        </tr>
+                        <?php if (count($selection['options']) > 1): ?>
+                            <tr>
+                                <th><label><?php esc_html_e('Attendance Option', 'hmw-events'); ?></label></th>
+                                <td>
+                                    <div class="hmwevents-attendance-options">
+                                        <?php foreach ($selection['options'] as $option): ?>
+                                            <label class="hmwevents-attendance-option">
+                                                <input type="radio" name="attendance_type" value="<?php echo esc_attr($option['option_type']); ?>" <?php checked($selection['default_option_type'], $option['option_type']); ?> />
+                                                <span class="hmwevents-attendance-option-label"><?php echo esc_html($option['label']); ?></span>
+                                                <?php if (!$selection['is_free'] && ((float) $option['display_price'] > 0 || $selection['has_paid_option'])): ?>
+                                                    <span class="hmwevents-attendance-option-price">
+                                                        <?php echo esc_html(($option['price_mode'] ?? 'flat') === AttendancePricingService::MODE_FLAT
+                                                            ? '$' . number_format((float) $option['display_price'], 2)
+                                                            : __('From', 'hmw-events') . ' $' . number_format((float) $option['display_price'], 2)); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                                <?php if ($option['max_bookings'] !== null): ?>
+                                                    <span class="hmwevents-attendance-option-remaining">
+                                                        <?php
+                                                        /* translators: %d is the number of bookings remaining for this option */
+                                                        echo esc_html(sprintf(__('%d bookings remaining', 'hmw-events'), (int) $option['remaining_bookings']));
+                                                        ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+
+                        <?php if ($needs_identity && ($has_age_pricing || (!$is_parent_children && count($allowed_roles) > 1))): ?>
+                            <?php if (!$is_parent_children && count($allowed_roles) > 1): ?>
+                                <tr>
+                                    <th><label for="hmw-manual-role-0"><?php esc_html_e('Attendee Type', 'hmw-events'); ?> <span class="required">*</span></label></th>
+                                    <td>
+                                        <select id="hmw-manual-role-0" name="attendees[0][attendee_role]" data-required>
+                                            <?php foreach ($allowed_roles as $role): ?>
+                                                <option value="<?php echo esc_attr($role); ?>"><?php echo esc_html(ucfirst($role)); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php if ($has_age_pricing): ?>
+                                <tr class="hmwevents-age-dob">
+                                    <th><label for="hmw-manual-dob-0"><?php esc_html_e('Date of Birth', 'hmw-events'); ?> <span class="required">*</span></label></th>
+                                    <td>
+                                        <input type="date" id="hmw-manual-dob-0" name="attendees[0][date_of_birth]" data-required max="<?php echo esc_attr(gmdate('Y-m-d')); ?>" />
+                                        <p class="description"><?php esc_html_e('Required for age-based pricing — used to calculate this attendee\'s fee.', 'hmw-events'); ?></p>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        <?php elseif ($is_parent_children): ?>
+                            <input type="hidden" name="attendees[0][attendee_role]" value="adult" />
+                        <?php elseif (count($allowed_roles) === 1): ?>
+                            <input type="hidden" name="attendees[0][attendee_role]" value="<?php echo esc_attr($allowed_roles[0]); ?>" />
+                        <?php endif; ?>
+
+                        <?php foreach ($manual_ctx['main_fields'] as $field):
+                            $name = EventFormFieldsResolver::canonical_field_name($field['key']);
+                            $input_id = 'hmw-manual-' . sanitize_html_class($field['key']);
+                        ?>
+                            <tr>
+                                <th><label for="<?php echo esc_attr($input_id); ?>"><?php echo esc_html($field['label']); ?><?php if (!empty($field['required'])): ?> <span class="required">*</span><?php endif; ?></label></th>
+                                <td><?php $this->render_field_control($field, $name, $input_id); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+
+                        <?php if ($effective_multi && !$is_parent_children): ?>
+                            <?php foreach ($manual_ctx['per_attendee_fields'] as $field):
+                                $input_id = 'hmw-manual-att0-' . sanitize_html_class($field['key']);
+                            ?>
+                                <tr class="hmwevents-per-attendee-row">
+                                    <th><label for="<?php echo esc_attr($input_id); ?>"><?php echo esc_html($field['label']); ?><?php if (!empty($field['required'])): ?> <span class="required">*</span><?php endif; ?></label></th>
+                                    <td><?php $this->render_field_control($field, 'attendees[0][' . $field['key'] . ']', $input_id); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </table>
+
+                    <?php if ($manual_ctx['show_repeater']): ?>
+                        <div
+                            id="hmwevents-manual-attendees"
+                            class="hmwevents-attendees-section"
+                            data-title-prefix="<?php echo esc_attr($is_parent_children ? 'Child' : 'Attendee'); ?>"
+                        >
+                            <h3 style="margin-bottom:4px;">
+                                <?php echo $is_parent_children
+                                    ? esc_html__('Children', 'hmw-events')
+                                    : esc_html__('Additional Attendees', 'hmw-events'); ?>
+                            </h3>
+                            <p class="description">
+                                <?php echo $is_parent_children
+                                    ? esc_html__('Add the children attending with you.', 'hmw-events')
+                                    : esc_html__('Add other people attending with you.', 'hmw-events'); ?>
+                            </p>
+
+                            <div class="hmwevents-attendee-blocks"></div>
+
+                            <button type="button" class="button hmwevents-add-attendee">
+                                + <?php echo $is_parent_children
+                                    ? esc_html__('Add Child', 'hmw-events')
+                                    : esc_html__('Add Attendee', 'hmw-events'); ?>
+                            </button>
+                        </div>
+                    <?php endif; ?>
+
+                    <p class="hmwevents-manual-total"<?php echo ($selection['default_display_price'] > 0 || $selection['has_paid_option']) ? '' : ' style="display:none;"'; ?>>
+                        <?php esc_html_e('Total:', 'hmw-events'); ?>
+                        <strong class="hmwevents-total-value">$<?php echo number_format($selection['default_display_price'], 2); ?></strong>
+                    </p>
 
                     <div id="hmwevents-add-booking-message" style="display:none; margin:12px 0;"></div>
 
                     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
-                        <button type="button" class="button" id="hmwevents-add-booking-cancel" onclick="tb_remove();return false;"><?php esc_html_e('Cancel', 'hmw-events'); ?></button>
+                        <button type="button" class="button" id="hmwevents-add-booking-cancel"><?php esc_html_e('Cancel', 'hmw-events'); ?></button>
                         <button type="button" class="button button-primary" id="hmwevents-add-booking-submit"><?php esc_html_e('Create Booking', 'hmw-events'); ?></button>
                     </div>
                 </div>
+
+                <?php if ($manual_ctx['show_repeater']): ?>
+                <template id="hmwevents-manual-attendee-template">
+                    <div class="hmwevents-attendee-block">
+                        <div class="hmwevents-attendee-block-header">
+                            <strong class="hmwevents-attendee-title"></strong>
+                            <button type="button" class="button-link hmwevents-remove-attendee" title="<?php esc_attr_e('Remove', 'hmw-events'); ?>">&times;</button>
+                        </div>
+                        <div class="hmwevents-attendee-grid">
+                            <?php $this->render_attendee_block_fields($manual_ctx); ?>
+                        </div>
+                    </div>
+                </template>
+                <?php endif; ?>
+
+                <script type="application/json" id="hmwevents-add-booking-config"><?php
+                    echo wp_json_encode([
+                        'eventId'          => $post->ID,
+                        'eventDate'        => $manual_ctx['event_date'],
+                        'options'          => $selection['options'],
+                        'defaultOptionType' => $selection['default_option_type'],
+                        'basePrice'        => $selection['base_price'],
+                        'surcharge'        => $selection['surcharge'],
+                        'isFree'           => $selection['is_free'],
+                        'requiresPayment'  => $selection['default_display_price'] > 0 || $selection['has_paid_option'],
+                        'minAttendees'     => $selection['min_attendees'],
+                        'maxAttendees'     => $selection['max_attendees'],
+                        'allowedRoles'     => $allowed_roles,
+                        'hasAgePricing'    => $has_age_pricing,
+                        'parentChildren'   => $is_parent_children,
+                    ]);
+                ?></script>
             </div>
         </div>
         <?php endif; ?>
@@ -231,9 +394,232 @@ class EventBookings
         <?php
     }
 
+    private function field_options(array $options): array
+    {
+        $normalized = [];
+
+        foreach ($options as $option_value => $option_label) {
+            if (is_array($option_label) && isset($option_label['value'])) {
+                $normalized[] = [(string) $option_label['value'], (string) ($option_label['label'] ?? $option_label['value'])];
+            } else {
+                $normalized[] = [(string) $option_value, (string) $option_label];
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function manual_booking_context(int $event_id): array
+    {
+        $config = FormConfigResolver::resolve($event_id);
+        $multi_booking = is_array($config) ? ($config['multi_booking'] ?? []) : [];
+        $mb_enabled = (bool) ($multi_booking['enabled'] ?? false);
+        $mb_mode = (string) ($multi_booking['mode'] ?? 'attendees');
+        $is_parent_children = $mb_mode === 'parent_children';
+
+        $main_fields = [];
+        $per_attendee_fields = [];
+        foreach (EventFormFieldsResolver::for_event($event_id) as $field) {
+            if (!empty($field['per_attendee'])) {
+                $per_attendee_fields[] = $field;
+            } else {
+                $main_fields[] = $field;
+            }
+        }
+
+        $selection = (new AttendancePricingService())->build_selection_context($event_id, '', $multi_booking, $mb_enabled);
+
+        $needs_identity = $selection['effective_multi'] || $selection['has_age_pricing'];
+
+        $child_fields = is_array($multi_booking['child_fields'] ?? null) ? $multi_booking['child_fields'] : [];
+        $child_name_cfg = is_array($child_fields['name'] ?? null) ? $child_fields['name'] : [];
+        $child_age_cfg = is_array($child_fields['age'] ?? null) ? $child_fields['age'] : [];
+
+        return [
+            'selection'           => $selection,
+            'main_fields'         => $main_fields,
+            'per_attendee_fields' => $per_attendee_fields,
+            'parent_children'     => $is_parent_children,
+            'needs_identity'      => $needs_identity,
+            'show_repeater'       => $selection['effective_multi']
+                && ($needs_identity || !empty($per_attendee_fields) || $is_parent_children),
+            'child_name'          => [
+                'enabled'  => (bool) ($child_name_cfg['enabled'] ?? true),
+                'required' => (bool) ($child_name_cfg['required'] ?? true),
+                'label'    => sanitize_text_field((string) ($child_name_cfg['label'] ?? '')) ?: __('Child Name', 'hmw-events'),
+            ],
+            'child_age'           => [
+                'enabled'  => (bool) ($child_age_cfg['enabled'] ?? true),
+                'required' => (bool) ($child_age_cfg['required'] ?? false),
+                'label'    => sanitize_text_field((string) ($child_age_cfg['label'] ?? '')) ?: __('Date of Birth', 'hmw-events'),
+            ],
+            'event_date'          => (new EventDataService())->get_start_date($event_id),
+        ];
+    }
+
+    private function render_field_control(array $field, string $name, string $input_id): void
+    {
+        $required = !empty($field['required']);
+        $type = $field['type'] ?? 'text';
+        $options = $field['options'] ?? [];
+
+        if ($type === 'textarea') {
+            ?>
+            <textarea name="<?php echo esc_attr($name); ?>" id="<?php echo esc_attr($input_id); ?>" class="large-text" rows="3"<?php echo $required ? ' data-required' : ''; ?>></textarea>
+            <?php
+        } elseif ($type === 'select') {
+            ?>
+            <select name="<?php echo esc_attr($name); ?>" id="<?php echo esc_attr($input_id); ?>"<?php echo $required ? ' data-required' : ''; ?>>
+                <?php foreach ($this->field_options($options) as [$option_value, $option_label]): ?>
+                    <option value="<?php echo esc_attr($option_value); ?>"><?php echo esc_html($option_label); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <?php
+        } elseif ($type === 'checkbox') {
+            ?>
+            <label><input type="checkbox" name="<?php echo esc_attr($name); ?>" id="<?php echo esc_attr($input_id); ?>" value="1"></label>
+            <?php
+        } elseif ($type === 'radio') {
+            ?>
+            <div>
+                <?php foreach ($this->field_options($options) as [$option_value, $option_label]): ?>
+                    <label style="margin-right:12px;">
+                        <input type="radio" name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr($option_value); ?>">
+                        <?php echo esc_html($option_label); ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            <?php
+        } else {
+            ?>
+            <input type="<?php echo esc_attr($type === 'tel' ? 'text' : $type); ?>" name="<?php echo esc_attr($name); ?>" id="<?php echo esc_attr($input_id); ?>" class="regular-text"<?php echo $required ? ' data-required' : ''; ?>>
+            <?php
+        }
+    }
+
+    private function render_attendee_block_fields(array $manual_ctx): void
+    {
+        $selection = $manual_ctx['selection'];
+        $allowed_roles = $selection['allowed_roles'];
+        $has_age_pricing = $selection['has_age_pricing'];
+        $is_parent_children = $manual_ctx['parent_children'];
+        ?>
+        <?php if ($is_parent_children): ?>
+            <input type="hidden" name="attendees[__INDEX__][attendee_role]" value="child" />
+            <?php if ($manual_ctx['child_name']['enabled']): ?>
+                <div class="hmwevents-field hmwevents-field--half">
+                    <label for="hmw-manual-child-name-__INDEX__"><?php echo esc_html($manual_ctx['child_name']['label']); ?><?php if ($manual_ctx['child_name']['required']): ?> <span class="required">*</span><?php endif; ?></label>
+                    <input type="text" id="hmw-manual-child-name-__INDEX__" name="attendees[__INDEX__][child_name]"<?php echo $manual_ctx['child_name']['required'] ? ' data-required' : ''; ?> />
+                </div>
+            <?php endif; ?>
+            <?php if ($manual_ctx['child_age']['enabled'] || $has_age_pricing): ?>
+                <div class="hmwevents-field hmwevents-field--half">
+                    <label for="hmw-manual-child-dob-__INDEX__"><?php echo esc_html($manual_ctx['child_age']['label']); ?><?php if ($manual_ctx['child_age']['required'] || $has_age_pricing): ?> <span class="required">*</span><?php endif; ?></label>
+                    <input type="date" id="hmw-manual-child-dob-__INDEX__" name="attendees[__INDEX__][date_of_birth]"<?php echo ($manual_ctx['child_age']['required'] || $has_age_pricing) ? ' data-required' : ''; ?> max="<?php echo esc_attr(gmdate('Y-m-d')); ?>" />
+                </div>
+            <?php endif; ?>
+        <?php elseif (count($allowed_roles) > 1): ?>
+            <div class="hmwevents-field hmwevents-field--half">
+                <label for="hmw-manual-role-__INDEX__"><?php esc_html_e('Attendee Type', 'hmw-events'); ?> <span class="required">*</span></label>
+                <select id="hmw-manual-role-__INDEX__" name="attendees[__INDEX__][attendee_role]" data-required>
+                    <?php foreach ($allowed_roles as $role): ?>
+                        <option value="<?php echo esc_attr($role); ?>"><?php echo esc_html(ucfirst($role)); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        <?php else: ?>
+            <input type="hidden" name="attendees[__INDEX__][attendee_role]" value="<?php echo esc_attr($allowed_roles[0]); ?>" />
+        <?php endif; ?>
+
+        <?php if (!$is_parent_children && $has_age_pricing): ?>
+            <div class="hmwevents-field hmwevents-field--full hmwevents-age-dob">
+                <label for="hmw-manual-dob-__INDEX__"><?php esc_html_e('Date of Birth', 'hmw-events'); ?> <span class="required">*</span></label>
+                <input type="date" id="hmw-manual-dob-__INDEX__" name="attendees[__INDEX__][date_of_birth]" data-required max="<?php echo esc_attr(gmdate('Y-m-d')); ?>" />
+                <p class="description"><?php esc_html_e('Required for age-based pricing — used to calculate this attendee\'s fee.', 'hmw-events'); ?></p>
+            </div>
+        <?php endif; ?>
+
+        <?php foreach ($manual_ctx['per_attendee_fields'] as $field): ?>
+            <?php $this->render_attendee_custom_field($field); ?>
+        <?php endforeach; ?>
+        <?php
+    }
+
+    private function render_attendee_custom_field(array $field): void
+    {
+        $key_class = sanitize_html_class($field['key']);
+        $types = !empty($field['attendance_types']) ? wp_json_encode(array_values($field['attendance_types'])) : '';
+        ?>
+        <div class="hmwevents-field hmwevents-field--<?php echo esc_attr((string) ($field['width'] ?? 'full')); ?>"<?php echo $types ? ' data-attendance-types="' . esc_attr($types) . '"' : ''; ?>>
+            <label for="hmw-manual-att-__INDEX__-<?php echo esc_attr($key_class); ?>"><?php echo esc_html($field['label']); ?><?php if (!empty($field['required'])): ?> <span class="required">*</span><?php endif; ?></label>
+            <?php $this->render_field_control($field, 'attendees[__INDEX__][' . $field['key'] . ']', 'hmw-manual-att-__INDEX__-' . $key_class); ?>
+        </div>
+        <?php
+    }
+
     /**
      * @return object[]
      */
+    /**
+     * Build booking_id => label for rows belonging to multi-session groups.
+     *
+     * @param array $bookings Booking rows (must include booking_group_id).
+     * @return array<int, string>
+     */
+    private function get_group_labels(array $bookings): array
+    {
+        global $wpdb;
+
+        $group_ids = array_values(array_filter(array_unique(array_map(
+            fn($b) => (int) ($b->booking_group_id ?? 0),
+            $bookings
+        ))));
+
+        if (empty($group_ids)) {
+            return [];
+        }
+
+        $groups_table   = DatabaseService::get_table_name('booking_groups');
+        $bookings_table = DatabaseService::get_table_name('bookings');
+
+        $placeholders = implode(',', array_fill(0, count($group_ids), '%d'));
+        $groups = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, booking_type FROM {$groups_table} WHERE id IN ({$placeholders})",
+            ...$group_ids
+        )) ?: [];
+
+        $labels = [];
+        foreach ($groups as $group) {
+            if ($group->booking_type === 'single') {
+                continue;
+            }
+
+            $count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$bookings_table}
+                 WHERE booking_group_id = %d AND status IN ('pending', 'confirmed') AND deleted_at IS NULL",
+                (int) $group->id
+            ));
+
+            if ($count < 2) {
+                continue;
+            }
+
+            $labels[(int) $group->id] = $group->booking_type === 'recurring'
+                ? sprintf(__('Series track — %d sessions', 'hmw-events'), $count)
+                : sprintf(__('Multi-session — %d sessions', 'hmw-events'), $count);
+        }
+
+        $out = [];
+        foreach ($bookings as $booking) {
+            $gid = (int) ($booking->booking_group_id ?? 0);
+            if ($gid && isset($labels[$gid])) {
+                $out[(int) $booking->id] = $labels[$gid];
+            }
+        }
+
+        return $out;
+    }
+
     private function get_bookings_for_event(int $event_id): array
     {
         global $wpdb;
@@ -284,34 +670,61 @@ class EventBookings
         }
 
         $registrant_id = (int) $booking->registrant_post_id;
+        $event_id = (int) $booking->event_post_id;
 
-        $current_values = [
-            'customer_first_name' => (string) get_post_meta($registrant_id, 'registrant_first_name', true),
-            'customer_last_name'  => (string) get_post_meta($registrant_id, 'registrant_last_name', true),
-            'registrant_email'    => (string) get_post_meta($registrant_id, 'registrant_email', true),
-            'customer_phone'      => (string) get_post_meta($registrant_id, 'registrant_phone', true),
-            'status'              => $booking->status,
-            'payment_status'      => $booking->payment_status,
-        ];
+        $fields = EventFormFieldsResolver::for_event($event_id);
 
         $details_table = DatabaseService::get_table_name('booking_details');
+        $form_data = [];
         $form_data_row = $wpdb->get_var($wpdb->prepare(
             "SELECT form_data FROM {$details_table} WHERE booking_id = %d",
             $booking_id
         ));
 
         if ($form_data_row) {
-            $form_data = json_decode($form_data_row, true);
-            if (is_array($form_data)) {
-                foreach ($form_data as $key => $value) {
-                    $current_values[$key] = $value;
-                }
+            $decoded = json_decode($form_data_row, true);
+            if (is_array($decoded)) {
+                $form_data = $decoded;
             }
+        }
+
+        $current_values = [
+            'status'         => $booking->status,
+            'payment_status' => $booking->payment_status,
+        ];
+
+        $field_list = [];
+        foreach ($fields as $key => $field) {
+            $source = $field['source'] ?? '';
+            $value = '';
+
+            if ($source === RegistrationFieldRegistry::SOURCE_REGISTRANT_META && !empty($field['meta_key'])) {
+                $value = (string) get_post_meta($registrant_id, $field['meta_key'], true);
+            } elseif ($source === RegistrationFieldRegistry::SOURCE_BOOKING_DETAILS) {
+                $resolved = $form_data[$key]
+                    ?? RegistrationFieldRegistry::resolve_legacy_value($form_data, $key)
+                    ?? '';
+                $value = is_scalar($resolved) ? (string) $resolved : '';
+            }
+
+            $current_values[$key] = $value;
+
+            $field_list[] = [
+                'key'         => $key,
+                'label'       => $field['label'],
+                'type'        => $field['type'],
+                'required'    => $field['required'],
+                'source'      => $field['source'],
+                'meta_key'    => $field['meta_key'],
+                'options'     => $field['options'],
+                'placeholder' => $field['placeholder'],
+            ];
         }
 
         wp_send_json_success([
             'booking_id'       => $booking->id,
             'booking_number'   => $booking->booking_number,
+            'fields'           => $field_list,
             'current_values'   => $current_values,
         ]);
     }

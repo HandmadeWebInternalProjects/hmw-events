@@ -13,6 +13,7 @@ namespace HMWEvents\Services\Emails;
 
 use HMWEvents\Helpers\ConfigHelper;
 use HMWEvents\Services\BookingDetailsService;
+use HMWEvents\Services\EventDataService;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -21,6 +22,16 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
  */
 abstract class AbstractEmailHandler
 {
+    private ?EventDataService $event_data_service = null;
+
+    protected function event_data(): EventDataService
+    {
+        if ($this->event_data_service === null) {
+            $this->event_data_service = new EventDataService();
+        }
+        return $this->event_data_service;
+    }
+
     /**
      * Email queue repository.
      *
@@ -104,7 +115,7 @@ abstract class AbstractEmailHandler
         // However, time-sensitive data (like payment links) can be stored in template_data
         $email_id = $this->queue_repo->add([
             'booking_id'      => $data['booking_id'] ?? null,
-            'educator_id'     => $data['educator_id'] ?? null,
+            'organizer_id'    => $data['organizer_id'] ?? $data['educator_id'] ?? null,
             'recipient_email' => $data['recipient_email'],
             'recipient_name'  => $data['recipient_name'] ?? '',
             'email_type'      => $this->email_type,
@@ -130,13 +141,12 @@ abstract class AbstractEmailHandler
      */
     protected function get_rendered_content($data)
     {
-        $educator_id = $data['educator_id'] ?? null;
-        // Use template_key from data if provided (from queue), otherwise use handler's default
+        $organizer_id = $data['organizer_id'] ?? $data['educator_id'] ?? null;
         $template_key = $data['template_key'] ?? $this->template_key;
-        $template = $this->template_repo->get_template($educator_id, $template_key);
+        $template = $this->template_repo->get_template($organizer_id, $template_key);
 
         if (!$template) {
-            error_log('Email template not found: ' . $template_key . ' for educator ' . ($educator_id ?? 'system'));
+            error_log('Email template not found: ' . $template_key . ' for organizer ' . ($organizer_id ?? 'system'));
             return false;
         }
 
@@ -187,7 +197,7 @@ abstract class AbstractEmailHandler
             $stored_data = [];
             if (!empty($email->template_data)) {
                 $stored_data = json_decode($email->template_data, true) ?: [];
-                $volatile_keys = ['payment_type_label', 'payment_status', 'payment_type'];
+                $volatile_keys = ['payment_type_label', 'payment_status', 'payment_type', 'cancel_link'];
                 foreach ($volatile_keys as $key) {
                     unset($stored_data[$key]);
                 }
@@ -199,13 +209,13 @@ abstract class AbstractEmailHandler
 
             // Render template with fresh data
             $rendered = $this->get_rendered_content([
-                'educator_id' => $email->educator_id,
+                'organizer_id' => $email->organizer_id ?? $email->educator_id,
                 'template_key' => $email->template_key,
                 'template_data' => $template_data,
             ]);
 
             if (!$rendered) {
-                throw new \Exception('Failed to render email template: ' . $this->template_key . ' for educator ' . ($email->educator_id ?? 'system'));
+                throw new \Exception('Failed to render email template: ' . ($email->template_key ?? $this->template_key) . ' for organizer ' . ($email->organizer_id ?? $email->educator_id ?? 'system'));
             }
 
             // Before send hook
@@ -213,8 +223,9 @@ abstract class AbstractEmailHandler
 
             // Send email using WordPress with freshly rendered content
             $educator_email = '';
-            if (!empty($email->educator_id)) {
-                $educator_user = get_userdata($email->educator_id);
+            $email_organizer_id = $email->organizer_id ?? $email->educator_id;
+            if (!empty($email_organizer_id)) {
+                $educator_user = get_userdata($email_organizer_id);
                 if ($educator_user) {
                     $educator_email = $educator_user->user_email;
                 }
@@ -223,7 +234,7 @@ abstract class AbstractEmailHandler
             if (!empty($email->booking_id)) {
                 global $wpdb;
                 $event_post_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT event_post_id FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+                    "SELECT event_post_id FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
                     $email->booking_id
                 ));
                 if ($event_post_id) {
@@ -238,7 +249,8 @@ abstract class AbstractEmailHandler
                 $email->recipient_email,
                 $rendered['subject'],
                 $rendered['body'],
-                $this->get_email_headers($educator_email)
+                $this->get_email_headers($educator_email),
+                $this->get_attachments($email->id)
             );
 
             if ($sent) {
@@ -280,6 +292,18 @@ abstract class AbstractEmailHandler
         }
 
         return $headers;
+    }
+
+    /**
+     * Resolve file attachments queued for an email.
+     *
+     * @param int $email_id Email queue ID.
+     * @return array Absolute file paths.
+     */
+    protected function get_attachments($email_id): array
+    {
+        $service = new EmailAttachmentService();
+        return $service->get_for_queue((int) $email_id);
     }
 
     /**
@@ -347,7 +371,7 @@ abstract class AbstractEmailHandler
         global $wpdb;
 
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT status, payment_status FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+            "SELECT status, payment_status FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
             $booking_id
         ));
 
@@ -370,6 +394,7 @@ abstract class AbstractEmailHandler
             'booking_confirmed',
             'payment_received',
             'course_changed',
+            'event_changed',
         ];
 
         return in_array($email->email_type, $skip_types, true);
@@ -476,6 +501,64 @@ abstract class AbstractEmailHandler
     }
 
     /**
+     * Get the registrant email address from a registrant post.
+     *
+     * Tries post meta first, then the ACF field.
+     *
+     * @param int|null $customer_post_id Registrant post ID.
+     * @return string|false Email address or false when unavailable.
+     */
+    protected function get_registrant_email_address($customer_post_id)
+    {
+        if (!$customer_post_id) {
+            return false;
+        }
+
+        $email = get_post_meta($customer_post_id, 'registrant_email', true);
+        if ($email) {
+            return $email;
+        }
+
+        if (function_exists('get_field')) {
+            $email = get_field('registrant_email', $customer_post_id);
+            if ($email) {
+                return $email;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Format a date string as "F j, Y", returning the input when unparseable.
+     *
+     * @param string|int $date Date string or timestamp.
+     * @return string
+     */
+    protected function format_event_date($date): string
+    {
+        $timestamp = is_numeric($date) ? (int) $date : strtotime((string) $date);
+        if ($timestamp === false || ($timestamp === 0 && !is_numeric($date))) {
+            return (string) $date;
+        }
+
+        return date('F j, Y', $timestamp);
+    }
+
+    /**
+     * Format an amount with the currency symbol for the given currency code.
+     *
+     * @param float|string|int $amount Amount.
+     * @param string           $currency Currency code (defaults to AUD).
+     * @return string
+     */
+    protected function format_money($amount, string $currency = 'AUD'): string
+    {
+        $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
+        return $currency_symbol . number_format((float) $amount, 2);
+    }
+
+    /**
      * Get normalized course location address.
      *
      * @param int $course_id Course post ID.
@@ -483,12 +566,16 @@ abstract class AbstractEmailHandler
      */
     protected function get_course_location_address($course_id)
     {
-        if (!$course_id || !function_exists('get_field')) {
+        if (!$course_id) {
             return '';
         }
 
-        $location = get_field('course_location_address', $course_id);
-        return $this->normalize_location_address($location);
+        $name    = $this->event_data()->get_venue_name($course_id) ?? '';
+        $address = $this->event_data()->get_venue_address_string($course_id);
+
+        $parts = array_filter([trim((string) $name), trim((string) $address)]);
+
+        return implode(', ', $parts);
     }
 
     /**
@@ -575,7 +662,7 @@ abstract class AbstractEmailHandler
 
         $feedback_url = add_query_arg('booking', (int) $booking_id, $base_url);
 
-        return "<a href='" . esc_url($feedback_url) . "' target='_blank'>Take the educator and course feedback survey</a>";
+        return "<a href='" . esc_url($feedback_url) . "' target='_blank'>Take the event feedback survey</a>";
     }
 
     /**
@@ -587,9 +674,35 @@ abstract class AbstractEmailHandler
      */
     protected function build_universal_variables($booking_id, $course_location = '')
     {
+        $event     = $this->resolve_booking_event($booking_id);
+        $organiser = $this->resolve_organiser($event);
+
+        $event_title      = '';
+        $event_date       = '';
+        $event_start_time = '';
+
+        if ($event) {
+            $event_title = $event->post_title;
+
+            $datetime = $this->event_data()->get_start_date((int) $event->ID);
+            if ($datetime) {
+                $event_date = $this->format_event_date($datetime);
+                $timestamp  = strtotime($datetime);
+                if ($timestamp !== false) {
+                    $event_start_time = date('g:i A', $timestamp);
+                }
+            }
+        }
+
         $feedback_link = $this->build_feedback_url($booking_id);
 
         return [
+            'organiser_name'              => $organiser['name'],
+            'organiser_email'             => $organiser['email'],
+            'event_title'                 => $event_title,
+            'event_date'                  => $event_date,
+            'event_start_time'            => $event_start_time,
+            'event_location'              => $course_location,
             'course_location'             => $course_location,
             'get_directions'              => $this->build_directions_link($course_location),
             'download_audio_track'         => $this->build_download_audio_track(),
@@ -601,22 +714,56 @@ abstract class AbstractEmailHandler
     }
 
     /**
-     * Normalize location field value to a readable address.
+     * Resolve the event post for a booking.
      *
-     * @param mixed $location ACF location value.
-     * @return string
+     * @param int $booking_id Booking ID.
+     * @return \WP_Post|null
      */
-    protected function normalize_location_address($location)
+    protected function resolve_booking_event(int $booking_id): ?\WP_Post
     {
-        if (empty($location)) {
-            return '';
+        global $wpdb;
+
+        $event_id = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT event_post_id FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
+            $booking_id
+        ));
+
+        if (!$event_id) {
+            return null;
         }
 
-        if (is_array($location)) {
-            return $location['address'] ?? '';
+        $post = get_post($event_id);
+
+        return $post instanceof \WP_Post ? $post : null;
+    }
+
+    /**
+     * Resolve the event organiser's display name and email.
+     *
+     * Uses the assigned organizer, falling back to the event author.
+     *
+     * @param \WP_Post|null $event Event post.
+     * @return array{name:string, email:string}
+     */
+    protected function resolve_organiser(?\WP_Post $event): array
+    {
+        $name  = '';
+        $email = '';
+
+        if ($event) {
+            $organizer_id = $this->event_data()->get_organizer_id((int) $event->ID);
+            if (!$organizer_id) {
+                $organizer_id = (int) $event->post_author;
+            }
+
+            $user = get_userdata($organizer_id);
+            if ($user) {
+                $name  = $user->display_name;
+                $email = $user->user_email;
+            }
         }
 
-        return (string) $location;
+        return ['name' => $name, 'email' => $email];
     }
 
     /**
@@ -627,27 +774,25 @@ abstract class AbstractEmailHandler
     public function get_template_variables_description()
     {
         return [
-            'customer_name'               => 'Customer name',
-            'registrant_email'              => 'Customer email',
-            'course_name'                 => 'Course name',
-            'course_date'                 => 'Course date',
-            'booking_number'              => 'Booking confirmation number',
-            'course_location'             => 'Course location address',
-            'course_start_time'           => 'Course start time',
-            'get_directions'              => 'Google Maps directions URL to the course location',
-            'download_audio_track'         => 'Download link to audio file (if configured)',
-            'free_pre_course_audio_track' => 'Free pre-course audio track link',
-            'download_relaxation_track'   => 'Download link to free pre-course relaxation track',
-            'feedback_survey'             => 'Feedback form URL',
-            'days_until'                  => 'Days until course',
-            'days_after'                  => 'Days after course',
-            'booking_amount'              => 'Booking amount (formatted)',
-            'reason'                      => 'Cancellation reason',
-            'amount'                      => 'Amount (formatted)',
-            'refund_amount'               => 'Refund amount (formatted)',
-            'changed_fields'              => 'Changed fields list',
-            'old_values'                  => 'Old values (JSON)',
-            'all_fields'                  => 'All booking form fields as a key → value table',
+            'customer_name'     => 'Customer name',
+            'registrant_email'  => 'Customer email',
+            'organiser_name'    => 'Event organiser name',
+            'organiser_email'   => 'Event organiser email',
+            'event_title'       => 'Event title',
+            'event_date'        => 'Event date',
+            'event_start_time'  => 'Event start time',
+            'event_location'    => 'Event venue name and address',
+            'booking_number'    => 'Booking confirmation number',
+            'get_directions'    => 'Google Maps directions URL to the event location',
+            'days_until'        => 'Days until event',
+            'days_after'        => 'Days after event',
+            'booking_amount'    => 'Booking amount (formatted)',
+            'reason'            => 'Cancellation reason',
+            'amount'            => 'Amount (formatted)',
+            'refund_amount'     => 'Refund amount (formatted)',
+            'changed_fields'    => 'Changed fields list',
+            'old_values'        => 'Old values (JSON)',
+            'all_fields'        => 'All booking form fields as a key → value table',
         ];
     }
 
@@ -668,7 +813,7 @@ abstract class AbstractEmailHandler
         // Manual bookings store contact info in post meta rather than form_data,
         // so this ensures {all_fields} is always complete regardless of booking source.
         $registrant_post_id = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT registrant_post_id FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+            "SELECT registrant_post_id FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
             $booking_id
         ));
 
@@ -723,7 +868,7 @@ abstract class AbstractEmailHandler
             $label = ucwords(str_replace(['_', '-'], ' ', (string) $key));
 
             if (is_array($value)) {
-                $value = implode(', ', array_filter(array_map('strval', $value)));
+                $value = $this->format_nested_field_value($value);
             } else {
                 $value = (string) $value;
             }
@@ -739,5 +884,25 @@ abstract class AbstractEmailHandler
         }
 
         return '<table style="border-collapse:collapse;width:100%;">' . $rows . '</table>';
+    }
+
+    private function format_nested_field_value(array $value): string
+    {
+        $parts = [];
+
+        foreach ($value as $index => $item) {
+            if (is_array($item)) {
+                $fields = [];
+                foreach ($item as $key => $field_value) {
+                    $label = ucwords(str_replace(['_', '-'], ' ', (string) $key));
+                    $fields[] = $label . ': ' . (is_array($field_value) ? implode(', ', array_filter(array_map('strval', $field_value))) : (string) $field_value);
+                }
+                $parts[] = 'Attendee ' . ((int) $index + 1) . ' - ' . implode('; ', $fields);
+            } else {
+                $parts[] = (string) $item;
+            }
+        }
+
+        return implode("\n", $parts);
     }
 }

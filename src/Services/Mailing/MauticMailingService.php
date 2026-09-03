@@ -112,14 +112,14 @@ class MauticMailingService implements MailingServiceInterface
         $row = $wpdb->get_row($wpdb->prepare("
             SELECT
                 b.id,
-                b.customer_post_id,
+                b.registrant_post_id AS customer_post_id,
                 b.event_post_id,
                 c.post_title   AS course_name,
                 c.post_author  AS educator_id,
                 bd.form_data
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
             INNER JOIN {$wpdb->posts} c  ON c.ID = b.event_post_id
-            LEFT  JOIN {$wpdb->prefix}hmwevents_booking_details bd ON bd.booking_id = b.id
+            LEFT  JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_details') . " bd ON bd.booking_id = b.id
             WHERE b.id = %d
               AND b.deleted_at IS NULL
         ", $booking_id));
@@ -141,8 +141,10 @@ class MauticMailingService implements MailingServiceInterface
         $postcode         = $form_data['postcode'] ?? '';
         $mailing_ok       = !empty($form_data['mailing_agreement']);
 
-        // Course end date (stored as ACF field on the course post)
-        $course_end_date  = get_field('course_end_date', (int) $row->event_post_id) ?: '';
+        $event_post_id = (int) $row->event_post_id;
+        $course_end_date = ($event_post_id && get_post_type($event_post_id) === 'hmw_event')
+            ? (get_field('_event_end_date', $event_post_id) ?: '')
+            : '';
 
         // Educator display name
         $educator        = get_userdata((int) $row->educator_id);

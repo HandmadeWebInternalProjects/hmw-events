@@ -2,6 +2,8 @@
 
 namespace HMWEvents\Services;
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 /**
  * Service for managing flexible booking details using JSON + Metadata hybrid approach
  */
@@ -32,8 +34,8 @@ class BookingDetailsService {
   public function __construct() {
     global $wpdb;
     $this->wpdb = $wpdb;
-    $this->booking_details_table = $wpdb->prefix . 'educator_booking_details';
-    $this->booking_meta_table = $wpdb->prefix . 'educator_booking_meta';
+    $this->booking_details_table = DatabaseService::get_table_name('booking_details');
+    $this->booking_meta_table = DatabaseService::get_table_name('booking_meta');
   }
   
   /**

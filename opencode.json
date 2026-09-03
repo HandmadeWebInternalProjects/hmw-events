@@ -2,8 +2,16 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "openrouter/deepseek/deepseek-v4-pro",
   "instructions": ["AGENTS.md"],
-  "agent": {
-    "coder": {},
-    "test-writer": {}
+  "mcp": {
+    "wsp-staging-karitane-com-au": {
+      "type": "remote",
+      "url": "https://staging.karitane.com.au/wp-json/wsp-mcp/v1/mcp",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer 4eead7b8455c760e00464fbf19e23282"
+      }
+    }
   }
 }
+

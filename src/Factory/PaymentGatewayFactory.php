@@ -13,6 +13,7 @@ namespace HMWEvents\Factory;
 use HMWEvents\Interfaces\PaymentGatewayInterface;
 use HMWEvents\Services\Gateways\StripePaymentGateway;
 use HMWEvents\Services\Gateways\PayPalPaymentGateway;
+use HMWEvents\Services\OrganizerPaymentSettings;
 use HMWEvents\Helpers\ConfigHelper;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
@@ -42,12 +43,12 @@ class PaymentGatewayFactory
     /**
      * Create a payment gateway instance.
      *
-     * @param string|null $gateway_id Gateway identifier (stripe, paypal, etc.).
-     *                                 If null, uses default from settings.
-     * @param int|null    $educator_id Optional educator ID for multi-tenant credentials.
+     * @param string|null $gateway_id   Gateway identifier (stripe, paypal, etc.).
+     *                                   If null, uses default from settings.
+     * @param int|null    $organizer_id Optional organizer ID for multi-tenant credentials.
      * @return PaymentGatewayInterface|\WP_Error Gateway instance or error.
      */
-    public static function create($gateway_id = null, $educator_id = null)
+    public static function create($gateway_id = null, $organizer_id = null)
     {
         // Get default gateway if not specified
         if ($gateway_id === null) {
@@ -57,11 +58,12 @@ class PaymentGatewayFactory
         // Normalize gateway ID
         $gateway_id = strtolower($gateway_id);
 
-        // If educator is specified, check their preferred gateway
-        if ($educator_id !== null) {
-            $educator_gateway = get_user_meta($educator_id, 'educator_payment_type', true);
-            if (!empty($educator_gateway) && isset(self::$gateways[$educator_gateway])) {
-                $gateway_id = $educator_gateway;
+        // If organizer is specified, check their preferred gateway
+        if ($organizer_id !== null) {
+            $settings = new OrganizerPaymentSettings($organizer_id);
+            $organizer_gateway = $settings->get_payment_type();
+            if (!empty($organizer_gateway) && isset(self::$gateways[$organizer_gateway])) {
+                $gateway_id = $organizer_gateway;
             }
         }
 
@@ -73,8 +75,8 @@ class PaymentGatewayFactory
             );
         }
 
-        // Create cache key including educator ID
-        $cache_key = $gateway_id . ($educator_id ? '_edu_' . $educator_id : '');
+        // Create cache key including organizer ID
+        $cache_key = $gateway_id . ($organizer_id ? '_org_' . $organizer_id : '');
 
         // Return cached instance if exists
         if (isset(self::$instances[$cache_key])) {
@@ -91,17 +93,17 @@ class PaymentGatewayFactory
             );
         }
 
-        // Instantiate with educator ID if supported
+        // Instantiate with organizer ID if supported
         $reflection = new \ReflectionClass($gateway_class);
         $constructor = $reflection->getConstructor();
         
         if ($constructor && $constructor->getNumberOfParameters() > 0) {
-            $gateway = new $gateway_class($educator_id);
+            $gateway = new $gateway_class($organizer_id);
         } else {
             $gateway = new $gateway_class();
-            // Set educator ID if method exists
-            if (method_exists($gateway, 'set_educator_id')) {
-                $gateway->set_educator_id($educator_id);
+            // Set organizer ID if method exists
+            if (method_exists($gateway, 'set_organizer_id')) {
+                $gateway->set_organizer_id($organizer_id);
             }
         }
 
@@ -120,7 +122,7 @@ class PaymentGatewayFactory
                 sprintf(
                     'Payment gateway "%s" is not properly configured or unavailable.%s',
                     $gateway->get_gateway_name(),
-                    $educator_id ? ' (Educator ID: ' . $educator_id . ')' : ''
+                    $organizer_id ? ' (Organizer ID: ' . $organizer_id . ')' : ''
                 )
             );
         }

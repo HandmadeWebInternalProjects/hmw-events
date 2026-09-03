@@ -92,6 +92,7 @@ class ReportingServiceTest extends TestCase
         Functions\when('wp_json_encode')->alias('json_encode');
         Functions\when('current_user_can')->justReturn(false);
         Functions\when('wp_die')->justReturn(null);
+        Functions\when('check_ajax_referer')->justReturn(true);
 
         Functions\when('wp_send_json_error')->alias(function ($data = null) {
             throw new \RuntimeException('JSON_ERROR: ' . json_encode($data));

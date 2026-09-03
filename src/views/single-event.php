@@ -21,19 +21,23 @@ if (!$event) {
     return;
 }
 
-$start_date   = get_post_meta($event->ID, '_event_start_date', true);
-$end_date     = get_post_meta($event->ID, '_event_end_date', true);
-$capacity     = (int) get_post_meta($event->ID, '_event_capacity', true);
-$venue        = get_post_meta($event->ID, '_event_venue_name', true);
-$venue_addr   = \HMWEvents\Helpers\GoogleMapField::get_address_string(get_post_meta($event->ID, '_event_venue_address', true));
-$webinar_url  = get_post_meta($event->ID, '_event_webinar_url', true);
-$price        = get_post_meta($event->ID, '_event_price', true);
-$deposit      = get_post_meta($event->ID, '_event_deposit', true);
-$is_free      = get_post_meta($event->ID, '_event_is_free', true);
+$event_data   = new \HMWEvents\Services\EventDataService();
+$start_date   = $event_data->get_start_date($event->ID);
+$end_date     = $event_data->get_end_date($event->ID);
+$capacity     = $event_data->get_capacity($event->ID);
+$venue        = $event_data->get_venue_name($event->ID);
+$venue_addr   = $event_data->get_venue_address_string($event->ID);
+$webinar_url  = $event_data->get_webinar_url($event->ID);
+$price        = $event_data->get_price($event->ID);
+$deposit      = $event_data->get_deposit($event->ID);
+$surcharge    = $event_data->get_surcharge($event->ID);
+$is_free      = $event_data->get_is_free($event->ID);
 $organizer_id = $event->post_author;
 $event_types  = get_the_terms($event->ID, 'hmw_event_type');
 $delivery     = get_the_terms($event->ID, 'hmw_event_delivery_mode');
 $audience     = get_the_terms($event->ID, 'hmw_event_audience');
+$display_price = (float) $price + $surcharge;
+$display_deposit = (float) $deposit + $surcharge;
 
 $article_classes = apply_filters('hmwevents_single_event_classes', ['hmwevents-single-event'], $event);
 
@@ -162,13 +166,15 @@ do_action('hmwevents_before_single_event', $event);
 
         <?php if ($capacity > 0) : ?>
             <?php
-            $meta_key = 'capacity';
+            $capacity_service = new \HMWEvents\Services\CapacityService();
+            $places_remaining = $capacity_service->get_remaining_places($event->ID);
+            $meta_key = 'places_remaining';
             $meta_classes = apply_filters('hmwevents_event_meta_item_classes', ['hmwevents-meta-item'], $meta_key, $event);
-            $meta_label = apply_filters('hmwevents_event_meta_label', __('Capacity', 'hmw-events'), $meta_key, $event);
+            $meta_label = apply_filters('hmwevents_event_meta_label', __('Places remaining', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
                 <strong><?php echo esc_html($meta_label); ?>:</strong>
-                <?php echo (int) $capacity; ?>
+                <?php echo (int) $places_remaining; ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
             ?>
@@ -185,9 +191,12 @@ do_action('hmwevents_before_single_event', $event);
             ob_start();
             ?>
                 <strong><?php echo esc_html($meta_label); ?>:</strong>
-                $<?php echo number_format((float) $price, 2); ?>
-                <?php if ($deposit) : ?>
-                    <small>(<?php esc_html_e('Deposit', 'hmw-events'); ?>: $<?php echo number_format((float) $deposit, 2); ?>)</small>
+                $<?php echo number_format($display_price, 2); ?>
+                <?php if ($surcharge > 0) : ?>
+                    <small>(<?php esc_html_e('includes surcharge', 'hmw-events'); ?>: $<?php echo number_format($surcharge, 2); ?>)</small>
+                <?php endif; ?>
+                <?php if ($deposit && apply_filters('hmwevents_deposit_enabled', false)) : ?>
+                    <small>(<?php esc_html_e('Deposit', 'hmw-events'); ?>: $<?php echo number_format($display_deposit, 2); ?>)</small>
                 <?php endif; ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -228,7 +237,7 @@ do_action('hmwevents_before_single_event', $event);
 
     <?php do_action('hmwevents_before_booking_form', $event); ?>
 
-    <?php if (!$has_booking_form) : ?>
+    <?php if (!$has_booking_form && $event_data->bookings_enabled($event->ID)) : ?>
         <div class="<?php echo esc_attr(implode(' ', apply_filters('hmwevents_booking_form_container_classes', ['hmwevents-booking-form-container'], $event))); ?>">
             <?php echo do_shortcode('[hmwevents_booking_form event_id="' . $event->ID . '"]'); ?>
         </div>

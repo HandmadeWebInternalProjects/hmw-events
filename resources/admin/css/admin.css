@@ -1,1 +1,44 @@
-@import 'monthly-reports.css';
+.inside:has(.overflow-x-auto) {
+  overflow-x: auto;
+}
+.exopite-sof .hmw-theme-color-input.hmw-has-swatch {
+  width: calc(100% - 44px);
+}
+
+.hmw-theme-color-swatch {
+  inline-size: 34px;
+  block-size: 34px;
+  padding: 2px;
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-inline-start: 8px;
+}
+
+.column-hmwevents_bookings {
+  width: 90px;
+}
+
+.hmwevents-capacity-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid #dcdcde;
+  border-radius: 10px;
+  background: #f6f7f7;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.hmwevents-capacity-badge--nearly-full {
+  border-color: #dba617;
+  background: #fcf9e8;
+  color: #755100;
+}
+
+.hmwevents-capacity-badge--full {
+  border-color: #f1b2b7;
+  background: #fcf0f1;
+  color: #8a2424;
+}

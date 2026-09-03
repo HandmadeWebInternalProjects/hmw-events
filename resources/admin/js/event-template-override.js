@@ -33,10 +33,11 @@
         renderACFDnD();
         renderRegFields();
         bindRegFieldHandlers();
-        $('#hmwevents-override-modal-children').toggle(hasChildren);
-        if (response.data.apply_to_children) {
-          $('#hmwevents-override-apply-children').prop('checked', true);
+        if (typeof response.data.has_children !== 'undefined') {
+          hasChildren = !!response.data.has_children;
         }
+        updateChildrenToggle();
+        $('#hmwevents-override-apply-children').prop('checked', !!response.data.apply_to_children);
         tb_show('Field Override', '#TB_inline?width=750&height=600&inlineId=hmwevents-override-modal');
       }
     }).fail(function () {
@@ -301,11 +302,16 @@
     );
   }
 
+  function updateChildrenToggle() {
+    $('#hmwevents-override-apply-children').prop('disabled', !hasChildren);
+    $('#hmwevents-override-children-note').toggle(!hasChildren);
+  }
+
   function reopenOverride() {
     renderACFDnD();
     renderRegFields();
     bindRegFieldHandlers();
-    if (hasChildren) $('#hmwevents-override-modal-children').show();
+    updateChildrenToggle();
     tb_show('Field Override', '#TB_inline?width=750&height=600&inlineId=hmwevents-override-modal');
   }
 

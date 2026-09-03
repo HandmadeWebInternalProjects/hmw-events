@@ -114,9 +114,7 @@
       const $container = $button.closest('.hmwevents-template-selector, .hmwevents-email-template-wrap');
       const $select = $container.find('select.hmwevents-template-selector-dropdown, select[name="template_key"]');
       const templateKey = $select.val();
-      const $templateEditor = $container.siblings('.hmwevents-email-template-editor').length ? 
-        $container.siblings('.hmwevents-email-template-editor') : 
-        $container.closest('.hmwevents-educator-templates').find('.hmwevents-email-template-editor');
+      const $templateEditor = $container.siblings('.hmwevents-email-template-editor');
       
       console.log('Template key:', templateKey);
       console.log('Editor div found:', $templateEditor.length);
@@ -127,23 +125,13 @@
       $button.prop('disabled', true).text('Loading...');
       $templateEditor.css('opacity', '0.5');
       
-      // Get context (system or educator)
-      const isEducator = $container.closest('.hmwevents-educator-templates').length > 0;
-      const userId = $container.find('input.hmwevents-template-user-id, input[name="user_id"]').val();
-      
       // Build data
       const data = {
         action: 'hmwevents_load_email_template',
         template_key: templateKey,
-        nonce: cmsEmailTemplates.nonce
+        nonce: cmsEmailTemplates.nonce,
+        context: 'system'
       };
-      
-      if (isEducator && userId) {
-        data.user_id = userId;
-        data.context = 'educator';
-      } else {
-        data.context = 'system';
-      }
       
       // Make AJAX request
       $.ajax({
@@ -191,19 +179,8 @@
             // Update active checkbox (within the form div)
             $formDiv.find('input[name="is_active"]').prop('checked', template.is_active == 1);
             
-            // Update action field if context changed
-            const isEducatorContext = data.context === 'educator';
-            if (isEducatorContext) {
-              $formDiv.find('input[name="action"]').val('hmwevents_educator_email_template_save');
-              // Make sure user_id is set
-              if (!$formDiv.find('input[name="user_id"]').length && data.user_id) {
-                $formDiv.append('<input type="hidden" name="user_id" value="' + data.user_id + '">');
-              } else {
-                $formDiv.find('input[name="user_id"]').val(data.user_id);
-              }
-            } else {
-              $formDiv.find('input[name="action"]').val('hmwevents_email_template_save');
-            }
+            // Update action field
+            $formDiv.find('input[name="action"]').val('hmwevents_email_template_save');
             
             // Update status message (within the editor)
             $templateEditor.find('.hmwevents-template-status').html(data.status_message || '');
@@ -356,8 +333,6 @@
       
       if (originalAction === 'hmwevents_email_template_save') {
         formData.set('action', 'hmwevents_save_email_template_ajax');
-      } else if (originalAction === 'hmwevents_educator_email_template_save') {
-        formData.set('action', 'hmwevents_save_educator_email_template_ajax');
       }
 
       if (!formData.get('action')) {
@@ -368,7 +343,6 @@
       
       console.log('AJAX action:', formData.get('action'));
       console.log('Template key:', formData.get('template_key'));
-      console.log('User ID:', formData.get('user_id'));
       
       // Add nonce
       formData.set('ajax_nonce', cmsEmailTemplates.nonce);
@@ -580,10 +554,6 @@
         return;
       }
 
-      // Get context for booking query (mirrors getTemplatePayload logic)
-      const userId = $formDiv.find('input[name="user_id"]').val() || 0;
-      const context = userId ? 'educator' : 'system';
-
       // Search bookings via AJAX
       $.ajax({
         url: cmsEmailTemplates.ajaxUrl,
@@ -591,9 +561,7 @@
         data: {
           action: 'hmwevents_get_available_bookings',
           nonce: cmsEmailTemplates.nonce,
-          search: search,
-          context: context,
-          user_id: userId
+          search: search
         },
         success: function(response) {
           if (response.success && response.data.length > 0) {
@@ -704,8 +672,6 @@
      */
     function getTemplatePayload($formDiv) {
       const templateKey = $formDiv.find('input[name="template_key"]').val() || '';
-      const userId = $formDiv.find('input[name="user_id"]').val() || '';
-      const context = userId ? 'educator' : 'system';
       const subject = $formDiv.find('input[name="subject"]').val() || '';
 
       let body = $formDiv.find('textarea[name="body"]').val() || '';
@@ -719,8 +685,7 @@
 
       return {
         template_key: templateKey,
-        context: context,
-        user_id: userId,
+        context: 'system',
         subject: subject,
         body: body,
         booking_id: $formDiv.find('.hmwevents-booking-id-input').val() || 0
@@ -760,76 +725,7 @@
     $(document).on('click', '.hmwevents-template-preview-close, .hmwevents-template-preview-backdrop', function() {
       $('#hmwevents-template-preview-modal').removeClass('is-visible');
     });
-    
-    /**
-     * Handle template reset (educator only)
-     */
-    $(document).on('click', '.hmwevents-reset-educator-template-btn', function() {
-      if (!confirm('Are you sure you want to reset this template to the system default? Your customizations will be lost.')) {
-        return;
-      }
 
-      const $btn = $(this);
-      const $wrap = $btn.closest('.hmwevents-template-reset-wrap');
-      const userId = $wrap.find('.hmwevents-reset-user-id').val();
-      const templateKey = $wrap.find('.hmwevents-reset-template-key').val();
-      const nonce = $wrap.find('#_hmwevents_reset_nonce').val();
-
-      $btn.prop('disabled', true).text('Resetting...');
-
-      $.post(cmsEmailTemplates.ajaxUrl, {
-        action: 'hmwevents_reset_educator_email_template_ajax',
-        ajax_nonce: cmsEmailTemplates.nonce,
-        user_id: userId,
-        template_key: templateKey,
-        _wpnonce: nonce,
-      }, function(response) {
-        if (response.success) {
-          showNotice(response.data.message || 'Template reset successfully', 'success');
-          $wrap.fadeOut();
-        } else {
-          showNotice(response.data.message || 'Failed to reset template', 'error');
-          $btn.prop('disabled', false).text('Reset to System Default');
-        }
-      }).fail(function() {
-        showNotice('An error occurred while resetting the template', 'error');
-        $btn.prop('disabled', false).text('Reset to System Default');
-      });
-    });
-
-    /**
-     * Handle re-generate all educator templates
-     */
-    $(document).on('click', '.hmwevents-regenerate-educator-templates-btn', function() {
-      if (!confirm('This will overwrite ALL email templates for this educator with the system default versions. Continue?')) {
-        return;
-      }
-
-      const $btn = $(this);
-      const $wrap = $btn.closest('.hmwevents-template-regenerate-wrap');
-      const userId = $wrap.data('user-id');
-      const nonce = $wrap.find('#_hmwevents_regenerate_nonce').val();
-
-      $btn.prop('disabled', true).text('Re-generating...');
-
-      $.post(cmsEmailTemplates.ajaxUrl, {
-        action: 'hmwevents_regenerate_educator_templates_ajax',
-        ajax_nonce: cmsEmailTemplates.nonce,
-        user_id: userId,
-        _wpnonce: nonce,
-      }, function(response) {
-        if (response.success) {
-          showNotice(response.data.message || 'Templates re-generated successfully', 'success');
-        } else {
-          showNotice(response.data.message || 'Failed to re-generate templates', 'error');
-        }
-      }).fail(function() {
-        showNotice('An error occurred while re-generating templates', 'error');
-      }).always(function() {
-        $btn.prop('disabled', false).text('Re-generate All Defaults (Overwrite Existing)');
-      });
-    });
-    
     /**
      * Auto-save functionality (optional - can be enabled)
      */
