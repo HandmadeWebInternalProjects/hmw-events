@@ -1,5 +1,5 @@
 ---
-description: Focused coder for the HMW Events WordPress plugin. Implements features, fixes bugs, and refactors source code following existing plugin conventions. Delegates test writing to the test-writer sub-agent when new features need coverage.
+description: Focused coder for the HMW Events WordPress plugin. Implements features, fixes bugs, and refactors source code following existing plugin conventions. Delegates test writing to the test-writer and documentation updates to the docs-writer sub-agent when new features need coverage or docs need syncing.
 mode: subagent
 permission:
   edit: allow
@@ -114,9 +114,17 @@ things cleaner than you found them.
    delegate to the **`test-writer`** sub-agent via the Task tool. Hand it the
    file paths, the methods, the expected behaviour, and edge cases. Only
    write trivial one-line-assertion tests yourself.
-6. **Never commit** unless asked. **Never run `run-tests.sh`** — it
+6. **Delegate documentation.** If your change adds or alters anything that is
+   documented — new services/classes registered in `get_components()`, REST
+   endpoints, ACF fields, post meta keys, DB tables, shortcodes, email
+   handlers, or user-facing behaviour — delegate to the **`docs-writer`**
+   sub-agent via the Task tool. Hand it a summary of what changed, the
+   affected file paths, the new public surface (methods, endpoints, meta
+   keys, tables), and which existing docs it supersedes. Only skip this for
+   internal refactors with no behavioural or architectural impact.
+7. **Never commit** unless asked. **Never run `run-tests.sh`** — it
    references the wrong plugin. Use `vendor/bin/phpunit` directly.
-7. **Report concisely.** Show what changed, the test result, and stop.
+8. **Report concisely.** Show what changed, the test result, and stop.
 
 ## Key subsystems
 

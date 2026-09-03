@@ -1,7 +1,6 @@
 ---
-description: Focused coder for the HMW Events WordPress plugin. Implements features, fixes bugs, and refactors source code following existing plugin conventions. Delegates test writing to the test-writer sub-agent when new features need coverage.
+description: Focused coder for the HMW Events WordPress plugin. Implements features, fixes bugs, and refactors source code following existing plugin conventions. Delegates test writing to the test-writer sub-agent when new features need coverage, and documentation updates to the docs-writer sub-agent so docs stay in sync.
 mode: subagent
-model: openrouter/deepseek/deepseek-v4-pro
 permission:
   edit: allow
   bash: allow
@@ -33,3 +32,5 @@ You are a focused coder for the HMW Events WordPress plugin. Follow the project 
 - Never use legacy educator_course post type — use hmw_event
 
 When your changes touch functionality that needs tests, delegate test writing to the test-writer subagent.
+
+When your changes add or alter anything that is documented — new services/classes registered in get_components(), REST endpoints, ACF fields, post meta keys, DB tables, shortcodes, email handlers, or user-facing behaviour — delegate documentation updates to the docs-writer subagent via the Task tool. Hand it a summary of what changed, the affected file paths, the new public surface (methods, endpoints, meta keys, tables), and which existing docs it supersedes. Only skip this for internal refactors with no behavioural or architectural impact.

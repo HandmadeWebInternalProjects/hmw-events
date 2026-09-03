@@ -101,48 +101,11 @@ class WaitlistAndSessionsTest extends TestCase
         $this->assertContains(WaitlistService::class, $components);
     }
 
-    public function test_check_event_full_by_invitation(): void
-    {
-        Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'publish'];
-        });
-        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
-            if ($key === '_event_is_invitation_only') return '1';
-            return '';
-        });
-
-        $service = new WaitlistService();
-        $this->assertTrue($service->check_event_full(false, 1));
-    }
-
-    public function test_check_event_full_not_full(): void
-    {
-        Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'publish'];
-        });
-
-        $service = new WaitlistService();
-        $this->assertFalse($service->check_event_full(false, 1));
-    }
-
-    public function test_check_event_full_with_active_waitlist(): void
-    {
-        Functions\when('get_post')->alias(function ($id) {
-            return (object) ['post_status' => 'publish'];
-        });
-
-        \Patchwork\replace('HMWEvents\\Services\\WaitlistService::count_for_event', function ($event_post_id) {
-            return 5;
-        });
-
-        $service = new WaitlistService();
-        $this->assertTrue($service->check_event_full(false, 1));
-    }
-
     public function test_promote_entry_succeeds(): void
     {
         $entry = (object) [
-            'id'             => 10,
+            'id'                 => 10,
+            'registrant_post_id' => 77,
             'event_post_id'  => 1,
             'status'         => 'waiting',
             'position'       => 1,
@@ -178,7 +141,8 @@ class WaitlistAndSessionsTest extends TestCase
     public function test_promote_entry_fires_action(): void
     {
         $entry = (object) [
-            'id'             => 10,
+            'id'                 => 10,
+            'registrant_post_id' => 77,
             'event_post_id'  => 1,
             'status'         => 'waiting',
             'position'       => 1,
@@ -215,7 +179,8 @@ class WaitlistAndSessionsTest extends TestCase
     public function test_promote_entry_with_custom_expiry(): void
     {
         $entry = (object) [
-            'id'             => 10,
+            'id'                 => 10,
+            'registrant_post_id' => 77,
             'event_post_id'  => 1,
             'status'         => 'waiting',
             'position'       => 1,

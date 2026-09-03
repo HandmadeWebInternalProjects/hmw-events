@@ -55,6 +55,7 @@ class BookingSelfCancelServiceTest extends TestCase
         Functions\when('__')->returnArg();
         Functions\when('esc_html')->returnArg();
         Functions\when('esc_url')->returnArg();
+        Functions\when('sanitize_key')->returnArg();
         Functions\when('esc_html__')->alias(function ($text) {
             return $text;
         });
@@ -65,7 +66,15 @@ class BookingSelfCancelServiceTest extends TestCase
         Functions\when('update_post_meta')->justReturn(true);
         Functions\when('delete_post_meta')->justReturn(true);
         Functions\when('get_post_meta')->justReturn('');
+        Functions\when('get_post')->alias(function ($id) {
+            return new \WP_Post((object) [
+                'ID' => $id,
+                'post_type' => 'hmw_event',
+                'post_status' => 'publish',
+            ]);
+        });
         Functions\when('add_action')->justReturn(true);
+        Functions\when('get_the_title')->justReturn('Test Event');
         Functions\when('add_query_arg')->alias(function (...$args) {
             if (is_array($args[0])) {
                 $url = $args[1] ?? '';
@@ -86,87 +95,36 @@ class BookingSelfCancelServiceTest extends TestCase
     }
 
     // ================================================================
-    // Test 1: generate_cancel_token()
+    // Test 1: generate_cancel_link()
     // ================================================================
 
-    public function test_generate_cancel_token_stores_meta_and_returns_url(): void
+    public function test_generate_cancel_link_stores_token_and_returns_anchor(): void
     {
         Patchwork\replace('random_bytes', function (int $length): string {
             return str_repeat("\x00", $length);
         });
 
-        $capturedBookingId = null;
-        $capturedMetaKey   = null;
-        $capturedToken     = null;
+        $capturedTable = null;
+        $capturedData  = null;
 
-        Functions\when('update_post_meta')->alias(function ($id, $key, $value) use (&$capturedBookingId, &$capturedMetaKey, &$capturedToken) {
-            $capturedBookingId = $id;
-            $capturedMetaKey   = $key;
-            $capturedToken     = $value;
-            return true;
-        });
+        $this->mockWpdb->shouldReceive('update')
+            ->once()
+            ->andReturnUsing(function ($table, $data, $where) use (&$capturedTable, &$capturedData) {
+                $capturedTable = $table;
+                $capturedData  = $data;
+                return 1;
+            });
 
         $service = new BookingSelfCancelService();
-        $result  = $service->generate_cancel_token(42);
+        $result  = $service->generate_cancel_link(42);
 
-        $this->assertSame(42, $capturedBookingId);
-        $this->assertSame('_cancel_token', $capturedMetaKey);
-        $this->assertSame(64, strlen($capturedToken));
-        $this->assertTrue(ctype_xdigit($capturedToken));
+        $this->assertSame('wp_hmwevents_bookings', $capturedTable);
+        $this->assertArrayHasKey('cancel_token', $capturedData);
+        $this->assertSame(64, strlen($capturedData['cancel_token']));
+        $this->assertTrue(ctype_xdigit($capturedData['cancel_token']));
+        $this->assertStringContainsString('<a href=', $result);
         $this->assertStringContainsString('hmw_cancel=', $result);
         $this->assertStringContainsString('booking_id=42', $result);
-    }
-
-    // ================================================================
-    // Test 2: add_cancel_link() for free events
-    // ================================================================
-
-    public function test_add_cancel_link_for_free_event(): void
-    {
-        Patchwork\replace('random_bytes', function (int $length): string {
-            return str_repeat("\x00", $length);
-        });
-
-        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
-            if ($key === '_event_is_free') {
-                return '1';
-            }
-            return '';
-        });
-
-        $template_data = ['event_post_id' => 5];
-
-        $service = new BookingSelfCancelService();
-        $result  = $service->add_cancel_link($template_data, 42);
-
-        $this->assertArrayHasKey('cancel_link', $result);
-        $this->assertNotEmpty($result['cancel_link']);
-        $this->assertStringContainsString('hmw_cancel=', $result['cancel_link']);
-        $this->assertStringContainsString('booking_id=42', $result['cancel_link']);
-    }
-
-    // ================================================================
-    // Test 3: add_cancel_link() skips paid events
-    // ================================================================
-
-    public function test_add_cancel_link_skips_paid_events(): void
-    {
-        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
-            if ($key === '_event_is_free') {
-                return '0';
-            }
-            if ($key === '_event_price') {
-                return '100';
-            }
-            return '';
-        });
-
-        $template_data = ['event_post_id' => 5];
-
-        $service = new BookingSelfCancelService();
-        $result  = $service->add_cancel_link($template_data, 42);
-
-        $this->assertArrayNotHasKey('cancel_link', $result);
     }
 
     // ================================================================
@@ -177,13 +135,7 @@ class BookingSelfCancelServiceTest extends TestCase
     {
         $_GET['hmw_cancel'] = 'validtoken';
         $_GET['booking_id'] = '42';
-
-        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
-            if ($key === '_cancel_token') {
-                return 'validtoken';
-            }
-            return '';
-        });
+        $_POST['hmw_cancel_confirm'] = '1';
 
         Functions\when('hash_equals')->justReturn(true);
 
@@ -200,13 +152,30 @@ class BookingSelfCancelServiceTest extends TestCase
             'created_at'              => '2026-01-01 00:00:00',
         ];
 
-        $this->mockWpdb->shouldReceive('get_row')
+        $cancelledData = null;
+
+        $this->mockWpdb->shouldReceive('get_var')
             ->once()
-            ->andReturn($bookingRow);
+            ->andReturn('validtoken');
+
+        $this->mockWpdb->shouldReceive('get_row')
+            ->zeroOrMoreTimes()
+            ->andReturnUsing(function ($sql) use ($bookingRow) {
+                if (str_contains($sql, 'booking_groups')) {
+                    return (object) ['id' => 10, 'booking_type' => 'single', 'booking_reference' => 'BKG-1'];
+                }
+                if (str_contains($sql, 'SELECT booking_group_id FROM')) {
+                    return (object) ['booking_group_id' => 10];
+                }
+                return $bookingRow;
+            });
 
         $this->mockWpdb->shouldReceive('update')
             ->once()
-            ->andReturn(1);
+            ->andReturnUsing(function ($table, $data) use (&$cancelledData) {
+                $cancelledData = $data;
+                return 1;
+            });
 
         Functions\when('wp_die')->alias(function ($msg) {
             throw new \RuntimeException('WP_DIE: ' . (is_string($msg) ? $msg : 'non-string-msg'));
@@ -223,6 +192,73 @@ class BookingSelfCancelServiceTest extends TestCase
 
         $this->assertNotNull($caughtException, 'Expected wp_die() to be called but it was not.');
         $this->assertStringContainsString('Booking Cancelled', $caughtException->getMessage());
+        $this->assertSame('cancelled', $cancelledData['status']);
+        $this->assertNull($cancelledData['cancel_token']);
+
+        unset($_GET['hmw_cancel'], $_GET['booking_id'], $_POST['hmw_cancel_confirm']);
+    }
+
+    // ================================================================
+    // Test 4b: maybe_handle_cancel() without POST confirm shows
+    // confirmation page and does not cancel
+    // ================================================================
+
+    public function test_maybe_handle_cancel_without_confirm_shows_confirmation_page(): void
+    {
+        $_GET['hmw_cancel'] = 'validtoken';
+        $_GET['booking_id'] = '42';
+        unset($_POST['hmw_cancel_confirm']);
+
+        Functions\when('hash_equals')->justReturn(true);
+
+        $bookingRow = (object) [
+            'id'             => 42,
+            'status'         => 'confirmed',
+            'booking_number' => 'BK-001',
+            'event_post_id'  => 123,
+        ];
+
+        $this->mockWpdb->shouldReceive('get_var')
+            ->once()
+            ->andReturn('validtoken');
+
+        $this->mockWpdb->shouldReceive('get_row')
+            ->zeroOrMoreTimes()
+            ->andReturnUsing(function ($sql) use ($bookingRow) {
+                if (str_contains($sql, 'booking_groups')) {
+                    return (object) ['id' => 10, 'booking_type' => 'single', 'booking_reference' => 'BKG-1'];
+                }
+                if (str_contains($sql, 'SELECT booking_group_id FROM')) {
+                    return (object) ['booking_group_id' => 10];
+                }
+                return $bookingRow;
+            });
+
+        $this->mockWpdb->shouldReceive('update')->never();
+
+        $dieMessage = null;
+        Functions\when('wp_die')->alias(function ($msg) use (&$dieMessage) {
+            $dieMessage = $msg;
+            throw new \RuntimeException('WP_DIE: ' . (is_string($msg) ? $msg : 'non-string-msg'));
+        });
+
+        $service = new BookingSelfCancelService();
+
+        $caughtException = null;
+        try {
+            $service->maybe_handle_cancel();
+        } catch (\RuntimeException $e) {
+            $caughtException = $e;
+        }
+
+        $this->assertNotNull($caughtException, 'Expected wp_die() to be called but it was not.');
+        $confirmationHtml = (string) $dieMessage;
+        $this->assertStringContainsString('Cancel Your Booking', $confirmationHtml);
+        $this->assertStringContainsString('name="hmw_cancel_confirm"', $confirmationHtml);
+        $this->assertStringContainsString('Yes, Cancel My Booking', $confirmationHtml);
+        $this->assertStringContainsString('No, Keep My Booking', $confirmationHtml);
+        $this->assertStringContainsString('BK-001', $confirmationHtml);
+        $this->assertStringContainsString('Test Event', $confirmationHtml);
 
         unset($_GET['hmw_cancel'], $_GET['booking_id']);
     }
@@ -236,18 +272,16 @@ class BookingSelfCancelServiceTest extends TestCase
         $_GET['hmw_cancel'] = 'badtoken';
         $_GET['booking_id'] = '42';
 
-        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
-            if ($key === '_cancel_token') {
-                return 'differenttoken';
-            }
-            return '';
-        });
-
         Functions\when('hash_equals')->justReturn(false);
 
-        $dieMessage = null;
-        Functions\when('wp_die')->alias(function ($msg) use (&$dieMessage) {
-            $dieMessage = $msg;
+        $this->mockWpdb->shouldReceive('get_var')
+            ->once()
+            ->andReturn('differenttoken');
+
+        $this->mockWpdb->shouldReceive('get_row')->never();
+        $this->mockWpdb->shouldReceive('update')->never();
+
+        Functions\when('wp_die')->alias(function ($msg) {
             throw new \RuntimeException('WP_DIE: ' . $msg);
         });
 
@@ -274,18 +308,11 @@ class BookingSelfCancelServiceTest extends TestCase
     {
         $_GET = [];
 
-        $getRowCalled    = false;
-        $updateCalled    = false;
-        $getMetaCalled   = false;
-        $dieCalled       = false;
+        $dieCalled = false;
 
+        $this->mockWpdb->shouldReceive('get_var')->never();
         $this->mockWpdb->shouldReceive('get_row')->never();
         $this->mockWpdb->shouldReceive('update')->never();
-
-        Functions\when('get_post_meta')->alias(function () use (&$getMetaCalled) {
-            $getMetaCalled = true;
-            return '';
-        });
 
         Functions\when('wp_die')->alias(function () use (&$dieCalled) {
             $dieCalled = true;
@@ -330,14 +357,11 @@ class BookingSelfCancelServiceTest extends TestCase
         $_GET['hmw_cancel'] = 'validtoken';
         $_GET['booking_id'] = '42';
 
-        Functions\when('get_post_meta')->alias(function ($id, $key, $single) {
-            if ($key === '_cancel_token') {
-                return 'validtoken';
-            }
-            return '';
-        });
-
         Functions\when('hash_equals')->justReturn(true);
+
+        $this->mockWpdb->shouldReceive('get_var')
+            ->once()
+            ->andReturn('validtoken');
 
         $this->mockWpdb->shouldReceive('get_row')
             ->once()

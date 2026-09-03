@@ -277,7 +277,7 @@ class Reporting
                 ON  c.post_author = u.ID
                 AND c.post_type   = 'hmw_event'
                 AND c.post_status != 'trash'
-            LEFT JOIN {$wpdb->prefix}hmwevents_bookings b
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
                 ON  {$booking_on}
             {$extra_joins}
             GROUP BY u.ID, u.display_name, u.user_email
@@ -344,15 +344,18 @@ class Reporting
                 c.post_title                AS course_name,
                 pm_start.meta_value         AS course_start_date,
                 pm_end.meta_value           AS course_end_date,
-                CONCAT_WS(', ',
-                    NULLIF(pm_suburb.meta_value, ''),
-                    NULLIF(pm_state.meta_value,  '')
+                COALESCE(
+                    NULLIF(venue_post.post_title, ''),
+                    CONCAT_WS(', ',
+                        NULLIF(pm_suburb.meta_value, ''),
+                        NULLIF(pm_state.meta_value,  '')
+                    )
                 )                           AS venue,
                 pm_email.meta_value         AS registrant_email,
                 bd.form_data,
                 b.booking_amount,
                 b.created_at                AS booking_date
-            FROM {$wpdb->prefix}hmwevents_bookings b
+            FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
             INNER JOIN {$wpdb->posts} c
                 ON  c.ID = b.event_post_id
                 AND c.post_status != 'trash'
@@ -362,6 +365,12 @@ class Reporting
             LEFT JOIN {$wpdb->postmeta} pm_end
                 ON  pm_end.post_id  = b.event_post_id
                 AND pm_end.meta_key = 'course_end_date'
+            LEFT JOIN {$wpdb->postmeta} pm_venue
+                ON  pm_venue.post_id  = b.event_post_id
+                AND pm_venue.meta_key = '_event_venue'
+            LEFT JOIN {$wpdb->posts} venue_post
+                ON  venue_post.ID = pm_venue.meta_value
+                AND venue_post.post_type = 'event_location'
             LEFT JOIN {$wpdb->postmeta} pm_suburb
                 ON  pm_suburb.post_id  = b.event_post_id
                 AND pm_suburb.meta_key = 'course_location_suburb'
@@ -369,9 +378,9 @@ class Reporting
                 ON  pm_state.post_id  = b.event_post_id
                 AND pm_state.meta_key = 'course_location_state'
             LEFT JOIN {$wpdb->postmeta} pm_email
-                ON  pm_email.post_id  = b.customer_post_id
+                ON  pm_email.post_id  = b.registrant_post_id
                 AND pm_email.meta_key = 'registrant_email'
-            LEFT JOIN {$wpdb->prefix}hmwevents_booking_details bd
+            LEFT JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_details') . " bd
                 ON  bd.booking_id = b.id
             {$extra_joins}
             WHERE {$where}

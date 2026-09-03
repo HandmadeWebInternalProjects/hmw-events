@@ -9,7 +9,7 @@
  *
  * Default triggers (universal across all event types):
  *   booking_confirmed, booking_cancelled, payment_received,
- *   refund_issued, waitlist_promotion, invoice_issued,
+ *   refund_issued, waitlist_promotion, waitlist_joined, invoice_issued,
  *   reminder_7_days, reminder_1_day, post_event
  *
  * Per-event-type overrides come from EventTypeRegistry::get_comm_template().
@@ -52,6 +52,7 @@ class CommunicationTriggerMatrix
             'payment_received'    => __('Payment Received', 'hmw-events'),
             'refund_issued'       => __('Refund Issued', 'hmw-events'),
             'waitlist_promotion'  => __('Waitlist Promotion', 'hmw-events'),
+            'waitlist_joined'     => __('Waitlist Joined', 'hmw-events'),
             'invoice_issued'      => __('Invoice Issued', 'hmw-events'),
             'reminder_7_days'     => __('7-Day Reminder', 'hmw-events'),
             'reminder_1_day'      => __('1-Day Reminder', 'hmw-events'),

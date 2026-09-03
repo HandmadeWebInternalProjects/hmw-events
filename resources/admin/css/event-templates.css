@@ -67,3 +67,145 @@
   margin-left: 6px;
   vertical-align: middle;
 }
+
+.hmwevents-attendance-options-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-height: 30px;
+}
+
+.hmwevents-attendance-option-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  border: 1px solid #dcdcde;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.hmwevents-attendance-option-main,
+.hmwevents-attendance-panel,
+.hmwevents-attendance-capacity {
+  min-width: 0;
+}
+
+.hmwevents-attendance-option-main {
+  display: grid;
+  grid-template-columns: 130px minmax(140px, 1fr) 150px;
+  gap: 8px;
+  align-items: center;
+}
+
+.hmwevents-attendance-panel,
+.hmwevents-attendance-capacity {
+  grid-column: 2;
+}
+
+.hmwevents-attendance-panel-help {
+  margin: 0 0 8px;
+  color: #50575e;
+  font-size: 12px;
+}
+
+.hmwevents-attendance-control,
+.hmwevents-age-band-control,
+.hmwevents-attendance-capacity {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hmwevents-attendance-control input,
+.hmwevents-age-band-control input,
+.hmwevents-attendance-control select,
+.hmwevents-age-band-control select {
+  max-width: 150px;
+}
+
+.hmwevents-attendance-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 180px));
+  gap: 12px;
+}
+
+.hmwevents-attendance-input-prefix {
+  display: none;
+}
+
+.hmwevents-age-band-rule {
+  display: grid;
+  grid-template-columns: 150px 110px 140px 160px auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #dcdcde;
+  border-radius: 3px;
+  background: #f6f7f7;
+}
+
+.hmwevents-age-band-control small,
+.hmwevents-attendance-capacity small {
+  color: #646970;
+  font-weight: 400;
+}
+
+@media (max-width: 900px) {
+  .hmwevents-attendance-option-main,
+  .hmwevents-age-band-rule {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hmwevents-age-band-rule .hmwevents-remove-age-band-rule {
+    justify-self: start;
+  }
+}
+
+.hmwevents-attendance-option-row.ui-sortable-helper {
+  opacity: 0.8;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.hmwevents-attendance-option-row .hmwevents-dnd-handle {
+  cursor: grab;
+  color: #8c8f94;
+  flex-shrink: 0;
+}
+
+.hmwevents-attendance-option-type {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.hmwevents-attendance-option-label {
+  flex: 1;
+  min-width: 120px;
+}
+
+.hmwevents-attendance-option-price {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.hmwevents-attendance-option-capacity {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.hmwevents-remove-attendance-option {
+  cursor: pointer;
+  color: #b32d2e;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.hmwevents-remove-attendance-option:hover {
+  color: #d63638;
+}

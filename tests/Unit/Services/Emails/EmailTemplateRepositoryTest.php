@@ -39,7 +39,7 @@ class EmailTemplateRepositoryTest extends TestCase
     
     $wpdb->shouldReceive('get_results')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id IS NULL/i"))
+      ->with(Mockery::pattern("/WHERE organizer_id IS NULL/i"))
       ->andReturn([
         (object)[
           'id' => 1,
@@ -47,7 +47,7 @@ class EmailTemplateRepositoryTest extends TestCase
           'subject' => 'Booking Confirmed',
           'body' => 'Your booking is confirmed',
           'is_active' => 1,
-          'educator_id' => null,
+          'organizer_id' => null,
         ]
       ]);
 
@@ -65,7 +65,7 @@ class EmailTemplateRepositoryTest extends TestCase
     
     $wpdb->shouldReceive('get_results')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id = 45/i"))
+      ->with(Mockery::pattern("/WHERE organizer_id = 45/i"))
       ->andReturn([
         (object)[
           'id' => 2,
@@ -73,7 +73,7 @@ class EmailTemplateRepositoryTest extends TestCase
           'subject' => 'Custom Booking Confirmed',
           'body' => 'Custom message',
           'is_active' => 1,
-          'educator_id' => 45,
+          'organizer_id' => 45,
         ]
       ]);
 
@@ -82,7 +82,7 @@ class EmailTemplateRepositoryTest extends TestCase
 
     $this->assertIsArray($result);
     $this->assertCount(1, $result);
-    $this->assertEquals(45, $result[0]->educator_id);
+    $this->assertEquals(45, $result[0]->organizer_id);
   }
 
   public function test_get_template_falls_back_to_system()
@@ -92,19 +92,19 @@ class EmailTemplateRepositoryTest extends TestCase
     // First query for educator template (returns nothing)
     $wpdb->shouldReceive('get_row')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id = 45.*template_key = 'booking_confirmation'/is"))
+      ->with(Mockery::pattern("/WHERE organizer_id = 45.*template_key = 'booking_confirmation'/is"))
       ->andReturn(null);
     
     // Second query for system template
     $wpdb->shouldReceive('get_row')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id IS NULL.*template_key = 'booking_confirmation'/is"))
+      ->with(Mockery::pattern("/WHERE organizer_id IS NULL.*template_key = 'booking_confirmation'/is"))
       ->andReturn((object)[
         'id' => 1,
         'template_key' => 'booking_confirmation',
         'subject' => 'System Template',
         'body' => 'System body',
-        'educator_id' => null,
+        'organizer_id' => null,
       ]);
 
     $repo = new EmailTemplateRepository();
@@ -112,7 +112,7 @@ class EmailTemplateRepositoryTest extends TestCase
 
     $this->assertIsObject($result);
     $this->assertEquals('System Template', $result->subject);
-    $this->assertNull($result->educator_id);
+    $this->assertNull($result->organizer_id);
   }
 
   public function test_save_creates_new_educator_template()
@@ -122,17 +122,17 @@ class EmailTemplateRepositoryTest extends TestCase
     // Check if exists (returns null = doesn't exist)
     $wpdb->shouldReceive('get_row')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id = 45/i"))
+      ->with(Mockery::pattern("/WHERE organizer_id = 45/i"))
       ->andReturn(null);
     
     // Insert new template
     $wpdb->shouldReceive('insert')
       ->once()
       ->with(
-        'wp_email_templates',
+        'wp_hmwevents_email_templates',
         Mockery::on(function($data) {
           return $data['template_key'] === 'booking_confirmation'
-            && $data['educator_id'] === 45
+            && $data['organizer_id'] === 45
             && $data['subject'] === 'Custom Subject';
         }),
         Mockery::any()
@@ -160,11 +160,11 @@ class EmailTemplateRepositoryTest extends TestCase
     // Check if exists (returns existing)
     $wpdb->shouldReceive('get_row')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id = 45/is"))
+      ->with(Mockery::pattern("/WHERE organizer_id = 45/is"))
       ->andReturn((object)[
         'id' => 99,
         'template_key' => 'booking_confirmation',
-        'educator_id' => 45,
+        'organizer_id' => 45,
         'variables' => '[]',
         'version' => 0,
       ]);
@@ -173,7 +173,7 @@ class EmailTemplateRepositoryTest extends TestCase
     $wpdb->shouldReceive('update')
       ->once()
       ->with(
-        'wp_email_templates',
+        'wp_hmwevents_email_templates',
         Mockery::on(function($data) {
           return $data['subject'] === 'Updated Subject';
         }),
@@ -202,17 +202,18 @@ class EmailTemplateRepositoryTest extends TestCase
     // Check if exists (returns null)
     $wpdb->shouldReceive('get_row')
       ->once()
-      ->with(Mockery::pattern("/WHERE educator_id IS NULL/is"))
+      ->with(Mockery::pattern("/WHERE organizer_id IS NULL/is"))
       ->andReturn(null);
     
     // Insert new system template
     $wpdb->shouldReceive('insert')
       ->once()
       ->with(
-        'wp_email_templates',
+        'wp_hmwevents_email_templates',
         Mockery::on(function($data) {
           return $data['template_key'] === 'new_template'
-            && !isset($data['educator_id']);
+            && array_key_exists('organizer_id', $data)
+            && $data['organizer_id'] === null;
         }),
         Mockery::any()
       )
@@ -238,7 +239,7 @@ class EmailTemplateRepositoryTest extends TestCase
     $wpdb->shouldReceive('delete')
       ->once()
       ->with(
-        'wp_email_templates',
+        'wp_hmwevents_email_templates',
         ['id' => 1],
         ['%d']
       )

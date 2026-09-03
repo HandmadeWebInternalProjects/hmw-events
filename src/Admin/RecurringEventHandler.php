@@ -11,7 +11,6 @@
 namespace HMWEvents\Admin;
 
 use HMWEvents\Helpers\EventHelper;
-use HMWEvents\Helpers\RecurringEvent;
 use HMWEvents\Services\SessionService;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
@@ -37,61 +36,6 @@ class RecurringEventHandler
         return $this->session_service;
     }
 
-    /**
-     * Get a field value from ACF (preferred) or post meta (fallback for hmw_event).
-     */
-    private function get_field(string $key, int $post_id, string $post_type = 'educator_course'): mixed
-    {
-        if ($post_type === 'hmw_event') {
-            $meta_key = match ($key) {
-                'course_start_date'       => '_event_start_date',
-                'course_end_date'         => '_event_end_date',
-                '_event_price'        => '_event_price',
-                '_event_deposit'     => '_event_deposit',
-                '_event_capacity'         => '_event_capacity',
-                'course_is_recurring'     => '_event_is_recurring',
-                'course_educator_id'      => '_organizer_id',
-                'course_location_address' => '_event_venue_name',
-                default                   => '_' . $key,
-            };
-            return get_post_meta($post_id, $meta_key, true);
-        }
-
-        if (function_exists('get_field')) {
-            return get_field($key, $post_id);
-        }
-
-        return get_post_meta($post_id, '_' . $key, true);
-    }
-
-    /**
-     * Update a field via ACF or post meta.
-     */
-    private function update_field(string $key, mixed $value, int $post_id, string $post_type = 'educator_course'): void
-    {
-        if ($post_type === 'hmw_event') {
-            $meta_key = match ($key) {
-                'course_start_date'       => '_event_start_date',
-                'course_end_date'         => '_event_end_date',
-                '_event_price'        => '_event_price',
-                '_event_deposit'     => '_event_deposit',
-                '_event_capacity'         => '_event_capacity',
-                'course_is_recurring'     => '_event_is_recurring',
-                'course_educator_id'      => '_organizer_id',
-                'course_location_address' => '_event_venue_name',
-                default                   => '_' . $key,
-            };
-            update_post_meta($post_id, $meta_key, $value);
-            return;
-        }
-
-        if (function_exists('update_field')) {
-            update_field($key, $value, $post_id);
-            return;
-        }
-
-        update_post_meta($post_id, '_' . $key, $value);
-    }
     /**
      * Initialize hooks.
      *
@@ -125,14 +69,14 @@ class RecurringEventHandler
             return;
         }
 
-        // Only process event/course posts
+        // Only process event posts
         $post_type = get_post_type($post_id);
-        if (!in_array($post_type, ['educator_course', 'hmw_event'], true)) {
+        if ($post_type !== 'hmw_event') {
             return;
         }
 
         // Check if cloning is enabled
-        $is_cloning = $this->get_field('course_is_recurring', $post_id, $post_type);
+        $is_cloning = (bool) get_post_meta($post_id, '_event_is_recurring', true);
 
         if (!$is_cloning) {
             // Cloning disabled, nothing to do
@@ -149,7 +93,7 @@ class RecurringEventHandler
         }
 
         // New clone request - dispatch based on recurrence type.
-        $recurrence_unit = $this->get_recurrence_unit($post_id, $post_type);
+        $recurrence_unit = $this->get_recurrence_unit($post_id);
 
         if ($recurrence_unit === 'custom') {
             // Custom dates: use the existing clone logic (standalone posts).
@@ -163,15 +107,11 @@ class RecurringEventHandler
     /**
      * Get the recurrence unit for a post.
      *
-     * Falls back to 'custom' for legacy posts that only have course_custom_dates.
-     *
-     * @param int    $post_id   Post ID.
-     * @param string $post_type Post type.
+     * @param int $post_id Post ID.
      * @return string 'daily'|'weekly'|'monthly'|'custom'
      */
-    private function get_recurrence_unit(int $post_id, string $post_type): string
+    private function get_recurrence_unit(int $post_id): string
     {
-        // Try ACF first (handles formatting/unserialization), then fall back to raw meta.
         if (function_exists('get_field')) {
             $unit = get_field('_event_recurrence_unit', $post_id);
             if ($unit) {
@@ -186,6 +126,35 @@ class RecurringEventHandler
 
         // Default to custom (legacy behavior).
         return 'custom';
+    }
+
+    /**
+     * Get the configured same-day session times for a post.
+     *
+     * Reads the _event_recurrence_times repeater. Raw H:i:s values are
+     * returned; normalization happens in SessionService.
+     *
+     * @return string[] Time strings.
+     */
+    private function get_recurrence_times(int $post_id): array
+    {
+        if (!function_exists('get_field')) {
+            return [];
+        }
+
+        $repeater = get_field('_event_recurrence_times', $post_id);
+        if (!is_array($repeater)) {
+            return [];
+        }
+
+        $times = [];
+        foreach ($repeater as $row) {
+            if (!empty($row['time'])) {
+                $times[] = (string) $row['time'];
+            }
+        }
+
+        return $times;
     }
 
     /**
@@ -257,11 +226,12 @@ class RecurringEventHandler
 
         $config = [
             'recurrence_type'     => $unit,
-            'start_date'          => date('Y-m-d', strtotime($start_date)),
+            'start_date'          => date('Y-m-d H:i:s', strtotime($start_date)),
             'end_date'            => $end_date,
             'recurrence_interval' => max(1, $interval),
             'recurrence_days'     => $days,
             'max_occurrences'     => $max_occurrences,
+            'times'               => $this->get_recurrence_times($post_id),
         ];
 
         // Generate child sessions.
@@ -302,6 +272,51 @@ class RecurringEventHandler
     }
 
     /**
+     * Resolve a custom-date repeater row into a clone start/end datetime
+     * and a unique map suffix.
+     *
+     * Rows with an explicit time keep it (multiple same-day slots); rows
+     * without fall back to the source event's start time. Rows that would
+     * duplicate the source event's own start slot are rejected.
+     *
+     * @return array{start: \DateTime, end: \DateTime, suffix: string}|null
+     */
+    private function resolve_clone_slot(array $date_row, \DateTime $source_start, \DateTime $source_end): ?array
+    {
+        if (empty($date_row['date'])) {
+            return null;
+        }
+
+        $row_time = !empty($date_row['time']) ? date('H:i:s', strtotime((string) $date_row['time'])) : null;
+
+        $start = new \DateTime($date_row['date']);
+        if ($row_time) {
+            [$h, $i, $s] = array_map('intval', explode(':', $row_time));
+            $start->setTime($h, $i, $s);
+        } else {
+            $start->setTime(
+                (int) $source_start->format('H'),
+                (int) $source_start->format('i'),
+                (int) $source_start->format('s')
+            );
+        }
+
+        if ($start->format('Y-m-d H:i:s') === $source_start->format('Y-m-d H:i:s')) {
+            return null;
+        }
+
+        $duration = $source_start->diff($source_end);
+        $end = clone $start;
+        $end->add($duration);
+
+        return [
+            'start'  => $start,
+            'end'    => $end,
+            'suffix' => $start->format($row_time ? 'd-m-Y-H-i' : 'd-m-Y'),
+        ];
+    }
+
+    /**
      * Create standalone clones of the course for specified dates.
      *
      * @since 1.0.0
@@ -312,8 +327,8 @@ class RecurringEventHandler
         $post_type = get_post_type($post_id);
 
         // Get start date and calculate duration
-        $start_date = get_field('course_start_date', $post_id);
-        $end_date = get_field('course_end_date', $post_id);
+        $start_date = get_field('_event_start_date', $post_id);
+        $end_date = get_field('_event_end_date', $post_id);
         
         if (!$start_date || !$end_date) {
             $this->set_notice($post_id, 'error', __('Cannot clone course: Start date and end date are required.', 'hmw-events'));
@@ -323,13 +338,9 @@ class RecurringEventHandler
         // Calculate course duration
         $start_dt = new \DateTime($start_date);
         $end_dt = new \DateTime($end_date);
-        $duration = $start_dt->diff($end_dt);
 
-        // Get custom dates (check new field name first, then legacy field)
+        // Get custom dates
         $custom_dates = get_field('_event_recurrence_custom_dates', $post_id);
-        if (empty($custom_dates) || !is_array($custom_dates)) {
-            $custom_dates = get_field('course_custom_dates', $post_id);
-        }
 
         if (empty($custom_dates) || !is_array($custom_dates)) {
             $this->set_notice($post_id, 'error', __('Cannot clone course: No clone dates specified.', 'hmw-events'));
@@ -342,24 +353,20 @@ class RecurringEventHandler
         $clone_ids_map = []; // date_suffix => clone_id
 
         // Create clones for each custom date
+        $seen_suffixes = [];
         foreach ($custom_dates as $date_row) {
-            if (empty($date_row['date'])) {
+            $slot = $this->resolve_clone_slot($date_row, $start_dt, $end_dt);
+            if (!$slot) {
                 continue;
             }
 
-            // Calculate new dates for this clone
-            $clone_start = new \DateTime($date_row['date']);
-            
-            // Preserve the original start time on the clone date
-            $clone_start->setTime(
-                (int)$start_dt->format('H'),
-                (int)$start_dt->format('i'),
-                (int)$start_dt->format('s')
-            );
-            
-            // Calculate end date by adding duration
-            $clone_end = clone $clone_start;
-            $clone_end->add($duration);
+            $clone_start = $slot['start'];
+            $clone_end   = $slot['end'];
+
+            if (isset($seen_suffixes[$slot['suffix']])) {
+                continue;
+            }
+            $seen_suffixes[$slot['suffix']] = true;
 
             // Build taxonomy input so wp_insert_post sets them before save_post hooks fire.
             // This prevents validate_course_type_required from force-drafting clones
@@ -373,12 +380,10 @@ class RecurringEventHandler
                 }
             }
 
-            $is_event = $post_type === 'hmw_event';
-
             // Create the clone with date appended to title.
             // Clones always start as draft so the educator can review them first.
             // No explicit post_name — WP auto-generates it from the unique title.
-            $date_suffix = $clone_start->format('d-m-Y');
+            $date_suffix = $slot['suffix'];
             $clone_id = wp_insert_post([
                 'post_title'   => $source_post->post_title . ' - ' . $date_suffix,
                 'post_content' => $source_post->post_content,
@@ -395,20 +400,15 @@ class RecurringEventHandler
 
             // Copy all ACF fields except cloning-related fields
             $fields_to_copy = [
-                'course_start_date' => $clone_start->format('Y-m-d H:i:s'),
-                'course_end_date' => $clone_end->format('Y-m-d H:i:s'),
-                '_event_price' => get_field('_event_price', $post_id),
-                '_event_deposit' => get_field('_event_deposit', $post_id),
-                'booking_notes' => get_field('booking_notes', $post_id),
-                '_event_capacity' => get_field('_event_capacity', $post_id),
-                'course_location_address' => get_field('course_location_address', $post_id),
-                'course_location_suburb' => get_field('course_location_suburb', $post_id),
-                'course_location_state' => get_field('course_location_state', $post_id),
-                'course_location_postcode' => get_field('course_location_postcode', $post_id),
-                'course_is_external' => get_field('course_is_external', $post_id),
-                'course_external_url' => get_field('course_external_url', $post_id),
-                'course_status' => get_field('course_status', $post_id) ?: 'draft',
-                'course_educator_id' => get_field('course_educator_id', $post_id),
+                '_event_start_date'     => $clone_start->format('Y-m-d H:i:s'),
+                '_event_end_date'       => $clone_end->format('Y-m-d H:i:s'),
+                '_event_enable_bookings' => get_field('_event_enable_bookings', $post_id),
+                '_event_price'          => get_field('_event_price', $post_id),
+                '_event_deposit'        => get_field('_event_deposit', $post_id),
+                '_event_booking_notes'  => get_field('_event_booking_notes', $post_id),
+                '_event_capacity'       => get_field('_event_capacity', $post_id),
+                '_event_venue'          => get_field('_event_venue', $post_id),
+                '_organizer_id'         => get_field('_organizer_id', $post_id),
             ];
 
             // Update all fields on the clone
@@ -419,7 +419,7 @@ class RecurringEventHandler
             }
 
             // Mark that this is NOT a recurring instance (it's independent)
-            $this->update_field('course_is_recurring', false, $clone_id, $post_type);
+            update_post_meta($clone_id, '_event_is_recurring', false);
 
             // Copy featured image if exists
             $thumbnail_id = get_post_thumbnail_id($post_id);
@@ -440,6 +440,8 @@ class RecurringEventHandler
             }
 
             $clone_ids_map[$date_suffix] = $clone_id;
+
+            do_action('hmwevents_session_created', $clone_id, $post_id);
 
             $cloned_count++;
         }
@@ -479,8 +481,8 @@ class RecurringEventHandler
      */
     private function handle_reclone_deleted($post_id)
     {
+        $recurrence_unit = $this->get_recurrence_unit($post_id);
         $post_type = get_post_type($post_id);
-        $recurrence_unit = $this->get_recurrence_unit($post_id, $post_type);
 
         if ($recurrence_unit !== 'custom' && $post_type === 'hmw_event') {
             $this->handle_pattern_reclone($post_id);
@@ -537,11 +539,12 @@ class RecurringEventHandler
 
         $config = [
             'recurrence_type'     => $unit,
-            'start_date'          => date('Y-m-d', strtotime($start_date)),
+            'start_date'          => date('Y-m-d H:i:s', strtotime($start_date)),
             'end_date'            => $end_date,
             'recurrence_interval' => max(1, $interval),
             'recurrence_days'     => $days,
             'max_occurrences'     => $max_occurrences,
+            'times'               => $this->get_recurrence_times($post_id),
         ];
 
         $stored = $this->session_service()->get_recurrence($post_id);
@@ -610,8 +613,8 @@ class RecurringEventHandler
     {
         $post_type = get_post_type($post_id);
 
-        $start_date = get_field('course_start_date', $post_id);
-        $end_date   = get_field('course_end_date', $post_id);
+        $start_date = get_field('_event_start_date', $post_id);
+        $end_date   = get_field('_event_end_date', $post_id);
 
         if (!$start_date || !$end_date) {
             $this->set_notice($post_id, 'error', __('Cannot re-clone: Start date and end date are required.', 'hmw-events'));
@@ -620,12 +623,8 @@ class RecurringEventHandler
 
         $start_dt = new \DateTime($start_date);
         $end_dt   = new \DateTime($end_date);
-        $duration = $start_dt->diff($end_dt);
 
         $custom_dates = get_field('_event_recurrence_custom_dates', $post_id);
-        if (empty($custom_dates) || !is_array($custom_dates)) {
-            $custom_dates = get_field('course_custom_dates', $post_id);
-        }
         if (empty($custom_dates) || !is_array($custom_dates)) {
             $this->set_notice($post_id, 'info', __('No custom dates specified. No clones to create.', 'hmw-events'));
             return;
@@ -638,11 +637,12 @@ class RecurringEventHandler
         $skipped_count    = 0;
 
         foreach ($custom_dates as $date_row) {
-            if (empty($date_row['date'])) {
+            $slot = $this->resolve_clone_slot($date_row, $start_dt, $end_dt);
+            if (!$slot) {
                 continue;
             }
 
-            $date_suffix = (new \DateTime($date_row['date']))->format('d-m-Y');
+            $date_suffix = $slot['suffix'];
 
             // Check if a clone for this date already exists and is still alive.
             if (isset($previous_map[$date_suffix])) {
@@ -657,14 +657,8 @@ class RecurringEventHandler
             }
 
             // This date needs a new clone.
-            $clone_start = new \DateTime($date_row['date']);
-            $clone_start->setTime(
-                (int) $start_dt->format('H'),
-                (int) $start_dt->format('i'),
-                (int) $start_dt->format('s')
-            );
-            $clone_end = clone $clone_start;
-            $clone_end->add($duration);
+            $clone_start = $slot['start'];
+            $clone_end   = $slot['end'];
 
             // Build taxonomy input.
             $tax_input = [];
@@ -691,20 +685,15 @@ class RecurringEventHandler
 
             // Copy ACF fields.
             $fields_to_copy = [
-                'course_start_date'      => $clone_start->format('Y-m-d H:i:s'),
-                'course_end_date'        => $clone_end->format('Y-m-d H:i:s'),
-                '_event_price'       => get_field('_event_price', $post_id),
-                '_event_deposit'    => get_field('_event_deposit', $post_id),
-                'booking_notes'          => get_field('booking_notes', $post_id),
-                '_event_capacity'        => get_field('_event_capacity', $post_id),
-                'course_location_address' => get_field('course_location_address', $post_id),
-                'course_location_suburb'  => get_field('course_location_suburb', $post_id),
-                'course_location_state'   => get_field('course_location_state', $post_id),
-                'course_location_postcode' => get_field('course_location_postcode', $post_id),
-                'course_is_external'     => get_field('course_is_external', $post_id),
-                'course_external_url'    => get_field('course_external_url', $post_id),
-                'course_status'          => get_field('course_status', $post_id) ?: 'draft',
-                'course_educator_id'     => get_field('course_educator_id', $post_id),
+                '_event_start_date'     => $clone_start->format('Y-m-d H:i:s'),
+                '_event_end_date'       => $clone_end->format('Y-m-d H:i:s'),
+                '_event_enable_bookings' => get_field('_event_enable_bookings', $post_id),
+                '_event_price'          => get_field('_event_price', $post_id),
+                '_event_deposit'        => get_field('_event_deposit', $post_id),
+                '_event_booking_notes'  => get_field('_event_booking_notes', $post_id),
+                '_event_capacity'       => get_field('_event_capacity', $post_id),
+                '_event_venue'          => get_field('_event_venue', $post_id),
+                '_organizer_id'         => get_field('_organizer_id', $post_id),
             ];
 
             foreach ($fields_to_copy as $field_name => $value) {
@@ -713,7 +702,7 @@ class RecurringEventHandler
                 }
             }
 
-            $this->update_field('course_is_recurring', false, $clone_id, $post_type);
+            update_post_meta($clone_id, '_event_is_recurring', false);
 
             $thumbnail_id = get_post_thumbnail_id($post_id);
             if ($thumbnail_id) {
@@ -732,6 +721,9 @@ class RecurringEventHandler
             }
 
             $new_map[$date_suffix] = $clone_id;
+
+            do_action('hmwevents_session_created', $clone_id, $post_id);
+
             $cloned_count++;
         }
 
@@ -869,6 +861,7 @@ class RecurringEventHandler
 
         if (empty($children)) {
             echo '<p>' . esc_html__('No sessions found.', 'hmw-events') . '</p>';
+            $this->render_excluded_dates_notice($post->ID);
             return;
         }
 
@@ -940,21 +933,7 @@ class RecurringEventHandler
             <?php
         endif;
 
-        // Show excluded dates notice and clear button.
-        $excluded = get_post_meta($post->ID, '_excluded_session_dates', true);
-        if (!empty($excluded) && is_array($excluded)):
-            $clear_nonce = wp_create_nonce('hmwevents_session_actions');
-            ?>
-            <div style="margin-top:8px; padding:6px 8px; background:#fcf9e8; border:1px solid #dba617; border-radius:3px;">
-                <p style="margin:0 0 4px 0; font-size:12px;">
-                    <?php echo esc_html(sprintf(_n('%d excluded date', '%d excluded dates', count($excluded), 'hmw-events'), count($excluded))); ?>
-                </p>
-                <button type="button" class="button button-small hmwevents-clear-excluded" data-event-id="<?php echo (int) $post->ID; ?>" data-nonce="<?php echo esc_attr($clear_nonce); ?>">
-                    <?php esc_html_e('Clear Excluded Dates', 'hmw-events'); ?>
-                </button>
-            </div>
-            <?php
-        endif;
+        $this->render_excluded_dates_notice($post->ID);
 
         // Table.
         echo '<table class="widefat striped hmwevents-schedule-table">';
@@ -996,6 +975,23 @@ class RecurringEventHandler
         echo '</tbody></table>';
     }
 
+    private function render_excluded_dates_notice(int $event_id): void
+    {
+        $excluded = get_post_meta($event_id, '_excluded_session_dates', true);
+        if (empty($excluded) || !is_array($excluded)) {
+            return;
+        }
+
+        $clear_nonce = wp_create_nonce('hmwevents_session_actions');
+        echo '<div style="margin-top:8px; padding:6px 8px; background:#fcf9e8; border:1px solid #dba617; border-radius:3px;">';
+        echo '<p style="margin:0 0 4px 0; font-size:12px;">';
+        echo esc_html(sprintf(_n('%d excluded date', '%d excluded dates', count($excluded), 'hmw-events'), count($excluded)));
+        echo '</p>';
+        echo '<button type="button" class="button button-small hmwevents-clear-excluded" data-event-id="' . (int) $event_id . '" data-nonce="' . esc_attr($clear_nonce) . '">';
+        esc_html_e('Clear Excluded Dates', 'hmw-events');
+        echo '</button></div>';
+    }
+
     /**
      * Compare a newly-built recurrence config against a stored DB row.
      *
@@ -1008,12 +1004,16 @@ class RecurringEventHandler
      */
     private function recurrence_configs_equal(array $config, object $stored): bool
     {
+        $config_times = implode(',', $this->session_service()->normalize_times($config['times'] ?? []));
+        $stored_times = implode(',', $this->session_service()->parse_stored_times($stored->recurrence_times ?? null));
+
         return ($config['recurrence_type'] ?? '') === $stored->recurrence_type
             && ($config['recurrence_interval'] ?? 1) == ($stored->recurrence_interval ?? 1)
             && ($config['recurrence_days'] ?? '') === ($stored->recurrence_days ?? '')
+            && $config_times === $stored_times
             && ($config['end_date'] ?? null) === ($stored->end_date ?? null)
             && ($config['max_occurrences'] ?? null) == ($stored->max_occurrences ?? null)
-            && ($config['start_date'] ?? '') === $stored->start_date;
+            && substr((string) ($config['start_date'] ?? ''), 0, 10) === substr((string) ($stored->start_date ?? ''), 0, 10);
     }
 
     /**
@@ -1126,8 +1126,22 @@ class RecurringEventHandler
 
         $service = new SessionService();
         $service->clear_excluded_dates($event_id);
+        $result = $service->regenerate_sessions($event_id);
+        $service->clear_excluded_dates($event_id);
+        $created = is_array($result) ? count($result['created'] ?? []) : 0;
 
-        wp_send_json_success(['message' => __('Excluded dates cleared. Sessions will be regenerated on next save.', 'hmw-events')]);
+        wp_send_json_success([
+            'message' => sprintf(
+                /* translators: %d: number of sessions recreated */
+                _n(
+                    'Excluded dates cleared. %d session recreated.',
+                    'Excluded dates cleared. %d sessions recreated.',
+                    $created,
+                    'hmw-events'
+                ),
+                $created
+            ),
+        ]);
     }
 
     /**
@@ -1148,8 +1162,7 @@ class RecurringEventHandler
 
         $service = $this->session_service();
         $updated = $service->cascade_to_children($parent_id, [
-            'event_venue_name'    => get_post_meta($parent_id, '_event_venue_name', true),
-            'event_venue_address' => get_post_meta($parent_id, '_event_venue_address', true),
+            'event_venue'         => get_post_meta($parent_id, '_event_venue', true),
             'event_capacity'      => get_post_meta($parent_id, '_event_capacity', true),
             'event_webinar_url'   => get_post_meta($parent_id, '_event_webinar_url', true),
         ]);
@@ -1165,294 +1178,6 @@ class RecurringEventHandler
                 $updated
             ),
         ]);
-    }
-
-    // ============================================================================
-    // LEGACY RECURRING COURSE METHODS (Preserved for future use)
-    // ============================================================================
-    // The methods below are kept intact for potential future recurring functionality
-
-    /**
-     * Create a new recurring series.
-     * LEGACY METHOD - Preserved for future use.
-     *
-     * @since 1.0.0
-     * @param int $post_id Template post ID.
-     */
-    private function handle_recurring_creation($post_id)
-    {
-        // Get start date
-        $start_date = get_field('course_start_date', $post_id);
-        if (!$start_date) {
-            // No start date set, can't create recurrence
-            $this->set_notice($post_id, 'error', __('Cannot create recurring series: Start date is required.', 'hmw-events'));
-            return;
-        }
-
-        // Get recurrence days (for weekly)
-        $days_array = get_field('course_recurrence_days', $post_id);
-        $days_string = is_array($days_array) ? implode(',', $days_array) : '';
-
-        // Check for multi-day courses with multiple selected days
-        $end_date = get_field('course_end_date', $post_id);
-        $recurrence_type = get_field('course_recurrence_type', $post_id) ?: 'weekly';
-        
-        if ($start_date && $end_date && in_array($recurrence_type, ['weekly', 'fortnightly'])) {
-            $start_dt = new \DateTime($start_date);
-            $end_dt = new \DateTime($end_date);
-            $duration_days = (int)$start_dt->diff($end_dt)->format('%a');
-            
-            if ($duration_days > 0 && is_array($days_array) && count($days_array) > 1) {
-                $this->set_notice(
-                    $post_id,
-                    'warning',
-                    sprintf(
-                        __('Note: This is a %d-day course and you have selected %d recurrence days. Each selected day will create a separate %d-day course instance. If you want the course to repeat weekly on the same start day, select only one day.', 'hmw-events'),
-                        $duration_days,
-                        count($days_array),
-                        $duration_days
-                    )
-                );
-            }
-        }
-
-        // Build recurrence configuration
-        $recurrence_config = [
-            'type' => $recurrence_type,
-            'days' => $days_string,
-            'start_date' => date('Y-m-d', strtotime($start_date)),
-            'end_date' => get_field('course_recurrence_end_date', $post_id) ?: null,
-            'max_occurrences' => get_field('course_max_occurrences', $post_id) ?: 52,
-        ];
-
-        // Create recurring series
-        $recurrence_id = RecurringCourse::create_recurring_series($post_id, $recurrence_config);
-
-        if ($recurrence_id) {
-            // Get instance count
-            $instances = RecurringCourse::get_series_instances($recurrence_id, false);
-            $count = count($instances);
-            
-            $this->set_notice(
-                $post_id,
-                'success',
-                sprintf(
-                    __('Successfully created recurring series with %d course instances.', 'hmw-events'),
-                    $count
-                )
-            );
-        } else {
-            $this->set_notice($post_id, 'error', __('Failed to create recurring series.', 'hmw-events'));
-        }
-    }
-
-    /**
-     * Handle update to existing recurring series.
-     * LEGACY METHOD - Preserved for future use.
-     *
-     * @since 1.0.0
-     * @param int $post_id Template post ID.
-     * @param int $recurrence_id Recurrence pattern ID.
-     */
-    private function handle_recurring_update($post_id, $recurrence_id)
-    {
-        global $wpdb;
-
-        // Check if user wants to update future instances
-        $update_instances = get_field('course_update_future_instances', $post_id);
-        
-        if (!$update_instances) {
-            // User didn't check the box - only update this template, not instances
-            return;
-        }
-
-        // Get current recurrence pattern from database
-        $is_new = (get_post_type($post_id) === 'hmw_event');
-        $table_name = $is_new
-            ? $wpdb->prefix . 'hmwevents_event_recurrence'
-            : $wpdb->prefix . 'educator_course_recurrence';
-        $current_pattern = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE id = %d",
-            $recurrence_id
-        ));
-
-        if (!$current_pattern) {
-            return;
-        }
-
-        // Get new configuration from ACF fields
-        $days_array = get_field('course_recurrence_days', $post_id);
-        $new_days = is_array($days_array) ? implode(',', $days_array) : '';
-        
-        $new_config = [
-            'type' => get_field('course_recurrence_type', $post_id) ?: 'weekly',
-            'days' => $new_days,
-            'end_date' => get_field('course_recurrence_end_date', $post_id) ?: null,
-            'max_occurrences' => get_field('course_max_occurrences', $post_id) ?: 52,
-        ];
-
-        // For custom dates, always regenerate since we need to handle added/removed dates
-        if ($new_config['type'] === 'custom' || $current_pattern->recurrence_type === 'custom') {
-            $this->handle_pattern_change($post_id, $recurrence_id, $new_config);
-            $this->reset_checkbox_after_processing($post_id);
-            return;
-        }
-
-        // Check if recurrence pattern changed (days, type, end date, or max occurrences)
-        $pattern_changed = (
-            $current_pattern->recurrence_type !== $new_config['type'] ||
-            $current_pattern->recurrence_days !== $new_config['days'] ||
-            $current_pattern->end_date !== $new_config['end_date'] ||
-            $current_pattern->max_occurrences != $new_config['max_occurrences']
-        );
-
-        if ($pattern_changed) {
-            // Pattern changed - need to regenerate instances
-            $this->handle_pattern_change($post_id, $recurrence_id, $new_config);
-        } else {
-            // Pattern unchanged - just update instance details
-            $this->handle_details_update($post_id, $recurrence_id);
-        }
-
-        
-
-        // Reset the checkbox after processing
-        $this->reset_checkbox_after_processing($post_id);
-    }
-
-    /**
-     * Reset the "update future instances" checkbox after processing.
-     * LEGACY METHOD - Preserved for future use.
-     *
-     * @since 1.0.0
-     * @param int $post_id Template post ID.
-     */
-    private function reset_checkbox_after_processing($post_id)
-    {
-        // Update the ACF field to false
-        update_field('course_update_future_instances', true, $post_id);
-    }
-
-    /**
-     * Handle recurrence pattern change (regenerate instances).
-     * LEGACY METHOD - Preserved for future use.
-     *
-     * @since 1.0.0
-     * @param int   $post_id Template post ID.
-     * @param int   $recurrence_id Recurrence pattern ID.
-     * @param array $new_config New recurrence configuration.
-     */
-    private function handle_pattern_change($post_id, $recurrence_id, $new_config)
-    {
-        // Regenerate the series
-        $created_count = RecurringCourse::regenerate_series($recurrence_id, $new_config);
-
-        if ($created_count > 0) {
-            $this->set_notice(
-                $post_id,
-                'success',
-                sprintf(
-                    __('Recurrence pattern updated! Regenerated %d future course instances with the new schedule.', 'hmw-events'),
-                    $created_count
-                )
-            );
-        } else {
-            $this->set_notice(
-                $post_id,
-                'warning',
-                __('Recurrence pattern updated, but no new instances were created. Existing courses with bookings were preserved.', 'hmw-events')
-            );
-        }
-    }
-
-    /**
-     * Handle update to course details (no pattern change).
-     * LEGACY METHOD - Preserved for future use.
-     *
-     * @since 1.0.0
-     * @param int $post_id Template post ID.
-     * @param int $recurrence_id Recurrence pattern ID.
-     */
-    private function handle_details_update($post_id, $recurrence_id)
-    {
-        // Get all field values to sync
-        $updates = [];
-        
-        $fields_to_sync = [
-            '_event_price',
-            '_event_deposit',
-            '_event_capacity',
-            'course_location_address',
-            'course_location_suburb',
-            'course_location_state',
-            'course_location_postcode',
-            'course_is_external',
-            'course_external_url',
-        ];
-
-        foreach ($fields_to_sync as $field) {
-            $value = get_field($field, $post_id);
-            if ($value !== null) {
-                $updates[$field] = $value;
-            }
-        }
-
-        // Update all future instances
-        $updated_count = RecurringCourse::update_series($recurrence_id, $updates, true);
-
-        if ($updated_count > 0) {
-            $this->set_notice(
-                $post_id,
-                'success',
-                sprintf(
-                    __('Updated %d future course instances with your changes.', 'hmw-events'),
-                    $updated_count
-                )
-            );
-        } else {
-            $this->set_notice(
-                $post_id,
-                'info',
-                __('No future instances to update. Template saved successfully.', 'hmw-events')
-            );
-        }
-    }
-
-    /**
-     * Handle recurrence deactivation.
-     * LEGACY METHOD - Preserved for future use.
-     *
-     * @since 1.0.0
-     * @param int $post_id Template post ID.
-     * @param int $recurrence_id Recurrence pattern ID.
-     */
-    private function handle_recurrence_deactivation($post_id, $recurrence_id)
-    {
-        // Mark future instances as non-recurring
-        $deactivated_count = RecurringCourse::deactivate_series($recurrence_id);
-
-        // delete course_recurrence_id meta from the template
-        delete_post_meta($post_id, 'course_recurrence_id');
-
-        // delete recurrence pattern from the database
-        RecurringCourse::delete_recurrence_pattern($recurrence_id);
-
-    if ($deactivated_count > 0) {
-            $this->set_notice(
-                $post_id,
-                'success',
-                sprintf(
-                    __('Recurrence deactivated. %d future course instances were marked as non-recurring.', 'hmw-events'),
-                    $deactivated_count
-                )
-            );
-        } else {
-            $this->set_notice(
-                $post_id,
-                'info',
-                __('Recurrence deactivated. No future instances were affected.', 'hmw-events')
-            );
-        }
     }
 
     /**
@@ -1482,9 +1207,9 @@ class RecurringEventHandler
      */
     public function show_recurring_course_notices()
     {
-        // Only show on course edit screens
+        // Only show on event edit screens
         $screen = get_current_screen();
-        if (!$screen || !in_array($screen->post_type, ['educator_course', 'hmw_event'], true)) {
+        if (!$screen || $screen->post_type !== 'hmw_event') {
             return;
         }
 
@@ -1510,8 +1235,7 @@ class RecurringEventHandler
     }
 
     /**
-     * Enqueue admin scripts for course cloning.
-     * LEGACY METHOD - No longer needed but preserved for future use.
+     * Enqueue admin scripts for session schedule management.
      *
      * @since 1.0.0
      */

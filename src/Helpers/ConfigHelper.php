@@ -26,7 +26,8 @@ class ConfigHelper
      */
     public static function get_options()
     {
-        $raw_options = get_option(HMWEvents_PLUGIN_NAME, []);
+        $option_name = defined('HMWEvents_PLUGIN_NAME') ? HMWEvents_PLUGIN_NAME : 'hmw-events';
+        $raw_options = get_option($option_name, []);
         return isset($raw_options['en']) ? $raw_options['en'] : $raw_options;
     }
     
@@ -61,6 +62,7 @@ class ConfigHelper
     {
         $options = self::get_options();
         $options[$key] = $value;
-        return update_option(HMWEvents_PLUGIN_NAME, ['en' => $options]);
+        $option_name = defined('HMWEvents_PLUGIN_NAME') ? HMWEvents_PLUGIN_NAME : 'hmw-events';
+        return update_option($option_name, ['en' => $options]);
     }
 }

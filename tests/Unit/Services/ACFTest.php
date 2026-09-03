@@ -193,13 +193,13 @@ class ACFTest extends TestCase
             [1, '_event_field_config', true, [
                 'event_fields' => [
                     'required' => [],
-                    'optional' => ['event_venue_name'],
+                    'optional' => ['event_venue'],
                     'hidden'   => [],
                 ],
             ]],
         ]);
 
-        $field = ['_name' => 'event_venue_name', 'key' => 'field_event_venue_name', 'required' => 1];
+        $field = ['_name' => 'event_venue', 'key' => 'field_event_venue', 'required' => 1];
         $result = $this->acf->apply_event_field_config($field);
         $this->assertIsArray($result);
         $this->assertSame(0, $result['required']);
@@ -448,12 +448,12 @@ class ACFTest extends TestCase
                 'event_fields' => [
                     'required' => [],
                     'optional' => [],
-                    'hidden'   => ['event_venue_name'],
+                    'hidden'   => ['event_venue'],
                 ],
             ]],
         ]);
 
-        $field = ['_name' => 'event_venue_name'];
+        $field = ['_name' => 'event_venue'];
         $result = $this->acf->apply_event_field_config($field);
         $this->assertIsArray($result);
         $this->assertStringContainsString('hmwevents-hidden-by-type', $result['wrapper']['class'] ?? '');

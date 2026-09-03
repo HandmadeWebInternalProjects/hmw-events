@@ -66,9 +66,9 @@ class PostEventHandler extends AbstractEmailHandler
         // Get booking details
         if (empty($booking_data)) {
             $booking = $wpdb->get_row($wpdb->prepare(
-                "SELECT b.*, c.post_title as customer_name
-                 FROM {$wpdb->prefix}hmwevents_bookings b
-                 INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
+                "SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_title as customer_name
+                 FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+                 INNER JOIN {$wpdb->posts} c ON b.registrant_post_id = c.ID
                  WHERE b.id = %d",
                 $booking_id
             ));
@@ -135,32 +135,11 @@ class PostEventHandler extends AbstractEmailHandler
         ]);
     }
 
-    /**
-     * Get customer email from customer post.
-     *
-     * @param int $customer_post_id Customer post ID.
-     * @return string|false Email address or false.
-     */
     private function get_registrant_email($customer_post_id)
     {
-        if (!$customer_post_id) {
-            return false;
-        }
-
-        $email = get_post_meta($customer_post_id, 'registrant_email', true);
-        if ($email) {
-            return $email;
-        }
-
-        if (function_exists('get_field')) {
-            $email = get_field('registrant_email', $customer_post_id);
-            if ($email) {
-                return $email;
-            }
-        }
-
-        return false;
+        return $this->get_registrant_email_address($customer_post_id);
     }
+
 
     /**
      * Get course date.
@@ -170,38 +149,24 @@ class PostEventHandler extends AbstractEmailHandler
      */
     private function get_course_date($course_id)
     {
-        if (function_exists('get_field')) {
-            // Try end date first
-            $date = get_field('course_end_date', $course_id);
-            if ($date) {
-                return $date;
-            }
+        $date = $this->event_data()->get_end_date($course_id);
+        if ($date) {
+            return $date;
+        }
 
-            // Fall back to start date
-            $date = get_field('course_start_date', $course_id);
-            if ($date) {
-                return $date;
-            }
+        $date = $this->event_data()->get_start_date($course_id);
+        if ($date) {
+            return $date;
         }
 
         return false;
     }
 
-    /**
-     * Format date from various formats.
-     *
-     * @param string $date Date string.
-     * @return string Formatted date.
-     */
     private function format_date($date)
     {
-        $timestamp = strtotime($date);
-        if ($timestamp === false) {
-            return $date;
-        }
-
-        return date('F j, Y', $timestamp);
+        return $this->format_event_date($date);
     }
+
 
     /**
      * Calculate scheduled time to send post-course email.
@@ -233,9 +198,9 @@ class PostEventHandler extends AbstractEmailHandler
 
         // Get fresh booking details
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT b.*, c.post_title as customer_name
-             FROM {$wpdb->prefix}hmwevents_bookings b
-             INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
+            "SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_title as customer_name
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+             INNER JOIN {$wpdb->posts} c ON b.registrant_post_id = c.ID
              WHERE b.id = %d",
             $booking_id
         ));
@@ -294,10 +259,7 @@ class PostEventHandler extends AbstractEmailHandler
     public function get_template_variables_description()
     {
         return array_merge(parent::get_template_variables_description(), [
-            'days_after'             => 'Number of days after course',
-            'feedback_url'           => 'Link to feedback form',
-            'download_audio_track'    => 'Download link to audio file (if configured)',
-            'download_relaxation_track' => 'Download link to free pre-course relaxation track',
+            'days_after' => 'Number of days after event',
         ]);
     }
 }

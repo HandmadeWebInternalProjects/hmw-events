@@ -11,6 +11,7 @@
 namespace HMWEvents\Services\Gateways;
 
 use HMWEvents\Services\StripeService;
+use HMWEvents\Services\OrganizerPaymentSettings;
 use HMWEvents\Helpers\EventHelper;
 use HMWEvents\Helpers\ConfigHelper;
 
@@ -38,11 +39,11 @@ class StripePaymentGateway extends AbstractPaymentGateway
     /**
      * Constructor.
      *
-     * @param int|null $educator_id Optional educator ID for multi-tenant support.
+     * @param int|null $organizer_id Optional organizer ID for multi-tenant support.
      */
-    public function __construct($educator_id = null)
+    public function __construct($organizer_id = null)
     {
-        $this->educator_id = $educator_id;
+        $this->organizer_id = $organizer_id;
         $this->stripe = new StripeService();
     }
 
@@ -119,11 +120,11 @@ class StripePaymentGateway extends AbstractPaymentGateway
             return $this->api_keys;
         }
 
-        // In live mode, use educator keys if available, otherwise fall back to plugin settings
-        if ($this->educator_id) {
-            $educator_keys = $this->get_educator_api_keys($this->educator_id);
-            if (!empty($educator_keys['secret_key'])) {
-                $this->api_keys = $educator_keys;
+        // In live mode, use organizer keys if available, otherwise fall back to plugin settings
+        if ($this->organizer_id) {
+            $organizer_keys = $this->get_organizer_api_keys($this->organizer_id);
+            if (!empty($organizer_keys['secret_key'])) {
+                $this->api_keys = $organizer_keys;
                 return $this->api_keys;
             }
         }
@@ -156,33 +157,33 @@ class StripePaymentGateway extends AbstractPaymentGateway
     }
 
     /**
-     * Get API keys from educator user meta.
+     * Get API keys from organizer user meta.
      *
-     * @param int $educator_id Educator user ID.
+     * @param int $organizer_id Organizer user ID.
      * @return array Array with 'secret_key' and 'publishable_key'.
      */
-    private function get_educator_api_keys($educator_id)
+    private function get_organizer_api_keys($organizer_id)
     {
-        $payment_type = get_user_meta($educator_id, 'educator_payment_type', true);
-        
-        // Only return keys if educator has selected Stripe
-        if ($payment_type !== 'stripe') {
+        $settings = new OrganizerPaymentSettings((int) $organizer_id);
+
+        if ($settings->get_payment_type() !== 'stripe') {
             return [];
         }
 
-        $secret_key_encrypted = get_user_meta($educator_id, 'educator_stripe_secret', true);
-        $publishable_key = get_user_meta($educator_id, 'educator_stripe_key', true);
+        $secret_key_encrypted = $settings->get_stripe_secret_key();
+        $publishable_key = $settings->get_stripe_publishable_key();
 
         if (empty($secret_key_encrypted)) {
             return [];
         }
 
         $secret_key = $this->decrypt_key($secret_key_encrypted);
+        $publishable_key = $this->decrypt_key($publishable_key);
 
         return [
             'secret_key' => $secret_key,
             'publishable_key' => $publishable_key,
-            'source' => 'educator_' . $educator_id,
+            'source' => 'organizer_' . $organizer_id,
         ];
     }
 
@@ -232,7 +233,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             'has_secret_key' => !empty($keys['secret_key']),
             'has_publishable_key' => !empty($keys['publishable_key']),
             'is_test_mode' => $this->is_test_mode(),
-            'educator_id' => $this->educator_id,
+            'organizer_id' => $this->organizer_id,
         ];
     }
 
@@ -265,43 +266,49 @@ class StripePaymentGateway extends AbstractPaymentGateway
                 throw new \Exception($customer_id->get_error_message());
             }
 
-            // 2. Validate course availability
-            $course_id = intval($booking_data['course_id']);
-            $available = EventHelper::check_course_availability($course_id);
+            // 2. Validate event and option capacity
+            $event_id = intval($booking_data['event_id']);
+            $attendance_type = $booking_data['attendance_type'] ?? 'individual';
+            $ticket_quantity = max(1, (int) ($booking_data['ticket_quantity'] ?? 1));
 
-            if (!$available) {
-                throw new \Exception('Course is fully booked');
+            $capacity_check = EventHelper::check_booking_capacity($event_id, $attendance_type, 1, $ticket_quantity);
+            if (is_wp_error($capacity_check)) {
+                throw new \Exception($capacity_check->get_error_message());
             }
 
+            $attendance_option_id = EventHelper::resolve_attendance_option_id($event_id, $attendance_type);
+
             // 3. Calculate total amount
-            $amount_data = $this->calculate_amount($course_id, $booking_data['is_deposit'] ?? false);
+            $amount_data = $this->calculate_booking_amount($event_id, $booking_data['is_deposit'] ?? false, $attendance_type, $booking_data['attendees'] ?? []);
             if (is_wp_error($amount_data)) {
                 throw new \Exception($amount_data->get_error_message());
             }
 
-            $amount = $amount_data['amount'];
-            $payment_type = $amount_data['payment_type'];
+            $amount = array_key_exists('authoritative_amount', $booking_data)
+                ? (float) $booking_data['authoritative_amount']
+                : $amount_data['amount'];
+            $is_net_terms = ($booking_data['payment_type'] ?? '') === 'net_terms';
+            $payment_type = $is_net_terms ? 'net_terms' : $amount_data['payment_type'];
+            $currency = $amount_data['currency'] ?? 'AUD';
 
-            $attendance_type = $booking_data['attendance_type'] ?? 'individual';
-            $attendance_option_id = EventHelper::resolve_attendance_option_id($course_id, $attendance_type);
-            if ($attendance_option_id) {
-                $option_check = EventHelper::check_attendance_option_capacity($attendance_option_id);
-                if (is_wp_error($option_check)) {
-                    throw new \Exception($option_check->get_error_message());
-                }
-            }
+            $skip_payment_gateway = $is_net_terms || !empty($booking_data['skip_payment_gateway']) || $amount <= 0.00001;
 
             // 4. Create booking group
             $booking_reference = $this->generate_booking_reference();
 
+            $session_rows = array_values(array_filter($booking_data['session_rows'] ?? [], fn($r) => !empty($r['event_post_id'])));
+
             $booking_group_id = $this->create_booking_group([
                 'booking_reference' => $booking_reference,
                 'customer_post_id' => $customer_id,
+                'booking_type' => $booking_data['booking_type'] ?? 'single',
+                'total_courses' => $session_rows ? count($session_rows) : 1,
+                'metadata' => $booking_data['group_metadata'] ?? null,
                 'payment_type' => $payment_type,
                 'total_amount' => $amount,
+                'currency' => $currency,
+                'payment_status' => $is_net_terms ? 'invoiced' : 'pending',
             ]);
-
-            error_log('Created Booking Group ID: ' . $booking_group_id);
 
             if (is_wp_error($booking_group_id)) {
                 throw new \Exception($booking_group_id->get_error_message());
@@ -313,70 +320,183 @@ class StripePaymentGateway extends AbstractPaymentGateway
             $booking_id = $this->create_booking([
                 'booking_group_id' => $booking_group_id,
                 'booking_number' => $booking_number,
-                'event_post_id' => $course_id,
+                'event_post_id' => $event_id,
                 'customer_post_id' => $customer_id,
                 'attendance_option_id' => $attendance_option_id,
                 'ticket_type' => $payment_type,
+                'ticket_quantity' => $ticket_quantity,
                 'booking_amount' => $amount,
+                'currency' => $currency,
+                'payment_status' => $is_net_terms ? 'invoiced' : 'pending',
+                'suppress_created_action' => !empty($session_rows),
             ]);
-
-            error_log('Created Booking ID: ' . $booking_id);
 
             if (is_wp_error($booking_id)) {
                 throw new \Exception($booking_id->get_error_message());
             }
 
-            // 6. Create Stripe payment intent
+            // Additional session rows for multi-session bookings. Per-row
+            // created actions are suppressed; one group-level action fires
+            // after commit so attendees get a single confirmation.
+            $extra_rows = [];
+            foreach ($session_rows as $row) {
+                if ((int) $row['event_post_id'] === $event_id) {
+                    continue;
+                }
+                $extra_booking_id = $this->create_booking([
+                    'booking_group_id' => $booking_group_id,
+                    'booking_number' => $this->generate_booking_number(),
+                    'event_post_id' => (int) $row['event_post_id'],
+                    'customer_post_id' => $customer_id,
+                    'attendance_option_id' => $attendance_option_id,
+                    'ticket_type' => $payment_type,
+                    'ticket_quantity' => $ticket_quantity,
+                    'booking_amount' => (float) ($row['booking_amount'] ?? 0),
+                    'currency' => $currency,
+                    'payment_status' => $is_net_terms ? 'invoiced' : 'pending',
+                    'suppress_created_action' => true,
+                ]);
+                if ($extra_booking_id && !is_wp_error($extra_booking_id)) {
+                    $extra_rows[] = [
+                        'booking_id' => (int) $extra_booking_id,
+                        'event_post_id' => (int) $row['event_post_id'],
+                    ];
+                }
+            }
+
             $stripe_customer_id = get_post_meta($customer_id, 'stripe_customer_id', true);
 
-            $payment_intent = $this->stripe->create_payment_intent($amount, 'AUD', [
-                'booking_id' => $booking_id,
-                'booking_number' => $booking_number,
-                'booking_reference' => $booking_reference,
-                'course_id' => $course_id,
-                'customer_id' => $customer_id,
-            ]);
+            $payment_intent_id = null;
+            $payment_status = $is_net_terms ? 'invoiced' : 'pending';
+            $client_secret = null;
+            $transaction_metadata = null;
 
-            error_log('Payment Intent Response: ' . print_r($payment_intent, true));
+            if ($is_net_terms) {
+                $payment_intent_id = 'net_terms_' . $booking_number;
+            } elseif ($skip_payment_gateway) {
+                $payment_intent_id = 'zero_amount_' . $booking_number;
+                $payment_status = 'succeeded';
+                $transaction_metadata = json_encode([
+                    'type' => 'zero_amount_booking',
+                ]);
+            } else {
+                // 6. Create Stripe payment intent
+                $payment_intent = $this->stripe->create_payment_intent($amount, $currency, [
+                    'booking_id' => $booking_id,
+                    'booking_number' => $booking_number,
+                    'booking_reference' => $booking_reference,
+                    'event_id' => $event_id,
+                    'customer_id' => $customer_id,
+                ]);
 
-            if (is_wp_error($payment_intent)) {
-                throw new \Exception($payment_intent->get_error_message());
+                if (is_wp_error($payment_intent)) {
+                    throw new \Exception($payment_intent->get_error_message());
+                }
+
+                $payment_intent_id = $payment_intent->id;
+                $payment_status = $payment_intent->status;
+                $client_secret = $payment_intent->client_secret;
+                $transaction_metadata = json_encode($booking_data);
             }
 
-            // 7. Record payment transaction
-            $transaction_id = $this->create_transaction([
-                'booking_group_id' => $booking_group_id,
-                'amount' => $amount,
-                'currency' => 'AUD',
-                'gateway_transaction_id' => $payment_intent->id,
-                'gateway_customer_id' => $stripe_customer_id,
-                'status' => 'pending',
-                'metadata' => json_encode($booking_data),
-            ]);
+            // 7. Record payment transaction (net terms bookings are invoiced,
+            //    not charged, so no transaction row is created until settlement)
+            if (!$is_net_terms) {
+                $transaction_id = $this->create_transaction([
+                    'booking_group_id' => $booking_group_id,
+                    'amount' => $amount,
+                    'currency' => $currency,
+                    'gateway_transaction_id' => $payment_intent_id,
+                    'gateway_customer_id' => $stripe_customer_id,
+                    'status' => $payment_status,
+                    'metadata' => $transaction_metadata,
+                ]);
 
-            if (is_wp_error($transaction_id)) {
-                throw new \Exception($transaction_id->get_error_message());
+                if (is_wp_error($transaction_id)) {
+                    throw new \Exception($transaction_id->get_error_message());
+                }
             }
 
-            // 8. Add to booking history
-            $this->add_booking_history(
-                $booking_id,
-                null,
-                'pending',
-                'Booking created, awaiting payment'
-            );
+            // 8. Update booking statuses and history
+            if ($is_net_terms) {
+                $this->update_booking_group_status($booking_group_id, 'invoiced');
+                $this->update_booking_status($booking_id, 'confirmed', 'invoiced');
+                $this->update_course_availability($event_id, $ticket_quantity);
+                $this->add_booking_history(
+                    $booking_id,
+                    null,
+                    'confirmed',
+                    'Booking confirmed (net terms invoice)'
+                );
+            } elseif ($skip_payment_gateway) {
+                $this->update_booking_group_status($booking_group_id, 'paid');
+                $this->update_booking_status($booking_id, 'confirmed', 'paid');
+                $this->update_course_availability($event_id, $ticket_quantity);
+                $this->add_booking_history(
+                    $booking_id,
+                    null,
+                    'confirmed',
+                    'Booking confirmed (zero amount)'
+                );
+            } else {
+                $this->add_booking_history(
+                    $booking_id,
+                    null,
+                    'pending',
+                    'Booking created, awaiting payment'
+                );
+            }
+
+            foreach ($extra_rows as $extra) {
+                if ($is_net_terms) {
+                    $this->update_booking_status($extra['booking_id'], 'confirmed', 'invoiced');
+                    $this->update_course_availability($extra['event_post_id'], $ticket_quantity);
+                    $this->add_booking_history($extra['booking_id'], null, 'confirmed', 'Booking confirmed (net terms invoice)');
+                } elseif ($skip_payment_gateway) {
+                    $this->update_booking_status($extra['booking_id'], 'confirmed', 'paid');
+                    $this->update_course_availability($extra['event_post_id'], $ticket_quantity);
+                    $this->add_booking_history($extra['booking_id'], null, 'confirmed', 'Booking confirmed (zero amount)');
+                } else {
+                    $this->add_booking_history($extra['booking_id'], null, 'pending', 'Booking created, awaiting payment');
+                }
+            }
 
             // Commit transaction
             $wpdb->query('COMMIT');
+
+            if ($is_net_terms) {
+                try {
+                    do_action('hmwevents_net_terms_booking_created', $booking_id, $booking_group_id);
+                } catch (\Throwable $e) {
+                    error_log('HMWEvents invoice issue error: ' . $e->getMessage());
+                }
+            }
+
+            if ($session_rows) {
+                try {
+                    do_action(
+                        'hmwevents_group_booking_created',
+                        $booking_group_id,
+                        array_merge([$booking_id], array_column($extra_rows, 'booking_id')),
+                        $booking_id,
+                        $booking_data
+                    );
+                } catch (\Throwable $e) {
+                    error_log('HMWEvents group confirmation error: ' . $e->getMessage());
+                }
+            }
 
             return [
                 'success' => true,
                 'booking_id' => $booking_id,
                 'booking_number' => $booking_number,
                 'booking_reference' => $booking_reference,
-                'payment_intent_id' => $payment_intent->id,
-                'client_secret' => $payment_intent->client_secret,
+                'booking_ids' => array_merge([$booking_id], array_column($extra_rows, 'booking_id')),
+                'payment_intent_id' => $payment_intent_id,
+                'client_secret' => $client_secret,
+                'payment_status' => $payment_status,
                 'amount' => $amount,
+                'payment_skipped' => $skip_payment_gateway,
             ];
 
         } catch (\Exception $e) {
@@ -403,19 +523,32 @@ class StripePaymentGateway extends AbstractPaymentGateway
                 throw new \Exception($validation->get_error_message());
             }
 
-            // Get course details
-            $course = EventHelper::get_course_details($booking_data['course_id']);
-            if (!$course) {
-                throw new \Exception('Course not found');
+            // Get event details
+            $event_details = EventHelper::get_event_details($booking_data['event_id']);
+            if (!$event_details) {
+                throw new \Exception('Event not found');
             }
 
+            $event_id = intval($booking_data['event_id']);
+            $attendance_type = $booking_data['attendance_type'] ?? 'individual';
+            $ticket_quantity = max(1, (int) ($booking_data['ticket_quantity'] ?? 1));
+
+            $capacity_check = EventHelper::check_booking_capacity($event_id, $attendance_type, 1, $ticket_quantity);
+            if (is_wp_error($capacity_check)) {
+                throw new \Exception($capacity_check->get_error_message());
+            }
+
+            $attendance_option_id = EventHelper::resolve_attendance_option_id($event_id, $attendance_type);
+
             // Calculate amount
-            $amount_data = $this->calculate_amount($booking_data['course_id'], $booking_data['is_deposit'] ?? false);
+            $amount_data = $this->calculate_booking_amount($event_id, $booking_data['is_deposit'] ?? false, $attendance_type, $booking_data['attendees'] ?? []);
             if (is_wp_error($amount_data)) {
                 throw new \Exception($amount_data->get_error_message());
             }
 
-            $amount = $amount_data['amount'];
+            $amount = array_key_exists('authoritative_amount', $booking_data)
+                ? (float) $booking_data['authoritative_amount']
+                : $amount_data['amount'];
             $payment_type = $amount_data['payment_type'];
             $currency = $amount_data['currency'] ?? 'AUD';
 
@@ -432,7 +565,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
             }
 
             // Apply coupon discount if present (and no voucher)
-            if (!empty($booking_data['coupon_discount']) && empty($booking_data['voucher_discount'])) {
+            if (!array_key_exists('authoritative_amount', $booking_data) && !empty($booking_data['coupon_discount']) && empty($booking_data['voucher_discount'])) {
                 $coupon_service = new \HMWEvents\Services\CouponService();
                 $discount_calc = $coupon_service->calculate_discount($amount, $booking_data['coupon_discount']);
                 $discount_amount = $discount_calc['discount_amount'];
@@ -479,7 +612,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
 
             // Create Stripe customer if not exists
             $stripe_customer_id = get_post_meta($customer_id, 'stripe_customer_id', true);
-            if (empty($stripe_customer_id)) {
+            if (!$skip_payment_gateway && empty($stripe_customer_id)) {
                 $stripe_customer = $this->stripe->create_customer($booking_data['registrant_email'], [
                     'name' => $booking_data['customer_name'],
                     'phone' => $booking_data['customer_phone'] ?? '',
@@ -497,15 +630,20 @@ class StripePaymentGateway extends AbstractPaymentGateway
             // 2. Create booking group
             $booking_reference = $this->generate_booking_reference();
 
+            $session_rows = array_values(array_filter($booking_data['session_rows'] ?? [], fn($r) => !empty($r['event_post_id'])));
+
             $booking_group_id = $this->create_booking_group([
                 'booking_reference' => $booking_reference,
                 'customer_post_id' => $customer_id,
+                'booking_type' => $booking_data['booking_type'] ?? 'single',
+                'total_courses' => $session_rows ? count($session_rows) : 1,
                 'payment_type' => $payment_type,
                 'total_amount' => $amount,
                 'currency' => $currency,
-                'metadata' => [
-                    'discount' => $discount_context,
-                ],
+                'metadata' => array_merge(
+                    ['discount' => $discount_context],
+                    $booking_data['group_metadata'] ?? []
+                ),
             ]);
 
             if (is_wp_error($booking_group_id)) {
@@ -518,23 +656,56 @@ class StripePaymentGateway extends AbstractPaymentGateway
             $booking_id = $this->create_booking([
                 'booking_group_id' => $booking_group_id,
                 'booking_number' => $booking_number,
-                'event_post_id' => $booking_data['course_id'],
+                'event_post_id' => $booking_data['event_id'],
                 'customer_post_id' => $customer_id,
-                'ticket_type' => $payment_type,
-                'booking_amount' => $amount,
-                'currency' => $currency,
-                'booking_details' => $booking_data['booking_details'] ?? [],
-                'coupon_code' => $applied_discount_code,
-            ]);
+                 'attendance_option_id' => $attendance_option_id,
+                 'ticket_type' => $payment_type,
+                 'ticket_quantity' => $ticket_quantity,
+                 'booking_amount' => $amount,
+                 'currency' => $currency,
+                 'coupon_code' => $applied_discount_code,
+                 'discount_amount' => $discount_amount,
+                 'booking_details' => $booking_data['booking_details'] ?? [],
+                 'suppress_created_action' => !empty($session_rows),
+              ]);
 
             if (is_wp_error($booking_id)) {
                 throw new \Exception($booking_id->get_error_message());
             }
 
+            // Additional session rows for multi-session bookings. Per-row
+            // created actions are suppressed; one group-level action fires
+            // after commit so attendees get a single confirmation.
+            $extra_rows = [];
+            foreach ($session_rows as $row) {
+                if ((int) $row['event_post_id'] === (int) $booking_data['event_id']) {
+                    continue;
+                }
+                $extra_booking_id = $this->create_booking([
+                    'booking_group_id' => $booking_group_id,
+                    'booking_number' => $this->generate_booking_number(),
+                    'event_post_id' => (int) $row['event_post_id'],
+                    'customer_post_id' => $customer_id,
+                    'attendance_option_id' => $attendance_option_id,
+                    'ticket_type' => $payment_type,
+                    'ticket_quantity' => $ticket_quantity,
+                    'booking_amount' => (float) ($row['booking_amount'] ?? 0),
+                    'currency' => $currency,
+                    'payment_status' => 'pending',
+                    'suppress_created_action' => true,
+                ]);
+                if ($extra_booking_id && !is_wp_error($extra_booking_id)) {
+                    $extra_rows[] = [
+                        'booking_id' => (int) $extra_booking_id,
+                        'event_post_id' => (int) $row['event_post_id'],
+                    ];
+                }
+            }
+
             // Update booking with discount amount if voucher was applied
             if ($discount_amount > 0) {
                 $wpdb->update(
-                    $wpdb->prefix . 'hmwevents_bookings',
+                    \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
                     ['discount_amount' => $discount_amount],
                     ['id' => $booking_id],
                     ['%f'],
@@ -564,7 +735,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
                     [
                         'booking_number' => $booking_number,
                         'registrant_email' => $booking_data['registrant_email'],
-                        'course_id' => $booking_data['course_id'],
+                        'event_id' => $booking_data['event_id'],
                     ]
                 );
 
@@ -602,8 +773,14 @@ class StripePaymentGateway extends AbstractPaymentGateway
             if ($payment_status === 'succeeded') {
                 $this->update_booking_group_status($booking_group_id, 'paid');
                 $this->update_booking_status($booking_id, 'confirmed', 'paid');
-                $this->update_course_availability($booking_data['course_id'], 1);
-                
+                $this->update_course_availability($booking_data['event_id'], $ticket_quantity);
+
+                foreach ($extra_rows as $extra) {
+                    $this->update_booking_status($extra['booking_id'], 'confirmed', 'paid');
+                    $this->update_course_availability($extra['event_post_id'], $ticket_quantity);
+                    $this->add_booking_history($extra['booking_id'], null, 'confirmed', 'Payment confirmed');
+                }
+
                 // Redeem voucher and track usage
                 if (!empty($booking_data['voucher_code']) && !empty($booking_data['voucher_discount'])) {
                     $voucher_service = new \HMWEvents\Services\VoucherService();
@@ -612,7 +789,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
                     
                     // Track voucher usage in database
                     $insert_result = $wpdb->insert(
-                        $wpdb->prefix . 'hmwevents_voucher_usage',
+                        \HMWEvents\Services\DatabaseService::get_table_name('voucher_usage'),
                         [
                             'booking_id' => $booking_id,
                             'voucher_code' => $booking_data['voucher_code'],
@@ -653,11 +830,26 @@ class StripePaymentGateway extends AbstractPaymentGateway
             // Commit transaction
             $wpdb->query('COMMIT');
 
+            if ($session_rows) {
+                try {
+                    do_action(
+                        'hmwevents_group_booking_created',
+                        $booking_group_id,
+                        array_merge([$booking_id], array_column($extra_rows, 'booking_id')),
+                        $booking_id,
+                        $booking_data
+                    );
+                } catch (\Throwable $e) {
+                    error_log('HMWEvents group confirmation error: ' . $e->getMessage());
+                }
+            }
+
             return [
                 'success' => true,
                 'booking_id' => $booking_id,
                 'booking_number' => $booking_number,
                 'booking_reference' => $booking_reference,
+                'booking_ids' => array_merge([$booking_id], array_column($extra_rows, 'booking_id')),
                 'client_secret' => $client_secret,
                 'payment_intent_id' => $payment_intent_id,
                 'payment_status' => $payment_status,
@@ -693,20 +885,20 @@ class StripePaymentGateway extends AbstractPaymentGateway
             return true;
         }
 
-        // If no educator_id was injected (e.g. called from webhook or REST confirm endpoint),
+        // If no organizer_id was injected (e.g. called from webhook or REST confirm endpoint),
         // resolve it from the booking so we use the correct Stripe account keys.
-        if (!$this->educator_id && !$this->is_test_mode()) {
-            $educator_id = $wpdb->get_var($wpdb->prepare(
+        if (!$this->organizer_id && !$this->is_test_mode()) {
+            $organizer_id = $wpdb->get_var($wpdb->prepare(
                 "SELECT c.post_author
-                 FROM {$wpdb->prefix}hmwevents_bookings b
+                 FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
                   INNER JOIN {$wpdb->posts} c ON b.event_post_id = c.ID
                  WHERE b.booking_group_id = %d
                  LIMIT 1",
                 $transaction->booking_group_id
             ));
 
-            if ($educator_id) {
-                $correct_gateway = new self((int) $educator_id);
+            if ($organizer_id) {
+                $correct_gateway = new self((int) $organizer_id);
                 $correct_gateway->register();
                 return $correct_gateway->confirm_payment($payment_intent_id);
             }
@@ -732,7 +924,7 @@ class StripePaymentGateway extends AbstractPaymentGateway
 
             // Update all bookings in the group
             $bookings = $wpdb->get_results($wpdb->prepare("
-                SELECT * FROM {$wpdb->prefix}hmwevents_bookings
+                SELECT * FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . "
                 WHERE booking_group_id = %d
             ", $transaction->booking_group_id));
 
@@ -742,7 +934,8 @@ class StripePaymentGateway extends AbstractPaymentGateway
 
                 if (!$is_remaining_payment) {
                     // Update availability only on first/primary booking payment, not remaining-balance top-ups.
-                    $this->update_course_availability($booking->event_post_id, 1);
+                    $people = max(1, (int) ($booking->ticket_quantity ?? 1));
+                    $this->update_course_availability($booking->event_post_id, $people);
 
                     // Add to history for initial payment confirmation.
                     $this->add_booking_history(

@@ -53,28 +53,28 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
         <div class="hmwevents-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
             <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;"><?php _e('Total Paid Bookings', 'hmw-events'); ?></h3>
             <p style="margin: 0; font-size: 32px; font-weight: bold; color: #2271b1;">
-                <?php echo number_format($stats->total_bookings); ?>
+                <?php echo number_format((int) ($stats->total_bookings ?? 0)); ?>
             </p>
         </div>
 
         <div class="hmwevents-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
             <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;"><?php _e('Total Revenue', 'hmw-events'); ?></h3>
             <p style="margin: 0; font-size: 32px; font-weight: bold; color: #00a32a;">
-                $<?php echo number_format($stats->total_revenue, 2); ?>
+                $<?php echo number_format((float) ($stats->total_revenue ?? 0), 2); ?>
             </p>
         </div>
 
         <div class="hmwevents-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
             <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;"><?php _e('Pending Payments', 'hmw-events'); ?></h3>
             <p style="margin: 0; font-size: 32px; font-weight: bold; color: #dba617;">
-                $<?php echo number_format($stats->pending_revenue, 2); ?>
+                $<?php echo number_format((float) ($stats->pending_revenue ?? 0), 2); ?>
             </p>
         </div>
 
         <div class="hmwevents-stat-card" style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 4px;">
             <h3 style="margin: 0 0 10px 0; color: #666; font-size: 14px;"><?php _e('Refunded', 'hmw-events'); ?></h3>
             <p style="margin: 0; font-size: 32px; font-weight: bold; color: #d63638;">
-                $<?php echo number_format($stats->refunded_amount, 2); ?>
+                $<?php echo number_format((float) ($stats->refunded_amount ?? 0), 2); ?>
             </p>
         </div>
     </div>

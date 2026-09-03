@@ -20,17 +20,6 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class EventTypeRegistry
 {
-    public const RECURRENCE_FIELD_KEYS = [
-        'event_is_recurring',
-        'event_recurrence_interval',
-        'event_recurrence_unit',
-        'event_recurrence_days',
-        'event_recurrence_end_type',
-        'event_recurrence_end_date',
-        'event_recurrence_max_occurrences',
-        'event_recurrence_custom_dates',
-    ];
-
     /**
      * Cached archetype definitions.
      *
@@ -169,8 +158,7 @@ private static function build(): array
         // ─────────────────────────────────────────────
         'parenting-webinar' => array_replace_recursive($defaults, [
             'hidden_fields' => [
-                'event_venue_name',
-                'event_venue_address',
+                'event_venue',
                 'event_price',
                 'event_deposit',
                 'event_surcharge',
@@ -202,8 +190,7 @@ private static function build(): array
         // ─────────────────────────────────────────────
         'professional-webinar' => array_replace_recursive($defaults, [
             'hidden_fields' => [
-                'event_venue_name',
-                'event_venue_address',
+                'event_venue',
                 'event_price',
                 'event_deposit',
                 'event_surcharge',
@@ -239,10 +226,9 @@ private static function build(): array
                 'event_price',
                 'event_deposit',
                 'event_surcharge',
-                'event_max_per_registrant',
                 'event_allow_net_terms',
             ],
-            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue'],
             'attendance_option_presets' => [
                 ['label' => 'Parent',         'price' => 0,    'option_type' => 'parent'],
                 ['label' => 'Parent + Child', 'price' => 0,    'option_type' => 'parent_child'],
@@ -276,7 +262,7 @@ private static function build(): array
                 'event_allow_net_terms',
                 'event_is_free',
             ],
-            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue'],
             'attendance_option_presets' => [
                 ['label' => 'Walk-In', 'price' => 0, 'option_type' => 'individual'],
             ],
@@ -302,7 +288,7 @@ private static function build(): array
             'hidden_fields' => [
                 'event_webinar_url',
             ],
-            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_address'],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue'],
             'attendance_option_presets' => [
                 ['label' => 'Parent',         'price' => 350, 'option_type' => 'parent'],
                 ['label' => 'Parent + Child', 'price' => 450, 'option_type' => 'parent_child'],
@@ -327,8 +313,7 @@ private static function build(): array
         // ─────────────────────────────────────────────
         'professional-online' => array_replace_recursive($defaults, [
             'hidden_fields' => [
-                'event_venue_name',
-                'event_venue_address',
+                'event_venue',
             ],
             'required_fields' => ['event_start_date', 'event_end_date'],
             'attendance_option_presets' => [
@@ -357,7 +342,7 @@ private static function build(): array
             'hidden_fields' => [
                 'event_webinar_url',
             ],
-            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue_name', 'event_venue_address'],
+            'required_fields' => ['event_start_date', 'event_end_date', 'event_venue'],
             'attendance_option_presets' => [
                 ['label' => 'Professional',   'price' => 250, 'option_type' => 'professional'],
                 ['label' => 'Early Bird',     'price' => 200, 'option_type' => 'professional'],

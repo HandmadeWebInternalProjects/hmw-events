@@ -29,7 +29,7 @@ class EventTopic
 
         register_taxonomy(self::TAXONOMY, ['hmw_event'], [
             'labels'             => $labels,
-            'hierarchical'       => false,
+            'hierarchical'       => true,
             'public'             => true,
             'publicly_queryable' => true,
             'show_ui'            => true,

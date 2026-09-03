@@ -34,6 +34,41 @@
 	text-decoration: underline;
 }
 
+.hmwevents-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 100000;
+	background: rgba(0, 0, 0, 0.6);
+	padding: 8vh 20px 20px;
+	box-sizing: border-box;
+	overflow-y: auto;
+}
+
+.hmwevents-modal-content {
+	position: relative;
+	width: min(700px, 100%);
+	max-height: 84vh;
+	overflow-y: auto;
+	margin: 0 auto;
+	padding: 20px;
+	box-sizing: border-box;
+	background: #fff;
+	border-radius: 4px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.hmwevents-modal-close {
+	position: absolute;
+	top: 8px;
+	right: 12px;
+	font-size: 24px;
+	line-height: 1;
+	cursor: pointer;
+}
+
 .hmwevents-transfer-message {
 	margin-top: 15px;
 	display: none;
@@ -474,4 +509,134 @@
 
 .booking-stats-summary .stat-value.color-purple {
 	color: #9c27b0;
+}
+
+/* Add Manual Booking — attendance options & attendee repeater */
+#hmwevents-add-booking-modal .hmwevents-attendance-options {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendance-option {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	background: #fff;
+	cursor: pointer;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendance-option:hover {
+	border-color: #2271b1;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendance-option-label {
+	font-weight: 500;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendance-option-price {
+	color: #2271b1;
+	font-weight: 600;
+	margin-left: auto;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendance-option-remaining {
+	color: #787c82;
+	font-size: 12px;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendees-section {
+	margin-top: 16px;
+	padding-top: 12px;
+	border-top: 1px solid #dcdcde;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendee-block {
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #f6f7f7;
+	padding: 10px 12px;
+	margin-bottom: 10px;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendee-block-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+#hmwevents-add-booking-modal .hmwevents-remove-attendee {
+	color: #b32d2e;
+	text-decoration: none;
+	cursor: pointer;
+	font-size: 16px;
+	line-height: 1;
+}
+
+#hmwevents-add-booking-modal .hmwevents-remove-attendee:hover {
+	color: #8a2424;
+}
+
+#hmwevents-add-booking-modal .hmwevents-attendee-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px 14px;
+}
+
+#hmwevents-add-booking-modal .hmwevents-field {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-inline-size: 0;
+}
+
+#hmwevents-add-booking-modal .hmwevents-field input,
+#hmwevents-add-booking-modal .hmwevents-field select,
+#hmwevents-add-booking-modal .hmwevents-field textarea {
+	inline-size: 100%;
+	max-inline-size: 100%;
+	box-sizing: border-box;
+}
+
+#hmwevents-add-booking-modal .hmwevents-field--full {
+	grid-column: span 2;
+}
+
+#hmwevents-add-booking-modal .hmwevents-field label {
+	font-weight: 600;
+}
+
+#hmwevents-add-booking-modal .hmwevents-field .required,
+#hmwevents-add-booking-modal th .required {
+	color: #b32d2e;
+}
+
+#hmwevents-add-booking-modal .form-table input,
+#hmwevents-add-booking-modal .form-table select,
+#hmwevents-add-booking-modal .form-table textarea {
+	max-inline-size: 100%;
+	box-sizing: border-box;
+}
+
+@media screen and (max-width: 600px) {
+	#hmwevents-add-booking-modal .hmwevents-attendee-grid {
+		grid-template-columns: 1fr;
+	}
+
+	#hmwevents-add-booking-modal .hmwevents-field--full {
+		grid-column: span 1;
+	}
+}
+
+#hmwevents-add-booking-modal .hmwevents-manual-total {
+	margin: 14px 0 0;
+	font-size: 14px;
+}
+
+#hmwevents-add-booking-modal .hmwevents-total-value {
+	font-size: 16px;
 }

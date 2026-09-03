@@ -26,6 +26,19 @@ class BookingCleanup
 
     const PII_CRON_HOOK = 'hmwevents_pii_retention_cleanup';
 
+    private string $groups_table;
+    private string $bookings_table;
+    private string $availability_table;
+    private string $history_table;
+
+    public function __construct()
+    {
+        $this->groups_table = DatabaseService::get_table_name('booking_groups');
+        $this->bookings_table = DatabaseService::get_table_name('bookings');
+        $this->availability_table = DatabaseService::get_table_name('event_availability');
+        $this->history_table = DatabaseService::get_table_name('booking_history');
+    }
+
     /**
      * Initialize the service.
      *
@@ -33,49 +46,59 @@ class BookingCleanup
      */
     public function register()
     {
-        // Schedule cron event on plugin activation
-        add_action('hmwevents_activation', [$this, 'schedule_cleanup']);
-        
-        // Clear cron event on plugin deactivation
-        add_action('hmwevents_deactivation', [$this, 'clear_schedule']);
-        
-        // Hook into the cron event
+        // Hook into the cron events
         add_action(self::CRON_HOOK, [$this, 'cleanup_abandoned_bookings']);
 
         add_action(self::PII_CRON_HOOK, [$this, 'purge_archived_pii']);
+
+        if (function_exists('as_next_scheduled_action')) {
+            add_action('action_scheduler_init', [$this, 'schedule_cleanup']);
+        } else {
+            add_action('init', [$this, 'schedule_cleanup']);
+        }
     }
 
     /**
-     * Schedule the cleanup cron job.
+     * Schedule the cleanup cron jobs.
      *
      * @since 1.0.0
      */
     public function schedule_cleanup()
     {
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(strtotime('tomorrow 3:00 AM'), 'daily', self::CRON_HOOK);
+        $this->schedule_daily(self::CRON_HOOK, strtotime('tomorrow 3:00 AM'));
+        $this->schedule_daily(self::PII_CRON_HOOK, strtotime('tomorrow 4:00 AM'));
+    }
+
+    private function schedule_daily(string $hook, int $start): void
+    {
+        if (function_exists('as_next_scheduled_action')) {
+            if (!as_next_scheduled_action($hook, [], 'hmw-events')) {
+                as_schedule_recurring_action($start, DAY_IN_SECONDS, $hook, [], 'hmw-events');
+            }
+            return;
         }
 
-        if (!wp_next_scheduled(self::PII_CRON_HOOK)) {
-            wp_schedule_event(strtotime('tomorrow 4:00 AM'), 'daily', self::PII_CRON_HOOK);
+        if (!wp_next_scheduled($hook)) {
+            wp_schedule_event($start, 'daily', $hook);
         }
     }
 
     /**
-     * Clear the scheduled cleanup job.
+     * Clear the scheduled cleanup jobs.
      *
      * @since 1.0.0
      */
     public function clear_schedule()
     {
-        $timestamp = wp_next_scheduled(self::CRON_HOOK);
-        if ($timestamp) {
-            wp_unschedule_event($timestamp, self::CRON_HOOK);
-        }
+        foreach ([self::CRON_HOOK, self::PII_CRON_HOOK] as $hook) {
+            if (function_exists('as_unschedule_all_actions')) {
+                as_unschedule_all_actions($hook, [], 'hmw-events');
+            }
 
-        $pii_timestamp = wp_next_scheduled(self::PII_CRON_HOOK);
-        if ($pii_timestamp) {
-            wp_unschedule_event($pii_timestamp, self::PII_CRON_HOOK);
+            $timestamp = wp_next_scheduled($hook);
+            if ($timestamp) {
+                wp_unschedule_event($timestamp, $hook);
+            }
         }
     }
 
@@ -93,7 +116,7 @@ class BookingCleanup
 
         $abandoned_groups = $wpdb->get_results($wpdb->prepare("
             SELECT id, customer_post_id
-            FROM {$wpdb->prefix}hmwevents_booking_groups
+            FROM {$this->groups_table}
             WHERE payment_status IN ('pending', 'failed')
             AND created_at < %s
         ", $cutoff_time));
@@ -108,7 +131,7 @@ class BookingCleanup
         foreach ($abandoned_groups as $group) {
             // Get all bookings in this group
             $bookings = $wpdb->get_results($wpdb->prepare("
-                SELECT * FROM {$wpdb->prefix}hmwevents_bookings
+                SELECT * FROM {$this->bookings_table}
                 WHERE booking_group_id = %d
                 AND status != 'cancelled'
             ", $group->id));
@@ -119,7 +142,7 @@ class BookingCleanup
 
             // Update booking group status
             $wpdb->update(
-                $wpdb->prefix . 'hmwevents_booking_groups',
+                $this->groups_table,
                 ['payment_status' => 'cancelled'],
                 ['id' => $group->id],
                 ['%s'],
@@ -130,7 +153,7 @@ class BookingCleanup
             foreach ($bookings as $booking) {
                 // Update booking status
                 $wpdb->update(
-                    $wpdb->prefix . 'hmwevents_bookings',
+                    $this->bookings_table,
                     [
                         'status' => 'cancelled',
                         'cancelled_at' => current_time('mysql'),
@@ -142,7 +165,7 @@ class BookingCleanup
 
                 // Restore course availability
                 $wpdb->query($wpdb->prepare("
-                    UPDATE {$wpdb->prefix}hmwevents_course_availability
+                    UPDATE {$this->availability_table}
                     SET booked_count = GREATEST(0, booked_count - %d),
                         available_count = available_count + %d
                     WHERE event_post_id = %d
@@ -150,7 +173,7 @@ class BookingCleanup
 
                 // Add to booking history
                 $wpdb->insert(
-                    $wpdb->prefix . 'hmwevents_booking_history',
+                    $this->history_table,
                     [
                         'booking_id' => $booking->id,
                         'previous_status' => $booking->status,

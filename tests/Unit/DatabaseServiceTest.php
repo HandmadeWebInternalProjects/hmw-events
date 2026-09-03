@@ -43,9 +43,9 @@ class DatabaseServiceTest extends TestCase
         $this->assertSame('wp_hmwevents_bookings', $name);
     }
 
-    public function test_current_db_version_is_two_zero(): void
+    public function test_current_db_version_is_two_seven(): void
     {
-        $this->assertSame('2.0', DatabaseService::CURRENT_DB_VERSION);
+        $this->assertSame('2.7', DatabaseService::CURRENT_DB_VERSION);
     }
 
     public function test_db_version_option_name(): void

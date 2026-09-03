@@ -2,6 +2,7 @@
 
 namespace HMWEvents\Admin;
 
+use HMWEvents\Helpers\EventFieldConfig;
 use HMWEvents\Services\EventTemplateOverrideService;
 use HMWEvents\Services\EventTemplateService;
 use HMWEvents\PostTypes\Event;
@@ -49,8 +50,8 @@ class EventTemplateOverride
     public function render_meta_box(\WP_Post $post): void
     {
         $template_id = (int) get_post_meta($post->ID, '_created_from_template_id', true);
-        $field_config = get_post_meta($post->ID, '_event_field_config', true);
-        if (!is_array($field_config) || empty($field_config)) {
+        $field_config = EventFieldConfig::read((int) $post->ID);
+        if ($field_config === null || empty($field_config)) {
             echo '<p>' . esc_html__('No field configuration saved yet. Set an event type and save the event first.', 'hmw-events') . '</p>';
             return;
         }
@@ -64,14 +65,7 @@ class EventTemplateOverride
 
         $has_override = $this->override_service->has_override($post->ID);
         $apply_to_children = $this->override_service->is_applied_to_children($post->ID);
-
-        $children = get_posts([
-            'post_type'      => Event::POST_TYPE,
-            'post_parent'    => $post->ID,
-            'posts_per_page' => 1,
-            'fields'         => 'ids',
-        ]);
-        $has_children = !empty($children);
+        $has_children = $this->override_service->has_child_sessions((int) $post->ID);
 
         $this->current_post_id = (int) $post->ID;
         $this->current_has_children = $has_children;
@@ -138,11 +132,14 @@ class EventTemplateOverride
                 <h4 style="margin:14px 0 6px; font-size:14px;"><?php esc_html_e('Registration Fields', 'hmw-events'); ?></h4>
                 <div id="hmwevents-override-reg-fields"></div>
 
-                <div id="hmwevents-override-modal-children" style="display:none; margin-top:10px;">
+                <div id="hmwevents-override-modal-children" style="margin-top:10px;">
                     <label>
-                        <input type="checkbox" id="hmwevents-override-apply-children">
+                        <input type="checkbox" id="hmwevents-override-apply-children" <?php disabled(! $this->current_has_children); ?>>
                         <?php esc_html_e('Apply to all child sessions', 'hmw-events'); ?>
                     </label>
+                    <p class="description" id="hmwevents-override-children-note" style="margin:4px 0 0 22px;<?php echo $this->current_has_children ? ' display:none;' : ''; ?>">
+                        <?php esc_html_e('This event has no sessions attached yet, so the override applies to this event only.', 'hmw-events'); ?>
+                    </p>
                 </div>
 
                 <div style="margin-top:14px; padding-top:10px; border-top:1px solid #dcdcde;">
@@ -185,6 +182,7 @@ class EventTemplateOverride
                                 <option value="date"><?php esc_html_e('Date', 'hmw-events'); ?></option>
                                 <option value="number"><?php esc_html_e('Number', 'hmw-events'); ?></option>
                                 <option value="file"><?php esc_html_e('File Upload', 'hmw-events'); ?></option>
+                                <option value="session_picker"><?php esc_html_e('Session Picker', 'hmw-events'); ?></option>
                             </select>
                         </td>
                     </tr>
@@ -207,6 +205,15 @@ class EventTemplateOverride
                 </div>
                 <p id="hmwevents-modal-per-attendee-row" style="display:none;">
                     <label><input type="checkbox" id="hmwevents-modal-per-attendee"> <?php esc_html_e('Repeat this field for each attendee (multi-booking)', 'hmw-events'); ?></label>
+                </p>
+                <p>
+                    <strong><?php esc_html_e('Attendance Options', 'hmw-events'); ?></strong><br>
+                    <span class="description"><?php esc_html_e('Leave all unchecked to show this field for every attendance option.', 'hmw-events'); ?></span><br>
+                    <label><input type="checkbox" class="hmwevents-modal-attendance-type" value="individual"> <?php esc_html_e('Individual', 'hmw-events'); ?></label>
+                    <label><input type="checkbox" class="hmwevents-modal-attendance-type" value="parent"> <?php esc_html_e('Parent', 'hmw-events'); ?></label>
+                    <label><input type="checkbox" class="hmwevents-modal-attendance-type" value="parent_child"> <?php esc_html_e('Parent / Child', 'hmw-events'); ?></label>
+                    <label><input type="checkbox" class="hmwevents-modal-attendance-type" value="couple"> <?php esc_html_e('Couple', 'hmw-events'); ?></label>
+                    <label><input type="checkbox" class="hmwevents-modal-attendance-type" value="professional"> <?php esc_html_e('Professional', 'hmw-events'); ?></label>
                 </p>
                 <p style="margin-top:12px;">
                     <button type="button" class="button button-primary" id="hmwevents-modal-save"><?php esc_html_e('Save Field', 'hmw-events'); ?></button>
@@ -237,6 +244,7 @@ class EventTemplateOverride
             'override'          => $override,
             'has_override'      => $has_override,
             'apply_to_children' => $apply_to_children,
+            'has_children'      => $this->override_service->has_child_sessions($event_id),
         ]);
     }
 

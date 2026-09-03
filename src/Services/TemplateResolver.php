@@ -11,6 +11,7 @@
 
 namespace HMWEvents\Services;
 
+use HMWEvents\Registry\AcfFieldGroupRegistry;
 use HMWEvents\Registry\EventTypeRegistry;
 use HMWEvents\Registry\RegistrationFieldRegistry;
 
@@ -19,10 +20,6 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
 class TemplateResolver
 {
     private TemplateSchemaValidator $validator;
-
-    private const GROUP_EXPANSIONS = [
-        'event_recurrence' => \HMWEvents\Registry\EventTypeRegistry::RECURRENCE_FIELD_KEYS,
-    ];
 
     public function __construct(?TemplateSchemaValidator $validator = null)
     {
@@ -140,10 +137,11 @@ class TemplateResolver
 
         $normalized = array_values(array_unique($normalized));
 
+        $expansions = AcfFieldGroupRegistry::get_group_expansions();
         $expanded = [];
         foreach ($normalized as $key) {
-            if (isset(self::GROUP_EXPANSIONS[$key])) {
-                foreach (self::GROUP_EXPANSIONS[$key] as $child) {
+            if (isset($expansions[$key])) {
+                foreach ($expansions[$key] as $child) {
                     $expanded[] = $child;
                 }
             } else {
@@ -217,7 +215,7 @@ class TemplateResolver
     }
 
     /**
-     * @return array<int, array{option_type:string, label:string, price:float}>
+     * @return array<int, array{option_type:string, label:string, price:float, capacity:int|null, composition:array, pricing_rules:array}>
      */
     private function resolve_attendance_options(string $event_type, array $normalized): array
     {
@@ -227,13 +225,25 @@ class TemplateResolver
         }
 
         $registry = EventTypeRegistry::get_attendance_option_presets($event_type);
+        $multi_max = (int) ($normalized['registration_fields']['multi_booking']['max'] ?? AttendancePricingService::DEFAULT_MAX_CHILDREN);
         $clean = [];
 
         foreach ($registry as $option) {
+            $raw_capacity = $option['capacity'] ?? null;
+            $capacity = ($raw_capacity === null || $raw_capacity === '')
+                ? null
+                : max(0, (int) $raw_capacity);
+
+            $type = sanitize_key($option['option_type'] ?? 'individual') ?: 'individual';
+
             $clean[] = [
-                'option_type' => sanitize_key($option['option_type'] ?? 'individual') ?: 'individual',
-                'label'       => sanitize_text_field($option['label'] ?? 'Individual'),
-                'price'       => (float) ($option['price'] ?? 0),
+                'option_type'   => $type,
+                'label'         => sanitize_text_field($option['label'] ?? 'Individual'),
+                'price'         => (float) ($option['price'] ?? 0),
+                'capacity'      => $capacity,
+                'composition'   => AttendancePricingService::default_composition($type, $multi_max),
+                'price_mode'    => AttendancePricingService::MODE_FLAT,
+                'pricing_rules' => [],
             ];
         }
 

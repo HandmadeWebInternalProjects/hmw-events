@@ -46,7 +46,7 @@ class EventAudience
         $args = [
             'labels'            => $labels,
             'description'       => __('Target audience categories for events', 'hmw-events'),
-            'hierarchical'      => false,
+            'hierarchical'      => true,
             'public'            => true,
             'publicly_queryable' => true,
             'show_ui'           => true,

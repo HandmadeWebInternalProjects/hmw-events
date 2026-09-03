@@ -112,14 +112,16 @@ class MigrateService
                     '_event_capacity'       => get_post_meta($course->ID, '_event_capacity', true),
                     '_event_price'          => get_post_meta($course->ID, '_event_price', true),
                     '_event_deposit'        => get_post_meta($course->ID, '_event_deposit', true),
-                    '_event_venue_name'     => get_post_meta($course->ID, 'course_location_address', true),
-                    '_event_venue_address'  => get_post_meta($course->ID, 'course_location_address_string', true),
                     '_event_is_recurring'   => get_post_meta($course->ID, 'course_is_recurring', true),
                     '_organizer_id'         => get_post_meta($course->ID, 'course_educator_id', true),
                 ],
             ], true);
 
             if (!is_wp_error($event_id)) {
+                $venue_id = $this->resolve_or_create_venue((int) $course->ID);
+                if ($venue_id) {
+                    update_post_meta($event_id, '_event_venue', $venue_id);
+                }
                 // Migrate taxonomies
                 $this->migrate_post_taxonomies($course->ID, $event_id);
                 // Migrate ACF fields
@@ -129,6 +131,51 @@ class MigrateService
         }
 
         return $migrated;
+    }
+
+    private function resolve_or_create_venue(int $course_id): ?int
+    {
+        $name = get_post_meta($course_id, 'course_location_address', true);
+        $address = get_post_meta($course_id, 'course_location_address_string', true);
+
+        if (empty($name) && empty($address)) {
+            return null;
+        }
+
+        $title = trim((string) $name);
+        if ($title === '') {
+            $title = trim(\HMWEvents\Helpers\GoogleMapField::get_address_string($address));
+        }
+
+        if ($title === '') {
+            return null;
+        }
+
+        $existing = get_posts([
+            'post_type'      => \HMWEvents\PostTypes\EventLocation::POST_TYPE,
+            'title'          => $title,
+            'numberposts'    => 1,
+            'post_status'    => 'any',
+            'fields'         => 'ids',
+        ]);
+
+        if (!empty($existing)) {
+            return (int) $existing[0];
+        }
+
+        $venue_id = wp_insert_post([
+            'post_type'   => \HMWEvents\PostTypes\EventLocation::POST_TYPE,
+            'post_title'  => $title,
+            'post_status' => 'publish',
+        ]);
+
+        if (!$venue_id || is_wp_error($venue_id)) {
+            return null;
+        }
+
+        update_post_meta($venue_id, \HMWEvents\PostTypes\EventLocation::META_ADDRESS, $address);
+
+        return (int) $venue_id;
     }
 
     /**

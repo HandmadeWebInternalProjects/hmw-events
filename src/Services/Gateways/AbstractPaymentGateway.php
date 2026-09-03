@@ -14,6 +14,7 @@ namespace HMWEvents\Services\Gateways;
 use HMWEvents\Interfaces\PaymentGatewayInterface;
 use HMWEvents\Helpers\EventHelper;
 use HMWEvents\Helpers\ConfigHelper;
+use HMWEvents\Services\EventDataService;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -30,31 +31,41 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
   protected $config = [];
 
   /**
-   * Educator ID for multi-tenant gateway credentials.
+   * Event organizer ID for multi-tenant gateway credentials.
    *
    * @var int|null
    */
-  protected $educator_id = null;
+  protected $organizer_id = null;
+
+  private ?EventDataService $event_data_service = null;
 
   /**
-   * Set educator ID for credential lookup.
+   * Set organizer ID for credential lookup.
    *
-   * @param int $educator_id Educator user ID.
+   * @param int $organizer_id Organizer user ID.
    * @return void
    */
-  public function set_educator_id($educator_id)
+  public function set_organizer_id($organizer_id)
   {
-    $this->educator_id = $educator_id;
+    $this->organizer_id = $organizer_id;
   }
 
   /**
-   * Get educator ID.
+   * Get organizer ID.
    *
    * @return int|null
    */
-  public function get_educator_id()
+  public function get_organizer_id()
   {
-    return $this->educator_id;
+    return $this->organizer_id;
+  }
+
+  private function event_data_service(): EventDataService
+  {
+    if ($this->event_data_service === null) {
+      $this->event_data_service = new EventDataService();
+    }
+    return $this->event_data_service;
   }
 
   /**
@@ -179,22 +190,22 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
   }
 
   /**
-   * Update course availability.
+   * Update event availability.
    *
-   * @param int $course_id Course post ID.
+   * @param int $event_id Event post ID.
    * @param int $change Change in booked count (+1 or -1).
    * @return bool|int
    */
-  protected function update_course_availability($course_id, $change)
+  protected function update_course_availability($event_id, $change)
   {
     global $wpdb;
 
     return $wpdb->query($wpdb->prepare("
-            UPDATE {$wpdb->prefix}hmwevents_event_availability
+            UPDATE " . \HMWEvents\Services\DatabaseService::get_table_name('event_availability') . "
             SET booked_count = GREATEST(0, booked_count + %d),
                 available_count = GREATEST(0, available_count - %d)
             WHERE event_post_id = %d
-        ", $change, $change, $course_id));
+        ", $change, $change, $event_id));
   }
 
   /**
@@ -234,7 +245,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     }
 
     $wpdb->insert(
-      $wpdb->prefix . 'hmwevents_booking_groups',
+      \HMWEvents\Services\DatabaseService::get_table_name('booking_groups'),
       [
         'booking_reference' => $data['booking_reference'],
         'registrant_post_id' => $data['customer_post_id'],
@@ -267,7 +278,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $wpdb->insert(
-      $wpdb->prefix . 'hmwevents_bookings',
+      \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
       [
         'booking_group_id' => $data['booking_group_id'],
         'booking_number' => $data['booking_number'],
@@ -275,37 +286,44 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
         'registrant_post_id' => $data['customer_post_id'],
         'attendance_option_id' => $data['attendance_option_id'] ?? null,
         'ticket_type' => $data['ticket_type'],
-        'ticket_quantity' => $data['ticket_quantity'] ?? 1,
-        'booking_amount' => $data['booking_amount'],
-        'status' => $data['status'] ?? 'pending',
+         'ticket_quantity' => $data['ticket_quantity'] ?? 1,
+         'booking_amount' => $data['booking_amount'],
+         'coupon_code' => $data['coupon_code'] ?? null,
+         'discount_amount' => $data['discount_amount'] ?? 0,
+         'status' => $data['status'] ?? 'pending',
         'payment_status' => $data['payment_status'] ?? 'pending',
         'booking_source' => $data['booking_source'] ?? 'website',
         'created_at' => current_time('mysql'),
       ],
-      ['%d', '%s', '%d', '%d', '%d', '%s', '%d', '%f', '%s', '%s', '%s', '%s']
+       ['%d', '%s', '%d', '%d', '%d', '%s', '%d', '%f', '%s', '%f', '%s', '%s', '%s', '%s']
     );
 
-    if ($wpdb->last_error) {
-      return new \WP_Error('db_error', 'Failed to create booking: ' . $wpdb->last_error);
-    }
-
-    $booking_id = $wpdb->insert_id;
-
-    // Create booking details if provided
-    if (!empty($data['booking_details']) && is_array($data['booking_details'])) {
-      $details_result = $this->create_booking_details($booking_id, $data['booking_details']);
-      if (is_wp_error($details_result)) {
-        error_log('Failed to create booking details: ' . $details_result->get_error_message());
+      if ($wpdb->last_error) {
+        return new \WP_Error('db_error', 'Failed to create booking: ' . $wpdb->last_error);
       }
+
+      $booking_id = $wpdb->insert_id;
+
+      // Create booking details if provided
+      if (!empty($data['booking_details']) && is_array($data['booking_details'])) {
+        $details_result = $this->create_booking_details($booking_id, $data['booking_details']);
+        if (is_wp_error($details_result)) {
+          error_log('Failed to create booking details: ' . $details_result->get_error_message());
+        }
+      }
+
+      /**
+       * Fire booking created event for email system.
+       * Multi-session rows suppress this per-row action; the gateway fires
+       * a single group-level action instead so attendees receive one
+       * confirmation covering all sessions.
+       */
+      if (empty($data['suppress_created_action'])) {
+        do_action('hmwevents_booking_created', $booking_id, $data);
+      }
+
+      return $booking_id;
     }
-
-    /**
-     * Fire booking created event for email system.
-     */
-    do_action('hmwevents_booking_created', $booking_id, $data);
-
-    return $booking_id;
-  }
 
   /**
    * Create booking details (questionnaire responses).
@@ -340,7 +358,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $wpdb->insert(
-      $wpdb->prefix . 'hmwevents_payment_transactions',
+      \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions'),
       [
         'booking_group_id' => $data['booking_group_id'],
         'transaction_type' => $data['transaction_type'] ?? 'charge',
@@ -378,7 +396,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->insert(
-      $wpdb->prefix . 'hmwevents_booking_history',
+      \HMWEvents\Services\DatabaseService::get_table_name('booking_history'),
       [
         'booking_id' => $booking_id,
         'field_changed' => 'status',
@@ -405,12 +423,12 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $previous = $wpdb->get_row($wpdb->prepare(
-      "SELECT status, payment_status, booking_amount FROM {$wpdb->prefix}hmwevents_bookings WHERE id = %d",
+      "SELECT status, payment_status, booking_amount FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " WHERE id = %d",
       $booking_id
     ));
 
     $updated = $wpdb->update(
-      $wpdb->prefix . 'hmwevents_bookings',
+      \HMWEvents\Services\DatabaseService::get_table_name('bookings'),
       [
         'status' => $status,
         'payment_status' => $payment_status,
@@ -458,7 +476,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->update(
-      $wpdb->prefix . 'hmwevents_booking_groups',
+      \HMWEvents\Services\DatabaseService::get_table_name('booking_groups'),
       ['payment_status' => $payment_status],
       ['id' => $booking_group_id],
       ['%s'],
@@ -478,7 +496,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     return $wpdb->update(
-      $wpdb->prefix . 'hmwevents_payment_transactions',
+      \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions'),
       ['status' => $status],
       ['gateway_transaction_id' => $transaction_id],
       ['%s'],
@@ -497,7 +515,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     global $wpdb;
 
     $transaction = $wpdb->get_row($wpdb->prepare("
-            SELECT * FROM {$wpdb->prefix}hmwevents_payment_transactions
+            SELECT * FROM " . \HMWEvents\Services\DatabaseService::get_table_name('payment_transactions') . "
             WHERE gateway_transaction_id = %s
         ", $transaction_id));
 
@@ -517,7 +535,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
    */
   protected function validate_booking_data($booking_data, $required_fields = [])
   {
-    $default_required = ['customer_name', 'registrant_email', 'course_id', 'educator_id'];
+    $default_required = ['customer_name', 'registrant_email', 'event_id', 'organizer_id'];
     $required = array_merge($default_required, $required_fields);
 
     foreach ($required as $field) {
@@ -532,18 +550,34 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
   /**
    * Calculate booking amount.
    *
-   * @param int  $course_id Course ID.
-   * @param bool $is_deposit Whether this is a deposit payment.
+   * When an attendance type is provided and resolves to an active attendance
+   * option, the option price replaces the event-level full price. Deposit and
+   * surcharge handling remain unchanged.
+   *
+   * @param int    $event_id        Event ID.
+   * @param bool   $is_deposit      Whether this is a deposit payment.
+   * @param string $attendance_type Optional attendance option type.
    * @return array|\WP_Error Array with amount and payment_type, or error.
    */
-  protected function calculate_amount($course_id, $is_deposit = false)
+  protected function calculate_amount($event_id, $is_deposit = false, $attendance_type = '')
   {
-    $course_cost = get_field('_event_price', $course_id);
-    $deposit_cost = get_field('_event_deposit', $course_id);
-    $surcharge = (float) (get_field('_event_surcharge', $course_id) ?: 0);
-    $currency = \HMWEvents\Meta\CourseMeta::get_course_currency($course_id);
+    $eds           = $this->event_data_service();
+    $course_cost   = $eds->get_price($event_id);
+    $deposit_cost  = $eds->get_deposit($event_id);
+    $surcharge     = $eds->get_surcharge($event_id);
+    $currency      = $eds->get_currency($event_id);
 
-    if (empty($course_cost)) {
+    $resolved_option = false;
+
+    if ($attendance_type !== '') {
+      $option_price = EventHelper::resolve_attendance_option_price($event_id, $attendance_type);
+      if ($option_price !== null) {
+        $course_cost = $option_price;
+        $resolved_option = true;
+      }
+    }
+
+    if (!$resolved_option && empty($course_cost)) {
       return new \WP_Error('invalid_course', 'Course cost not set');
     }
 
@@ -559,6 +593,38 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
       'payment_type' => $payment_type,
       'currency'     => $currency,
     ];
+  }
+
+  /**
+   * Calculate a booking amount, preferring attendee age-band pricing when
+   * attendees and pricing rules are present, and falling back to the legacy
+   * option/event base price otherwise.
+   *
+   * @param int    $event_id        Event ID.
+   * @param bool   $is_deposit      Whether this is a deposit payment.
+   * @param string $attendance_type Optional attendance option type.
+   * @param array  $attendees       Attendee list (role + date_of_birth).
+   * @return array|\WP_Error Array with amount and payment_type, or error.
+   */
+  protected function calculate_booking_amount($event_id, $is_deposit = false, $attendance_type = '', array $attendees = [])
+  {
+    $pricing = new \HMWEvents\Services\AttendancePricingService();
+
+    if (!$is_deposit && !empty($attendees) && $pricing->uses_attendee_pricing((int) $event_id, (string) $attendance_type)) {
+      $result = $pricing->calculate_total((int) $event_id, (string) $attendance_type, $attendees);
+
+      if (!is_wp_error($result)) {
+        return [
+          'amount'       => $result['total'],
+          'base_amount'  => $result['base_amount'],
+          'surcharge'    => $result['surcharge'],
+          'payment_type' => 'full',
+          'currency'     => $result['currency'],
+        ];
+      }
+    }
+
+    return $this->calculate_amount($event_id, $is_deposit, $attendance_type);
   }
 
   /**
@@ -585,9 +651,9 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
   public function get_key_info()
   {
     return [
-      'gateway_id' => $this->get_gateway_id(),
+      'gateway_id'   => $this->get_gateway_id(),
       'gateway_name' => $this->get_gateway_name(),
-      'educator_id' => $this->educator_id,
+      'organizer_id' => $this->organizer_id,
       'is_test_mode' => $this->is_test_mode(),
     ];
   }

@@ -35,6 +35,16 @@ class RegistrationFormTest extends TestCase
         $this->assertArrayHasKey('professional_body', $fields);
     }
 
+    public function test_professional_fields_are_available_as_presets(): void
+    {
+        $presets = RegistrationFieldRegistry::presets();
+
+        $this->assertArrayHasKey('organisation', $presets);
+        $this->assertArrayHasKey('job_title', $presets);
+        $this->assertArrayHasKey('professional_body', $presets);
+        $this->assertSame('booking_details', $presets['organisation']['source']);
+    }
+
     public function test_parent_fields_removed(): void
     {
         $fields = RegistrationFieldRegistry::all();
@@ -131,35 +141,6 @@ class RegistrationFormTest extends TestCase
     {
         $handler = new DocumentUploadHandler();
         $this->assertInstanceOf(DocumentUploadHandler::class, $handler);
-    }
-
-    public function test_group_fields_by_section(): void
-    {
-        Functions\when('wp_get_object_terms')->justReturn([]);
-        Functions\when('is_wp_error')->justReturn(false);
-        Functions\when('esc_html')->returnArg();
-        Functions\when('esc_attr')->returnArg();
-        Functions\when('esc_html__')->returnArg();
-
-        $renderer = new RegistrationFormRenderer();
-        $fields = RegistrationFieldRegistry::for_audience('individual');
-        $sections = $renderer->group_fields_by_section($fields);
-        $this->assertArrayHasKey('contact', $sections);
-        $this->assertArrayNotHasKey('parent_details', $sections);
-    }
-
-    public function test_render_field_returns_html(): void
-    {
-        Functions\when('esc_html')->returnArg();
-        Functions\when('esc_attr')->returnArg();
-        Functions\when('esc_textarea')->returnArg();
-
-        $renderer = new RegistrationFormRenderer();
-        $html = $renderer->render_field('first_name', [
-            'label' => 'First Name', 'type' => 'text', 'required' => true, 'placeholder' => '',
-        ]);
-        $this->assertStringContainsString('First Name', $html);
-        $this->assertStringContainsString('type="text"', $html);
     }
 
     public function test_validate_upload_rejects_empty(): void

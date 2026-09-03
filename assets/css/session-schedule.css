@@ -1,0 +1,43 @@
+.hmwevents-session-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.hmwevents-session-slot {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--hmw-color-border);
+    border-radius: 999px;
+    background: var(--hmw-color-bg-section);
+    white-space: nowrap;
+}
+
+.hmwevents-session-slot a {
+    text-decoration: none;
+}
+
+.hmwevents-session-slot a:hover,
+.hmwevents-session-slot a:focus {
+    text-decoration: underline;
+}
+
+.hmwevents-same-day-slots {
+    margin-block: 1.5rem;
+}
+
+.hmwevents-same-day-slots-title {
+    margin-block: 0 0.75rem;
+    font-size: 1.05rem;
+}
+
+.hmwevents-session-slot--current {
+    border-color: var(--hmw-color-primary);
+    background: var(--hmw-color-primary);
+    color: var(--hmw-color-button-text);
+}
+
+.hmwevents-session-slot--full {
+    opacity: 0.6;
+}
+

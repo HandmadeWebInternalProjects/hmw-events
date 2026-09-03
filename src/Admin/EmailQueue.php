@@ -2,6 +2,9 @@
 
 namespace HMWEvents\Admin;
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
+use HMWEvents\Registry\EmailTypeRegistry;
 use HMWEvents\Services\Emails\EmailQueueRepository;
 use HMWEvents\Services\Emails\EmailService;
 
@@ -32,7 +35,10 @@ class EmailQueue
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['hmwevents_email_settings'])) {
       check_admin_referer('hmwevents_email_settings');
-      $to_disable = array_keys($_POST['disable'] ?? []);
+      $to_disable = array_values(array_filter(
+        array_map('strval', array_keys($_POST['disable'] ?? [])),
+        [EmailTypeRegistry::class, 'is_valid']
+      ));
       update_option('hmwevents_disabled_emails', $to_disable);
       echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Email settings saved.', 'hmw-events') . '</p></div>';
     }
@@ -59,78 +65,44 @@ class EmailQueue
     $total_pages = ceil($total_items / $per_page);
 
     ob_start();
-    ?>
+?>
     <div class="wrap hmwevents-email-queue-wrap">
       <h1><?php esc_html_e('Email Queue', 'cms'); ?></h1>
 
       <?php
       $disabled = get_option('hmwevents_disabled_emails', []);
-      $all_types = [
-        'booking_confirmation' => __('Booking Confirmation (Customer)', 'hmw-events'),
-        'new_booking_notify'   => __('New Booking Notification (Admin)', 'hmw-events'),
-        'payment_received'     => __('Payment Receipt', 'hmw-events'),
-        'booking_cancelled'    => __('Booking Cancelled', 'hmw-events'),
-        'reminder_7_days'      => __('7-Day Reminder', 'hmw-events'),
-        'reminder_1_day'       => __('1-Day Reminder', 'hmw-events'),
-        'post_event'           => __('Post-Event Follow-up', 'hmw-events'),
-        'invitation_sent'      => __('Waitlist Invitation', 'hmw-events'),
-      ];
+      $disabled = array_map([EmailTypeRegistry::class, 'canonical'], (array) $disabled);
+      $all_types = EmailTypeRegistry::all();
       ?>
-      <div class="hmwevents-email-settings card" style="margin-bottom: 20px; padding: 15px 20px; max-width: none;">
-        <form method="post">
-          <?php wp_nonce_field('hmwevents_email_settings'); ?>
-          <input type="hidden" name="hmwevents_email_settings" value="1">
-          <h2 style="margin-top: 0;"><?php esc_html_e('Notification Settings', 'hmw-events'); ?></h2>
-          <p class="description"><?php esc_html_e('Disable email types you do not want to send. Disabled emails will not be queued.', 'hmw-events'); ?></p>
-          <table class="form-table">
-            <?php foreach ($all_types as $type => $label): ?>
-              <tr>
-                <th scope="row"><?php echo esc_html($label); ?></th>
-                <td>
-                  <label>
-                    <input type="checkbox" name="disable[<?php echo esc_attr($type); ?>]" value="1"
-                      <?php checked(in_array($type, $disabled, true)); ?>>
-                    <?php esc_html_e('Disable', 'hmw-events'); ?>
-                  </label>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </table>
-          <p class="submit">
-            <button type="submit" class="button button-primary"><?php esc_html_e('Save Settings', 'hmw-events'); ?></button>
-          </p>
-        </form>
-      </div>
-
       <!-- Stats Dashboard -->
       <div class="hmwevents-email-dashboard">
-        <a href="<?php echo esc_url(remove_query_arg(['filter_status', 'paged'])); ?>" 
-           class="hmwevents-email-card <?php echo empty($current_status) ? 'active' : ''; ?>">
+        <a href="<?php echo esc_url(remove_query_arg(['filter_status', 'paged'])); ?>"
+          class="hmwevents-email-card <?php echo empty($current_status) ? 'active' : ''; ?>">
           <h3><?php esc_html_e('All', 'cms'); ?></h3>
           <div class="stat"><?php echo intval($stats->total ?? 0); ?></div>
         </a>
-        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'pending', 'paged' => 1])); ?>" 
-           class="hmwevents-email-card status-pending <?php echo $current_status === 'pending' ? 'active' : ''; ?>">
+        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'pending', 'paged' => 1])); ?>"
+          class="hmwevents-email-card status-pending <?php echo $current_status === 'pending' ? 'active' : ''; ?>">
           <h3><?php esc_html_e('Pending', 'cms'); ?></h3>
           <div class="stat"><?php echo intval($stats->pending ?? 0); ?></div>
         </a>
-        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'processing', 'paged' => 1])); ?>" 
-           class="hmwevents-email-card status-processing <?php echo $current_status === 'processing' ? 'active' : ''; ?>">
+        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'processing', 'paged' => 1])); ?>"
+          class="hmwevents-email-card status-processing <?php echo $current_status === 'processing' ? 'active' : ''; ?>">
           <h3><?php esc_html_e('Processing', 'cms'); ?></h3>
           <div class="stat"><?php echo intval($stats->processing ?? 0); ?></div>
         </a>
-        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'sent', 'paged' => 1])); ?>" 
-           class="hmwevents-email-card status-sent <?php echo $current_status === 'sent' ? 'active' : ''; ?>">
+        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'sent', 'paged' => 1])); ?>"
+          class="hmwevents-email-card status-sent <?php echo $current_status === 'sent' ? 'active' : ''; ?>">
           <h3><?php esc_html_e('Sent', 'cms'); ?></h3>
           <div class="stat"><?php echo intval($stats->sent ?? 0); ?></div>
         </a>
-        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'dead_letter', 'paged' => 1])); ?>" 
-           class="hmwevents-email-card status-dead_letter <?php echo $current_status === 'dead_letter' ? 'active' : ''; ?>">
+        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'dead_letter', 'paged' => 1])); ?>"
+          class="hmwevents-email-card status-dead_letter <?php echo $current_status === 'dead_letter' ? 'active' : ''; ?>">
           <h3><?php esc_html_e('Dead Letter', 'cms'); ?></h3>
           <div class="stat"><?php echo intval($stats->dead_letter ?? 0); ?></div>
         </a>
-        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'cancelled', 'paged' => 1])); ?>" 
-           class="hmwevents-email-card status-cancelled <?php echo $current_status === 'cancelled' ? 'active' : ''; ?>">
+        <a href="<?php echo esc_url(add_query_arg(['filter_status' => 'cancelled', 'paged' => 1])); ?>"
+          class="hmwevents-email-card status-cancelled <?php echo $current_status === 'cancelled' ? 'active' : ''; ?>">
           <h3><?php esc_html_e('Cancelled', 'cms'); ?></h3>
           <div class="stat"><?php echo intval($stats->cancelled ?? 0); ?></div>
         </a>
@@ -143,20 +115,20 @@ class EmailQueue
           <?php if (!empty($current_status)): ?>
             <input type="hidden" name="filter_status" value="<?php echo esc_attr($current_status); ?>">
           <?php endif; ?>
-          
+
           <div class="filter-group">
             <label for="filter_recipient"><?php esc_html_e('Filter by Recipient:', 'cms'); ?></label>
-            <input 
-              type="text" 
-              id="filter_recipient" 
-              name="filter_recipient" 
+            <input
+              type="text"
+              id="filter_recipient"
+              name="filter_recipient"
               value="<?php echo esc_attr($current_recipient); ?>"
               placeholder="<?php esc_attr_e('Enter email address...', 'cms'); ?>"
               class="regular-text">
             <button type="submit" class="button"><?php esc_html_e('Filter', 'cms'); ?></button>
             <?php if (!empty($current_recipient) || !empty($current_status)): ?>
-              <a href="<?php echo esc_url(remove_query_arg(['filter_status', 'filter_recipient', 'paged'])); ?>" 
-                 class="button"><?php esc_html_e('Clear Filters', 'cms'); ?></a>
+              <a href="<?php echo esc_url(remove_query_arg(['filter_status', 'filter_recipient', 'paged'])); ?>"
+                class="button"><?php esc_html_e('Clear Filters', 'cms'); ?></a>
             <?php endif; ?>
           </div>
         </form>
@@ -204,7 +176,7 @@ class EmailQueue
                     <?php echo esc_html(ucfirst(str_replace('_', ' ', $email->status))); ?>
                   </span>
                 </td>
-                <td class="column-type"><?php echo esc_html($email->email_type); ?></td>
+                <td class="column-type"><?php echo esc_html(EmailTypeRegistry::label((string) $email->email_type)); ?></td>
                 <td class="column-recipient">
                   <a href="<?php echo esc_url(add_query_arg(['filter_recipient' => $email->recipient_email, 'paged' => 1])); ?>">
                     <?php echo esc_html($email->recipient_email); ?>
@@ -316,7 +288,33 @@ class EmailQueue
         </div>
       <?php endif; ?>
     </div>
-    <?php
+
+    <div class="hmwevents-email-settings card" style="margin-bottom: 20px; padding: 15px 20px; max-width: none;">
+      <form method="post">
+        <?php wp_nonce_field('hmwevents_email_settings'); ?>
+        <input type="hidden" name="hmwevents_email_settings" value="1">
+        <h2 style="margin-top: 0;"><?php esc_html_e('Notification Settings', 'hmw-events'); ?></h2>
+        <p class="description"><?php esc_html_e('Disable email types you do not want to send. Disabled emails will not be queued.', 'hmw-events'); ?></p>
+        <table class="form-table">
+          <?php foreach ($all_types as $type => $label): ?>
+            <tr>
+              <th scope="row"><?php echo esc_html($label); ?></th>
+              <td>
+                <label>
+                  <input type="checkbox" name="disable[<?php echo esc_attr($type); ?>]" value="1"
+                    <?php checked(in_array($type, $disabled, true)); ?>>
+                  <?php esc_html_e('Disable', 'hmw-events'); ?>
+                </label>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </table>
+        <p class="submit">
+          <button type="submit" class="button button-primary"><?php esc_html_e('Save Settings', 'hmw-events'); ?></button>
+        </p>
+      </form>
+    </div>
+<?php
     echo ob_get_clean();
   }
 

@@ -28,8 +28,11 @@
     var presetAttr = field.preset ? ' data-preset="1"' : '';
     var sourceAttr = ' data-source="' + escAttr(field.source || 'booking_details') + '"';
     var metaKeyAttr = field.meta_key ? ' data-meta-key="' + escAttr(field.meta_key) + '"' : '';
+    var attendanceTypesAttr = field.attendance_types && field.attendance_types.length
+      ? ' data-attendance-types="' + escAttr(JSON.stringify(field.attendance_types)) + '"'
+      : '';
 
-    return '<div class="hmwevents-fb-field-card ' + widthClass + '" data-field-key="' + escAttr(field.key) + '"' + presetAttr + sourceAttr + metaKeyAttr + '>' +
+    return '<div class="hmwevents-fb-field-card ' + widthClass + '" data-field-key="' + escAttr(field.key) + '"' + presetAttr + sourceAttr + metaKeyAttr + attendanceTypesAttr + '>' +
       '<div class="hmwevents-fb-field-card-inner">' +
       '<span class="hmwevents-dnd-handle">&#9776;</span>' +
       '<span class="hmwevents-fb-field-label">' + escHtml(field.label) + reqMark + '</span>' +
@@ -140,7 +143,7 @@
 
     $('#hmwevents-modal-presets').toggle(isNew);
 
-    var f = fieldData || { key: '', label: '', placeholder: '', type: 'text', required: false, width: 'full', per_attendee: false, options: [] };
+    var f = fieldData || { key: '', label: '', placeholder: '', type: 'text', required: false, width: 'full', per_attendee: false, attendance_types: [], options: [] };
     $('#hmwevents-modal-key').val(f.key || '');
     $('#hmwevents-modal-label').val(f.label || '');
     $('#hmwevents-modal-placeholder').val(f.placeholder || '');
@@ -148,6 +151,10 @@
     $('#hmwevents-modal-required').prop('checked', !!f.required);
     $('input[name="hmwevents-modal-width"][value="' + (f.width || 'full') + '"]').prop('checked', true);
     $('#hmwevents-modal-per-attendee').prop('checked', !!f.per_attendee);
+    $('.hmwevents-modal-attendance-type').prop('checked', false);
+    (f.attendance_types || []).forEach(function (type) {
+      $('.hmwevents-modal-attendance-type[value="' + type + '"]').prop('checked', true);
+    });
 
     if (fieldData && fieldData.preset) {
       $('#hmwevents-modal-key').prop('readonly', true);
@@ -229,6 +236,7 @@
       preset: $('#hmwevents-modal-key').prop('readonly'),
       source: $('#hmwevents-modal-key').prop('readonly') ? 'registrant_meta' : 'booking_details',
       meta_key: $('#hmwevents-modal-key').prop('readonly') ? ('registrant_' + $('#hmwevents-modal-key').val()) : null,
+      attendance_types: $('.hmwevents-modal-attendance-type:checked').map(function () { return $(this).val(); }).get(),
       options: collectOptions()
     };
   }
@@ -243,8 +251,11 @@
       source: card.data('source') || 'booking_details',
       meta_key: card.data('meta-key') || null,
       preset: card.data('preset') === 1 || card.data('preset') === '1',
-      per_attendee: card.find('.hmwevents-fb-field-per-attendee').length > 0,
-      options: [],
+       per_attendee: card.find('.hmwevents-fb-field-per-attendee').length > 0,
+       attendance_types: (function () {
+         try { return JSON.parse(card.attr('data-attendance-types') || '[]'); } catch (e) { return []; }
+       }()),
+       options: [],
       placeholder: ''
     };
   }

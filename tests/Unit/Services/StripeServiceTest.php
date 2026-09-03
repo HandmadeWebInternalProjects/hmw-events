@@ -443,4 +443,112 @@ class StripeServiceTest extends TestCase
 
         $this->assertTrue(true); // Assertion is in the mock expectation
     }
+
+    /**
+     * Test create customer delegates to Stripe client.
+     *
+     * @covers \HMWEvents\Services\StripeService::create_customer
+     */
+    public function test_create_customer_delegates_to_stripe_client()
+    {
+        $mock_stripe_client = Mockery::mock(\Stripe\StripeClient::class);
+        $mock_customers = Mockery::mock();
+        $mock_stripe_client->customers = $mock_customers;
+
+        $mock_customer = new \stdClass();
+        $mock_customer->id = 'cus_test_123';
+        $mock_customer->email = 'test@example.com';
+
+        $mock_customers->shouldReceive('create')
+            ->once()
+            ->with(Mockery::on(function ($params) {
+                return $params['email'] === 'test@example.com'
+                    && $params['name'] === 'John Doe'
+                    && $params['metadata']['booking_group_id'] === 123;
+            }))
+            ->andReturn($mock_customer);
+
+        $reflection = new \ReflectionClass($this->service);
+        $property = $reflection->getProperty('stripe');
+        $property->setValue($this->service, $mock_stripe_client);
+
+        $result = $this->service->create_customer('test@example.com', [
+            'name' => 'John Doe',
+            'metadata' => ['booking_group_id' => 123],
+        ]);
+
+        $this->assertInstanceOf(\stdClass::class, $result);
+        $this->assertEquals('cus_test_123', $result->id);
+        $this->assertEquals('test@example.com', $result->email);
+    }
+
+    /**
+     * Test create customer email overrides data-provided email.
+     *
+     * @covers \HMWEvents\Services\StripeService::create_customer
+     */
+    public function test_create_customer_email_overrides_data_email()
+    {
+        $mock_stripe_client = Mockery::mock(\Stripe\StripeClient::class);
+        $mock_customers = Mockery::mock();
+        $mock_stripe_client->customers = $mock_customers;
+
+        $mock_customer = new \stdClass();
+        $mock_customer->id = 'cus_test_456';
+        $mock_customer->email = 'primary@example.com';
+
+        $mock_customers->shouldReceive('create')
+            ->once()
+            ->with(Mockery::on(function ($params) {
+                return $params['email'] === 'primary@example.com'
+                    && $params['name'] === 'Jane Doe';
+            }))
+            ->andReturn($mock_customer);
+
+        $reflection = new \ReflectionClass($this->service);
+        $property = $reflection->getProperty('stripe');
+        $property->setValue($this->service, $mock_stripe_client);
+
+        $result = $this->service->create_customer('primary@example.com', [
+            'email' => 'stale@example.com',
+            'name' => 'Jane Doe',
+        ]);
+
+        $this->assertInstanceOf(\stdClass::class, $result);
+        $this->assertEquals('primary@example.com', $result->email);
+    }
+
+    /**
+     * Test create customer handles API errors.
+     *
+     * @covers \HMWEvents\Services\StripeService::create_customer
+     */
+    public function test_create_customer_handles_api_error()
+    {
+        $mock_stripe_client = Mockery::mock(\Stripe\StripeClient::class);
+        $mock_customers = Mockery::mock();
+        $mock_stripe_client->customers = $mock_customers;
+
+        // Exception::getMessage() is final in PHP, so Mockery cannot override it.
+        // Pass the message via the constructor so the real getMessage() returns it.
+        $api_exception = Mockery::mock(\Stripe\Exception\ApiErrorException::class, ['Invalid email address']);
+
+        $mock_customers->shouldReceive('create')
+            ->once()
+            ->andThrow($api_exception);
+
+        Functions\expect('error_log')
+            ->once()
+            ->with(Mockery::pattern('/HMWEvents Stripe Error: Invalid email address/'));
+
+        $reflection = new \ReflectionClass($this->service);
+        $property = $reflection->getProperty('stripe');
+        $property->setValue($this->service, $mock_stripe_client);
+
+        $result = $this->service->create_customer('invalid-email');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertEquals('stripe_error', $result->get_error_code());
+        $this->assertEquals('Invalid email address', $result->get_error_message());
+    }
 }

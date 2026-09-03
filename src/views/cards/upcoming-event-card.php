@@ -1,5 +1,7 @@
 <?php
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 use HMWEvents\Helpers\EventHelper;
 
 $event = $args['event'] ?? $args['course'] ?? null;
@@ -9,12 +11,13 @@ if (!$event) {
     return;
 }
 
+$event_data   = new \HMWEvents\Services\EventDataService();
 $title       = get_the_title($event->ID);
-$start       = get_post_meta($event->ID, '_event_start_date', true);
-$end         = get_post_meta($event->ID, '_event_end_date', true);
+$start       = $event_data->get_start_date($event->ID);
+$end         = $event_data->get_end_date($event->ID);
 $link        = get_permalink($event->ID);
-$venue       = get_post_meta($event->ID, '_event_venue_name', true);
-$note        = get_post_meta($event->ID, '_event_booking_notes', true);
+$venue       = $event_data->get_venue_name($event->ID);
+$note        = $event_data->get_booking_notes($event->ID);
 
 $type_terms  = get_the_terms($event->ID, 'hmw_event_type');
 $type_slug   = ($type_terms && !is_wp_error($type_terms)) ? $type_terms[0]->slug : 'general';
@@ -33,15 +36,19 @@ if ($type_terms && !is_wp_error($type_terms) && !empty($type_terms[0])) {
     }
 }
 
-$capacity = (int) get_post_meta($event->ID, '_event_capacity', true);
+$capacity = $event_data->get_capacity($event->ID);
 $availability_text = '';
 if ($capacity > 0) {
     $booked = \HMWEvents\Helpers\EventHelper::calculate_course_availability($event->ID)['booked_count'] ?? 0;
     $available = $capacity - $booked;
     if ($available <= 0) {
         $availability_text = __('Fully booked', 'hmw-events');
-    } elseif ($available <= 3) {
-        $availability_text = sprintf(__('Filling up fast! Only %d %s left', 'hmw-events'), $available, $available === 1 ? __('spot', 'hmw-events') : __('spots', 'hmw-events'));
+    } else {
+        $availability_text = sprintf(
+            /* translators: %d is the number of places remaining */
+            __('%d places remaining', 'hmw-events'),
+            $available
+        );
     }
 }
 

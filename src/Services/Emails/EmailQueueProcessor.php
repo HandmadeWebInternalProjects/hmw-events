@@ -73,6 +73,13 @@ class EmailQueueProcessor
         } else {
             add_action('init', [$this, 'schedule']);
         }
+
+        add_action('init', [$this, 'ensure_default_templates'], 20);
+    }
+
+    public function ensure_default_templates()
+    {
+        $this->email_service->create_default_templates();
     }
 
     /**
@@ -219,51 +226,4 @@ class EmailQueueProcessor
     {
         $this->email_service->create_default_templates();
     }
-}
-
-/**
- * Get email service instance (helper function).
- *
- * @return EmailService Email service.
- */
-function hmwevents_get_email_service()
-{
-    return new EmailService();
-}
-
-/**
- * Queue booking confirmation email (helper function).
- *
- * @param int   $booking_id Booking ID.
- * @param array $booking_data Booking data.
- * @return int|false Email ID or false.
- */
-function hmwevents_queue_booking_confirmation($booking_id, $booking_data = [])
-{
-    return hmwevents_get_email_service()->queue_booking_confirmation($booking_id, $booking_data);
-}
-
-/**
- * Queue course reminder email (helper function).
- *
- * @param int $booking_id Booking ID.
- * @param int $days_before Days before course.
- * @return int|false Email ID or false.
- */
-function hmwevents_queue_course_reminder($booking_id, $days_before = 7)
-{
-    return hmwevents_get_email_service()->queue_course_reminder($booking_id, $days_before);
-}
-
-/**
- * Queue status change email (helper function).
- *
- * @param int    $booking_id Booking ID.
- * @param string $status_type Status type.
- * @param array  $additional_data Additional data.
- * @return int|false Email ID or false.
- */
-function hmwevents_queue_status_change_email($booking_id, $status_type, $additional_data = [])
-{
-    return hmwevents_get_email_service()->queue_status_change_email($booking_id, $status_type, $additional_data);
 }

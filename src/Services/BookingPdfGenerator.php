@@ -122,7 +122,7 @@ class BookingPdfGenerator
     if ($is_deposit) {
       $deposit_notice = <<<HTML
         <div style="margin-top:8px; padding:6px 8px; background:#fef3c7; border-left:3px solid #f59e0b; font-size:9px; color:#92400e;">
-          <strong>Note:</strong> This is a deposit payment. The remaining balance will be organised by the educator on or before your course date.
+          <strong>Note:</strong> This is a deposit payment. The remaining balance will be organised by the event organizer on or before your event date.
         </div>
       HTML;
     }
@@ -180,11 +180,11 @@ class BookingPdfGenerator
         </div>
 
         <div class="section">
-          <h2>Course Details</h2>
+          <h2>Event Details</h2>
           <table class="details">
-            <tr><td>Course:</td><td>{$course_name}</td></tr>
+            <tr><td>Event:</td><td>{$course_name}</td></tr>
 HTML
-      . ($course_educator ? "<tr><td>Educator:</td><td>{$course_educator}</td></tr>" : '')
+      . ($course_educator ? "<tr><td>Organizer:</td><td>{$course_educator}</td></tr>" : '')
       . ($course_date ? "<tr><td>Date:</td><td>{$course_date}</td></tr>" : '')
       . ($course_time ? "<tr><td>Time:</td><td>{$course_time}</td></tr>" : '')
       . ($course_location ? "<tr><td>Location:</td><td>{$course_location}</td></tr>" : '')

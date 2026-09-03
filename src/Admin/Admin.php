@@ -13,8 +13,9 @@ use HMWEvents\Helpers\Encryption;
 use HMWEvents\Services\Emails\EmailQueueRepository;
 use HMWEvents\Services\Emails\EmailService;
 use HMWEvents\Services\Emails\EmailTemplateRepository;
-use HMWEvents\Registry\EventTypeRegistry;
+use HMWEvents\Registry\AcfFieldGroupRegistry;
 use HMWEvents\Registry\RegistrationFieldRegistry;
+use HMWEvents\PostTypes\Event;
 
 use function get_current_screen;
 
@@ -345,6 +346,80 @@ class Admin
     ];
 
     $fields[] = [
+      'name'   => 'invoicing',
+      'title'  => 'Invoicing & Net Terms',
+      'icon'   => 'dashicons-media-text',
+      'fields' => [
+
+        [
+          'type'    => 'notice',
+          'class'   => 'info',
+          'content' => '<h3>Invoice &amp; EFT Payment Details</h3><p>These details appear on tax invoices generated for "Pay by Invoice" (Net Terms) bookings and in the accompanying email, so customers can forward them to their accounts department for payment by EFT.</p>',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_business_name',
+          'type'        => 'text',
+          'title'       => 'Business / Trading Name',
+          'desc'        => 'Shown as the seller on the invoice. Falls back to the site name if left blank.',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_abn',
+          'type'        => 'text',
+          'title'       => 'ABN',
+          'desc'        => 'Australian Business Number shown on the invoice.',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_bank_account_name',
+          'type'        => 'text',
+          'title'       => 'Bank Account Name',
+          'desc'        => 'Account name for EFT payments.',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_bank_bsb',
+          'type'        => 'text',
+          'title'       => 'BSB',
+          'desc'        => 'BSB number for EFT payments.',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_bank_account_number',
+          'type'        => 'text',
+          'title'       => 'Account Number',
+          'desc'        => 'Bank account number for EFT payments.',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_payment_terms_days',
+          'type'        => 'number',
+          'title'       => 'Payment Terms (days)',
+          'default'     => 14,
+          'desc'        => 'Number of days before the invoice is due.',
+        ],
+
+        [
+          'id'          => 'hmwevents_invoice_reference_note',
+          'type'        => 'text',
+          'title'       => 'Payment Reference Note',
+          'placeholder' => 'Please use invoice number {{invoice_number}} as the payment reference',
+          'desc'        => 'Instruction shown on the invoice to help match EFT payments. Use {{invoice_number}} to insert the invoice number.',
+        ],
+
+        [
+          'id'      => 'hmwevents_invoice_gst_applies',
+          'type'    => 'checkbox',
+          'title'   => 'GST applies',
+          'default' => false,
+          'desc'    => 'Enable to show a 10% GST breakdown on invoices. Leave off for GST-free services.',
+        ],
+
+      ],
+    ];
+
+    $fields[] = [
       'name'   => 'mailing',
       'title'  => 'Mailing / CRM',
       'icon'   => 'dashicons-email-alt',
@@ -401,135 +476,45 @@ class Admin
       ],
     ];
 
+    $theming_fields = [
+      [
+        'type'    => 'notice',
+        'class'   => 'info',
+        'content' => '<h3>Theme Settings</h3><p>Customise the appearance of booking forms, event listings, event cards, and filter bars. Colour fields accept hex, rgb(), or a CSS variable reference such as <code>var(--bs-warm_sand)</code>.</p>',
+      ],
+    ];
+
+    foreach (\HMWEvents\Config\ThemeVars::groups() as $group) {
+      $theming_fields[] = [
+        'type'    => 'content',
+        'content' => $group['header'],
+      ];
+
+      foreach ($group['fields'] as $theme_field) {
+        $field_config = [
+          'id'      => 'hmwevents_theme_' . $theme_field['key'],
+          'type'    => 'text',
+          'title'   => $theme_field['label'],
+          'default' => $theme_field['default'],
+        ];
+
+        if ($theme_field['type'] === 'color') {
+          $field_config['class'] = 'hmw-theme-color-input';
+        }
+
+        if (!empty($theme_field['desc'])) {
+          $field_config['desc'] = $theme_field['desc'];
+        }
+
+        $theming_fields[] = $field_config;
+      }
+    }
+
     $fields[] = [
       'name'   => 'theming',
       'title'  => 'Theming',
       'icon'   => 'dashicons-admin-appearance',
-      'fields' => [
-
-        [
-          'type'    => 'notice',
-          'class'   => 'info',
-          'content' => '<h3>Theme Settings</h3><p>Customise the appearance of booking forms, event cards, and filter bars.</p>',
-        ],
-
-        // ── Colors ──
-
-        [
-          'type'    => 'content',
-          'content' => '<h3>Colours</h3>',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_primary_color',
-          'type'        => 'color',
-          'title'       => 'Primary Colour',
-          'default'     => '#2563eb',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_primary_hover',
-          'type'        => 'color',
-          'title'       => 'Primary Hover Colour',
-          'default'     => '#1d4ed8',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_text_color',
-          'type'        => 'color',
-          'title'       => 'Text Colour',
-          'default'     => '#1e293b',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_text_muted',
-          'type'        => 'color',
-          'title'       => 'Muted Text Colour',
-          'default'     => '#64748b',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_border_color',
-          'type'        => 'color',
-          'title'       => 'Border Colour',
-          'default'     => '#e2e8f0',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_border_focus',
-          'type'        => 'color',
-          'title'       => 'Border Focus Colour',
-          'default'     => '#93c5fd',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_bg_section',
-          'type'        => 'color',
-          'title'       => 'Section Background',
-          'default'     => '#f8fafc',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_error_color',
-          'type'        => 'color',
-          'title'       => 'Error Colour',
-          'default'     => '#dc2626',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_success_color',
-          'type'        => 'color',
-          'title'       => 'Success Colour',
-          'default'     => '#16a34a',
-        ],
-
-        // ── Typography ──
-
-        [
-          'type'    => 'content',
-          'content' => '<h3>Typography</h3>',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_font_family',
-          'type'        => 'text',
-          'title'       => 'Font Family',
-          'default'     => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          'desc'        => 'CSS font-family value. Applied to booking forms and event cards.',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_font_size_base',
-          'type'        => 'text',
-          'title'       => 'Base Font Size',
-          'default'     => '16px',
-          'desc'        => 'Base font size for booking forms and event cards (e.g. 16px, 1rem).',
-        ],
-
-        // ── Spacing & Borders ──
-
-        [
-          'type'    => 'content',
-          'content' => '<h3>Spacing &amp; Borders</h3>',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_radius',
-          'type'        => 'text',
-          'title'       => 'Border Radius',
-          'default'     => '8px',
-          'desc'        => 'Default border radius for cards, buttons, and form fields.',
-        ],
-
-        [
-          'id'          => 'hmwevents_theme_gap',
-          'type'        => 'text',
-          'title'       => 'Grid Gap / Spacing',
-          'default'     => '16px',
-          'desc'        => 'Default gap between grid items and form sections.',
-        ],
-
-      ],
+      'fields' => $theming_fields,
     ];
 
     /**
@@ -597,6 +582,16 @@ class Admin
       'manage_options',
       'hmwevents-reporting',
       [$this, 'render_reporting_page']
+    );
+
+    // Documentation page (user guide)
+    add_submenu_page(
+      'hmwevents-main',
+      'Documentation',
+      'Documentation',
+      'manage_options',
+      'hmwevents-documentation',
+      [$this, 'render_documentation_page']
     );
   }
 
@@ -686,6 +681,15 @@ class Admin
   {
     $reporting = new Reporting();
     $reporting->render_page();
+  }
+
+  /**
+   * Render documentation page.
+   */
+  public function render_documentation_page()
+  {
+    $documentation = new Documentation();
+    $documentation->render_page();
   }
 
 
@@ -864,6 +868,8 @@ class Admin
       ];
 
       wp_localize_script('hmwevents-admin', 'hmwevents_params', $localize_params);
+
+      wp_enqueue_script('hmwevents-theme-color-input', HMWEvents::plugin_url() . '/resources/admin/js/theme-color-input.js', [], HMWEvents_VERSION, true);
     }
 
     // Email admin styles and scripts
@@ -876,8 +882,13 @@ class Admin
       }
     }
 
-    // Email templates specific JS (on email templates page AND profile/user-edit pages for educator templates)
-    if (strpos($screen_id, 'hmwevents-email-templates') !== false || strpos($screen_id, 'profile') !== false || strpos($screen_id, 'user-edit') !== false) {
+    // Documentation page styles
+    if (strpos($screen_id, 'hmwevents-documentation') !== false) {
+      wp_enqueue_style('hmwevents-documentation', HMWEvents::plugin_url() . '/resources/admin/css/documentation.css', [], HMWEvents_VERSION);
+    }
+
+    // Email templates specific JS
+    if (strpos($screen_id, 'hmwevents-email-templates') !== false) {
       wp_enqueue_script('hmwevents-email-templates', HMWEvents::plugin_url() . '/resources/admin/js/email-templates.js', ['jquery'], HMWEvents_VERSION, true);
       wp_localize_script('hmwevents-email-templates', 'cmsEmailTemplates', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -891,11 +902,14 @@ class Admin
       wp_enqueue_script('jquery-ui-sortable');
       wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
       wp_enqueue_style('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/css/event-templates.css', [], HMWEvents_VERSION);
+      wp_enqueue_style('hmwevents-attendance-options', HMWEvents::plugin_url() . '/resources/admin/css/attendance-options.css', [], HMWEvents_VERSION);
       wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['hmwevents-form-builder-shared'], HMWEvents_VERSION, true);
     }
 
+    wp_enqueue_style('admin-css', HMWEvents::plugin_url() . '/resources/admin/css/admin.css', [], HMWEvents_VERSION);
     // Event template override meta box (on hmw_event edit screen)
     if ($screen && ($screen->id === 'hmw_event' || $screen->post_type === 'hmw_event')) {
+      wp_enqueue_style('hmwevents-attendance-options', HMWEvents::plugin_url() . '/resources/admin/css/attendance-options.css', [], HMWEvents_VERSION);
       add_thickbox();
       $acf_fields = $this->get_override_acf_fields();
       $reg_fields  = $this->get_override_reg_fields();
@@ -958,7 +972,7 @@ class Admin
     }
 
     // Course bookings meta box assets (on course/edit screen)
-    if ($screen && ($screen->id === 'educator_course' || $screen->post_type === 'hmw_event')) {
+    if ($screen && $screen->post_type === Event::POST_TYPE) {
       wp_enqueue_style('thickbox');
       wp_enqueue_script('thickbox');
 
@@ -977,21 +991,9 @@ class Admin
         true
       );
 
-      $edit_modal_fields = \HMWEvents\Registry\RegistrationFieldRegistry::for_admin_display();
       wp_localize_script('hmwevents-course-bookings', 'cmsBookings', [
         'restUrl' => rest_url('hmwevents/v1'),
         'restNonce' => wp_create_nonce('wp_rest'),
-        'bookingFields' => array_map(
-          fn($key, $field) => [
-            'key'     => $key,
-            'label'   => $field['label'],
-            'type'    => $field['type'],
-            'source'  => $field['source'],
-            'options' => $field['options'] ?? null,
-          ],
-          array_keys($edit_modal_fields),
-          array_values($edit_modal_fields)
-        ),
         'i18n' => [
           'selectCourse' => __('Please select a course', 'hmw-events'),
           'transferring' => __('Transferring...', 'hmw-events'),
@@ -1012,6 +1014,9 @@ class Admin
           'paymentLinkSent' => __('Payment link sent successfully.', 'hmw-events'),
 'confirmMarkAsPaid'  => __('Mark this booking as paid? This will confirm payment and trigger confirmation workflows.', 'hmw-events'),
 'markAsPaidSuccess'  => __('Payment marked as paid successfully.', 'hmw-events'),
+'confirmResendInvoice' => __('Resend the invoice email to this customer?', 'hmw-events'),
+'confirmMarkInvoicePaid' => __('Mark this invoice as paid? This will record the EFT payment and send a receipt.', 'hmw-events'),
+'eftReferencePrompt' => __('Enter the EFT / payment reference (optional):', 'hmw-events'),
         ],
       ]);
     }
@@ -1100,7 +1105,7 @@ class Admin
 
     $fields = empty($fields) ? $this->get_acf_fields_from_json() : $fields;
 
-    return $this->group_recurrence_fields($fields);
+    return AcfFieldGroupRegistry::group_fields($fields);
   }
 
   private function get_acf_fields_from_json(): array
@@ -1137,46 +1142,6 @@ class Admin
     }
 
     return $fields;
-  }
-
-  private function group_recurrence_fields(array $fields): array
-  {
-    $child_keys = EventTypeRegistry::RECURRENCE_FIELD_KEYS;
-    $child_set = array_flip($child_keys);
-
-    $has_children = false;
-    foreach ($fields as $f) {
-      if (isset($child_set[$f['key']])) {
-        $has_children = true;
-        break;
-      }
-    }
-
-    if (!$has_children) {
-      return $fields;
-    }
-
-    $grouped = [];
-    $group_inserted = false;
-
-    foreach ($fields as $f) {
-      if (isset($child_set[$f['key']])) {
-        if (!$group_inserted) {
-          $grouped[] = [
-            'key'      => 'event_recurrence',
-            'label'    => __('Recurrence Settings', 'hmw-events'),
-            'type'     => 'group',
-            'children' => $child_keys,
-          ];
-          $group_inserted = true;
-        }
-        continue;
-      }
-
-      $grouped[] = $f;
-    }
-
-    return $grouped;
   }
 
   private function get_override_reg_fields(): array

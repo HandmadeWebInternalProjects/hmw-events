@@ -2,6 +2,8 @@
 
 namespace HMWEvents\Breakdance;
 
+defined('ABSPATH') || die('Don\'t run this file directly!');
+
 use function Breakdance\Elements\c;
 use function Breakdance\Elements\PresetSections\getPresetSection;
 

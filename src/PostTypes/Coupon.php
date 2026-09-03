@@ -25,6 +25,7 @@ class Coupon
         add_filter('manage_' . self::POST_TYPE . '_posts_columns', [$this, 'set_columns']);
         add_action('manage_' . self::POST_TYPE . '_posts_custom_column', [$this, 'render_column'], 10, 2);
         add_action('admin_menu', [$this, 'register_menu'], 20);
+        add_action('init', [$this, 'grant_admin_capabilities']);
     }
 
     public function register_post_type(): void
@@ -60,6 +61,33 @@ class Coupon
         ];
 
         register_post_type(self::POST_TYPE, $args);
+    }
+
+    public function grant_admin_capabilities(): void
+    {
+        $admin = get_role('administrator');
+        if (!$admin) {
+            return;
+        }
+
+        $capabilities = [
+            'read_hmw_coupon',
+            'edit_hmw_coupon',
+            'edit_hmw_coupons',
+            'edit_others_hmw_coupons',
+            'edit_published_hmw_coupons',
+            'publish_hmw_coupons',
+            'read_private_hmw_coupons',
+            'delete_hmw_coupon',
+            'delete_hmw_coupons',
+            'delete_private_hmw_coupons',
+            'delete_published_hmw_coupons',
+            'delete_others_hmw_coupons',
+        ];
+
+        foreach ($capabilities as $capability) {
+            $admin->add_cap($capability);
+        }
     }
 
     /**
@@ -233,7 +261,7 @@ class Coupon
     {
         global $wpdb;
         $usage = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}hmwevents_coupon_usage WHERE coupon_code = %s",
+            "SELECT COUNT(*) FROM " . \HMWEvents\Services\DatabaseService::get_table_name('coupon_usage') . " WHERE coupon_code = %s",
             get_post_meta($post->ID, '_coupon_code', true)
         ));
         ?>

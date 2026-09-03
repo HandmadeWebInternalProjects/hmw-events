@@ -2,6 +2,7 @@
 
 namespace HMWEvents\Services;
 
+use HMWEvents\Helpers\EventFieldConfig;
 use HMWEvents\Registry\EventTypeRegistry;
 
 class ACF
@@ -215,19 +216,24 @@ class ACF
    */
     private function get_event_field_config(int $post_id): ?array
     {
-        $override = get_post_meta($post_id, '_event_template_override', true);
-        if (is_array($override) && isset($override['event_fields']) && is_array($override['event_fields'])) {
-            return $override['event_fields'];
+        $override = EventFieldConfig::read($post_id, '_event_template_override');
+        $config = null;
+        if ($override !== null && isset($override['event_fields']) && is_array($override['event_fields'])) {
+            $config = $override['event_fields'];
+        } else {
+            $snapshot = EventFieldConfig::read($post_id, '_event_field_config');
+            if ($snapshot !== null && isset($snapshot['event_fields']) && is_array($snapshot['event_fields'])) {
+                $config = $snapshot['event_fields'];
+            }
         }
 
-        $snapshot = get_post_meta($post_id, '_event_field_config', true);
-        if (is_array($snapshot) && isset($snapshot['event_fields']) && is_array($snapshot['event_fields'])) {
-            return $snapshot['event_fields'];
+        if ($config !== null) {
+            return $config;
         }
 
     $terms = wp_get_object_terms($post_id, 'hmw_event_type', ['fields' => 'slugs']);
     if (is_wp_error($terms) || empty($terms)) {
-      return null;
+      return $config;
     }
 
     $type_slug = sanitize_key((string) $terms[0]);
@@ -362,8 +368,8 @@ class ACF
     $type_slug = '';
     $type_source = 'none';
 
-    $snapshot_config = get_post_meta($post_id, '_event_field_config', true);
-    if (is_array($snapshot_config) && isset($snapshot_config['event_fields']) && is_array($snapshot_config['event_fields'])) {
+    $snapshot_config = EventFieldConfig::read($post_id);
+    if ($snapshot_config !== null && isset($snapshot_config['event_fields']) && is_array($snapshot_config['event_fields'])) {
       $has_snapshot = true;
       $type_source = 'snapshot';
     }

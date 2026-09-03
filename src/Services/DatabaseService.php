@@ -30,7 +30,7 @@ class DatabaseService
    *
    * @since 2.0.0 Reset to 2.0 for rebuild.
    */
-  const CURRENT_DB_VERSION = '2.0';
+  const CURRENT_DB_VERSION = '2.7';
 
   /**
    * Get the WordPress database instance.
@@ -46,13 +46,11 @@ class DatabaseService
 
   /**
    * Initialize database service.
-   * Only runs upgrade checks on admin requests.
    *
    * @since 1.0.0
    */
   public static function init()
   {
-    // Only run upgrade check on admin requests or during WP-CLI
     if (is_admin() || (defined('WP_CLI') && constant('WP_CLI'))) {
       self::maybe_upgrade();
     }
@@ -150,6 +148,11 @@ class DatabaseService
       require_once HMWEvents_ABSPATH . 'includes/install.php';
       hmwevents_install();
 
+      // Data migrations (versioned separately from schema).
+      self::migrate_by_invitation_status();
+      self::migrate_new_status();
+      self::migrate_educator_template_keys();
+
       // Update version after successful upgrade
       update_option(self::DB_VERSION_OPTION, self::CURRENT_DB_VERSION);
 
@@ -161,6 +164,143 @@ class DatabaseService
       // Release lock
       delete_transient($lock_option);
     }
+  }
+
+  /**
+   * Migrate legacy 'by_invitation' post status to the '_event_is_invitation_only'
+   * post meta flag (introduced in the invitation-only refactor).
+   *
+   * Events that still carry the removed 'by_invitation' status no longer
+   * appear in the admin list because the status is no longer registered.
+   * Convert them to 'publish' and set the invitation-only meta.
+   *
+   * @since 2.4.0
+   */
+  public static function migrate_by_invitation_status(): int
+  {
+    global $wpdb;
+
+    $option = 'hmwevents_migrated_by_invitation_status';
+    if (get_option($option)) {
+      return 0;
+    }
+
+    $post_type = \HMWEvents\PostTypes\Event::POST_TYPE;
+    $meta_key  = \HMWEvents\PostTypes\Event::META_INVITATION_ONLY;
+
+    $ids = $wpdb->get_col($wpdb->prepare(
+      "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status = %s",
+      $post_type,
+      'by_invitation'
+    ));
+
+    $migrated = 0;
+    foreach ($ids as $id) {
+      $updated = $wpdb->update(
+        $wpdb->posts,
+        ['post_status' => 'publish'],
+        ['ID' => (int) $id],
+        ['%s'],
+        ['%d']
+      );
+
+      if ($updated !== false) {
+        update_post_meta((int) $id, $meta_key, '1');
+        $migrated++;
+      }
+    }
+
+    update_option($option, '1');
+    error_log('HMWEvents: Migrated ' . $migrated . " 'by_invitation' events to invitation-only meta.");
+
+    return $migrated;
+  }
+
+  /**
+   * Migrate events stuck in the WordPress core 'new' status sentinel to 'draft'.
+   *
+   * The WorkflowEnforcer previously reverted blocked transitions to the
+   * 'new' sentinel status, writing it into the database. 'new' is not a
+   * registered post status, so affected events were counted in the admin
+   * list but not displayed.
+   *
+   * @since 2.5.0
+   */
+  public static function migrate_new_status(): int
+  {
+    global $wpdb;
+
+    $option = 'hmwevents_migrated_new_status';
+    if (get_option($option)) {
+      return 0;
+    }
+
+    $post_type = \HMWEvents\PostTypes\Event::POST_TYPE;
+
+    $ids = $wpdb->get_col($wpdb->prepare(
+      "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status = %s",
+      $post_type,
+      'new'
+    ));
+
+    $migrated = 0;
+    foreach ($ids as $id) {
+      $updated = $wpdb->update(
+        $wpdb->posts,
+        ['post_status' => 'draft'],
+        ['ID' => (int) $id],
+        ['%s'],
+        ['%d']
+      );
+
+      if ($updated !== false) {
+        clean_post_cache((int) $id);
+        $migrated++;
+      }
+    }
+
+    update_option($option, '1');
+    error_log('HMWEvents: Migrated ' . $migrated . " events stuck in 'new' status to draft.");
+
+    return $migrated;
+  }
+
+  /**
+   * Rename the legacy 'educator_new_booking' email template key to
+   * 'organizer_new_booking' across the email templates and email queue tables.
+   *
+   * @since 2.7.0
+   */
+  public static function migrate_educator_template_keys(): int
+  {
+    global $wpdb;
+
+    $option = 'hmwevents_migrated_educator_template_keys';
+    if (get_option($option)) {
+      return 0;
+    }
+
+    $templates_table = self::get_table_name('email_templates');
+    $queue_table     = self::get_table_name('email_queue');
+
+    $templates = $wpdb->query($wpdb->prepare(
+      "UPDATE {$templates_table} SET template_key = %s WHERE template_key = %s",
+      'organizer_new_booking',
+      'educator_new_booking'
+    ));
+
+    $queue = $wpdb->query($wpdb->prepare(
+      "UPDATE {$queue_table} SET email_type = %s, template_key = %s WHERE email_type = %s OR template_key = %s",
+      'organizer_new_booking',
+      'organizer_new_booking',
+      'educator_new_booking',
+      'educator_new_booking'
+    ));
+
+    update_option($option, '1');
+    error_log('HMWEvents: Renamed educator_new_booking email template keys to organizer_new_booking (' . (int) $templates . ' templates, ' . (int) $queue . ' queue rows).');
+
+    return (int) $templates + (int) $queue;
   }
 
   /**

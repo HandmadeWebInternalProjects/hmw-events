@@ -12,6 +12,8 @@ class WorkflowEnforcer
 {
     private static bool $reverting = false;
 
+    private const SYSTEM_STATUSES = ['new', 'auto-draft', 'future', 'inherit'];
+
     public function register(): void
     {
         add_action('transition_post_status', [$this, 'enforce_workflow'], 10, 3);
@@ -35,6 +37,10 @@ class WorkflowEnforcer
             return;
         }
 
+        if (in_array($old_status, self::SYSTEM_STATUSES, true) || $new_status === 'auto-draft') {
+            return;
+        }
+
         $type_slug = $this->get_event_type_slug($post->ID);
 
         if ($this->is_transition_allowed($type_slug, $old_status, $new_status)) {
@@ -52,7 +58,7 @@ class WorkflowEnforcer
         self::$reverting = true;
         wp_update_post([
             'ID'          => $post->ID,
-            'post_status' => $old_status,
+            'post_status' => $this->revert_status($old_status),
         ]);
         self::$reverting = false;
 
@@ -84,6 +90,15 @@ class WorkflowEnforcer
         $allowed = $workflow[$from_status] ?? [];
 
         return in_array($to_status, $allowed, true);
+    }
+
+    private function revert_status(string $old_status): string
+    {
+        if ($old_status === '' || in_array($old_status, self::SYSTEM_STATUSES, true)) {
+            return 'draft';
+        }
+
+        return $old_status;
     }
 
     private function get_event_type_slug(int $post_id): string

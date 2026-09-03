@@ -44,6 +44,13 @@ class EventTemplateOverrideServiceTest extends TestCase
         Functions\when('is_wp_error')->alias(function ($thing) {
             return $thing instanceof \WP_Error;
         });
+        Functions\when('maybe_unserialize')->alias(function ($original) {
+            if (!is_string($original) || $original === '') {
+                return $original;
+            }
+            $unserialized = @unserialize($original);
+            return ($unserialized === false && $original !== 'b:0;') ? $original : $unserialized;
+        });
         Functions\when('error_log')->justReturn(true);
         Functions\when('wp_json_encode')->alias('json_encode');
 
@@ -533,5 +540,136 @@ class EventTemplateOverrideServiceTest extends TestCase
 
         $this->service->cascade_to_children(123, [], false);
         $this->assertTrue(true);
+    }
+
+    // ============================================================
+    // get_child_session_ids()
+    // ============================================================
+
+    public function test_get_child_session_ids_queries_pattern_children_and_clones(): void
+    {
+        $calls = [];
+        Functions\when('get_posts')->alias(function ($args) use (&$calls) {
+            $calls[] = $args;
+            if (isset($args['post_parent'])) {
+                return [111, 222];
+            }
+            return [333];
+        });
+
+        $this->assertSame([111, 222, 333], $this->service->get_child_session_ids(123));
+
+        $this->assertCount(2, $calls);
+        $this->assertSame(123, $calls[0]['post_parent']);
+        $this->assertSame('any', $calls[0]['post_status']);
+        $this->assertSame('_cloned_from', $calls[1]['meta_query'][0]['key']);
+        $this->assertSame(123, $calls[1]['meta_query'][0]['value']);
+        $this->assertSame('any', $calls[1]['post_status']);
+    }
+
+    public function test_get_child_session_ids_deduplicates_and_casts_to_int(): void
+    {
+        Functions\when('get_posts')->alias(function ($args) {
+            if (isset($args['post_parent'])) {
+                return ['456', 789];
+            }
+            return [456, '789', '111'];
+        });
+
+        $this->assertSame([456, 789, 111], $this->service->get_child_session_ids(123));
+    }
+
+    public function test_get_child_session_ids_returns_empty_array_when_no_results(): void
+    {
+        Functions\when('get_posts')->justReturn([]);
+        $this->assertSame([], $this->service->get_child_session_ids(123));
+    }
+
+    public function test_get_child_session_ids_tolerates_non_array_results(): void
+    {
+        Functions\when('get_posts')->justReturn(null);
+        $this->assertSame([], $this->service->get_child_session_ids(123));
+    }
+
+    // ============================================================
+    // has_child_sessions()
+    // ============================================================
+
+    public function test_has_child_sessions_true_when_pattern_children_exist(): void
+    {
+        Functions\when('get_posts')->alias(function ($args) {
+            return isset($args['post_parent']) ? [456] : [];
+        });
+
+        $this->assertTrue($this->service->has_child_sessions(123));
+    }
+
+    public function test_has_child_sessions_true_when_only_clones_exist(): void
+    {
+        Functions\when('get_posts')->alias(function ($args) {
+            return isset($args['post_parent']) ? [] : [789];
+        });
+
+        $this->assertTrue($this->service->has_child_sessions(123));
+    }
+
+    public function test_has_child_sessions_false_when_no_sessions(): void
+    {
+        Functions\when('get_posts')->justReturn([]);
+        $this->assertFalse($this->service->has_child_sessions(123));
+    }
+
+    // ============================================================
+    // cascade_to_children() — covers both recurring systems
+    // ============================================================
+
+    public function test_cascade_to_children_covers_pattern_children_and_clones(): void
+    {
+        Functions\when('get_posts')->alias(function ($args) {
+            return isset($args['post_parent']) ? [456] : [789];
+        });
+
+        $written = [];
+        Functions\when('update_post_meta')->alias(function ($id, $key, $value) use (&$written) {
+            $written[$id][$key] = $value;
+            return true;
+        });
+
+        $override = ['event_fields' => ['hidden' => ['event_price']]];
+
+        $this->service->cascade_to_children(123, $override, true);
+
+        $this->assertArrayHasKey(456, $written);
+        $this->assertArrayHasKey(789, $written);
+        $this->assertSame($override, $written[456]['_event_template_override']);
+        $this->assertTrue($written[456]['_event_template_override_apply_to_children']);
+        $this->assertSame($override, $written[789]['_event_template_override']);
+        $this->assertTrue($written[789]['_event_template_override_apply_to_children']);
+    }
+
+    // ============================================================
+    // reset_override() — clears sessions of both recurring systems
+    // ============================================================
+
+    public function test_reset_override_deletes_meta_on_pattern_children_and_clones(): void
+    {
+        Functions\when('get_posts')->alias(function ($args) {
+            return isset($args['post_parent']) ? [456] : [789];
+        });
+
+        $deleted = [];
+        Functions\when('delete_post_meta')->alias(function ($id, $key) use (&$deleted) {
+            $deleted[] = [$id, $key];
+            return true;
+        });
+
+        $this->service->reset_override(123);
+
+        $this->assertContains([123, '_event_template_override'], $deleted);
+        $this->assertContains([123, '_event_template_override_apply_to_children'], $deleted);
+        $this->assertContains([456, '_event_template_override'], $deleted);
+        $this->assertContains([456, '_event_template_override_apply_to_children'], $deleted);
+        $this->assertContains([789, '_event_template_override'], $deleted);
+        $this->assertContains([789, '_event_template_override_apply_to_children'], $deleted);
     }
 }

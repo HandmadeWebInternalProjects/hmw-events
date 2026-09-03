@@ -1,0 +1,100 @@
+.hmwevents-waitlist-wrapper {
+  --hmw-wl-border: #d9dde3;
+  --hmw-wl-text: #1c2430;
+  --hmw-wl-muted: #5b6675;
+  --hmw-wl-accent: #2f6fb2;
+  --hmw-wl-error: #b03030;
+  --hmw-wl-success: #1f7a4d;
+  --hmw-wl-radius: 8px;
+
+  margin-block: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--hmw-wl-border);
+  border-radius: var(--hmw-wl-radius);
+  background: #fafbfc;
+  color: var(--hmw-wl-text);
+  font-size: 16px;
+}
+
+.hmwevents-waitlist-wrapper .hmwevents-form-section {
+  margin-block-end: 1.25rem;
+}
+
+.hmwevents-waitlist-wrapper h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.15em;
+}
+
+.hmwevents-waitlist-intro {
+  margin: 0;
+  color: var(--hmw-wl-muted);
+}
+
+.hmwevents-waitlist-form .hmwevents-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.hmwevents-waitlist-form .hmwevents-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.hmwevents-waitlist-form .hmwevents-form-field-full {
+  grid-column: 1 / -1;
+}
+
+.hmwevents-waitlist-form label {
+  font-weight: 600;
+  font-size: 0.92em;
+}
+
+.hmwevents-waitlist-form label .required {
+  color: var(--hmw-wl-error);
+}
+
+.hmwevents-waitlist-form input[type='text'],
+.hmwevents-waitlist-form input[type='email'] {
+  inline-size: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--hmw-wl-border);
+  border-radius: var(--hmw-wl-radius);
+  font: inherit;
+  background: #fff;
+}
+
+.hmwevents-waitlist-form input:focus-visible {
+  outline: 2px solid var(--hmw-wl-accent);
+  outline-offset: 1px;
+}
+
+.hmwevents-waitlist-message {
+  padding: 0.75rem 1rem;
+  border-radius: var(--hmw-wl-radius);
+  border-inline-start: 4px solid var(--hmw-wl-success);
+  background: #eef7f2;
+  color: var(--hmw-wl-success);
+}
+
+.hmwevents-waitlist-message--error {
+  border-inline-start-color: var(--hmw-wl-error);
+  background: #fbeeee;
+  color: var(--hmw-wl-error);
+}
+
+.hmwevents-waitlist-form [type='submit']:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 600px) {
+  .hmwevents-waitlist-wrapper {
+    padding: 1rem;
+  }
+
+  .hmwevents-waitlist-form .hmwevents-form-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -291,6 +291,14 @@ class EventTemplateService
         }
 
         $meta_input = $this->normalize_event_meta_for_storage((array) ($resolved['event_meta'] ?? []));
+        $attendance_options = (array) ($resolved['defaults']['attendance_options'] ?? []);
+
+        if (!AttendancePricingService::is_multi_options($attendance_options)
+            && !isset($meta_input['_event_price'])
+            && isset($attendance_options[0]['price'])
+        ) {
+            $meta_input['_event_price'] = (float) $attendance_options[0]['price'];
+        }
 
         // Build post array
         $post_args = [
@@ -318,7 +326,9 @@ class EventTemplateService
         }
 
         // Insert default attendance options from resolved defaults.
-        $this->insert_attendance_options($post_id, (array) ($resolved['defaults']['attendance_options'] ?? []));
+        if (AttendancePricingService::is_multi_options($attendance_options)) {
+            $this->insert_attendance_options($post_id, $attendance_options);
+        }
 
         $this->persist_event_snapshot($post_id, $template_id, $resolved);
 
@@ -391,9 +401,7 @@ class EventTemplateService
         }
 
         if (in_array('attendance_options', $sections, true)) {
-            $table = DatabaseService::get_table_name('event_attendance_options');
-            $wpdb->delete($table, ['event_post_id' => $event_post_id], ['%d']);
-            $this->insert_attendance_options($event_post_id, (array) ($resolved['defaults']['attendance_options'] ?? []));
+            $this->sync_attendance_options($event_post_id, (array) ($resolved['defaults']['attendance_options'] ?? []));
             $updates++;
         }
 
@@ -477,22 +485,58 @@ class EventTemplateService
     /**
      * Insert default attendance options for a new event based on event type.
      */
-    private function insert_attendance_options(int $event_post_id, array $presets): void
+    private function insert_attendance_options(int $event_post_id, array $presets, int $sort_offset = 0): void
+    {
+        foreach ($presets as $index => $preset) {
+            AttendancePricingService::insert_attendance_option($event_post_id, $preset, $sort_offset + $index);
+        }
+    }
+
+    private function sync_attendance_options(int $event_post_id, array $presets): void
     {
         global $wpdb;
         $table = DatabaseService::get_table_name('event_attendance_options');
+        $existing = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, option_type, price, price_mode, pricing_rules FROM {$table} WHERE event_post_id = %d",
+            $event_post_id
+        ));
+        $existing_options = [];
 
+        foreach ((array) $existing as $row) {
+            $type = sanitize_key($row->option_type);
+            $existing_options[$type][] = [
+                'price'      => (float) $row->price,
+                'price_mode' => (string) ($row->price_mode ?? ''),
+                'rules'      => AttendancePricingService::decode_rules($row->pricing_rules ?? null),
+            ];
+        }
+
+        if (!AttendancePricingService::is_multi_options($presets)) {
+            if (isset($presets[0]['price']) && get_post_meta($event_post_id, '_event_price', true) === '') {
+                update_post_meta($event_post_id, '_event_price', (float) $presets[0]['price']);
+            }
+            $wpdb->delete($table, ['event_post_id' => $event_post_id], ['%d']);
+            return;
+        }
+
+        $wpdb->delete($table, ['event_post_id' => $event_post_id], ['%d']);
         foreach ($presets as $index => $preset) {
-            $wpdb->insert($table, [
-                'event_post_id' => $event_post_id,
-                'option_type'   => sanitize_key($preset['option_type'] ?? 'individual') ?: 'individual',
-                'label'         => sanitize_text_field($preset['label'] ?? 'Individual'),
-                'price'         => (float) ($preset['price'] ?? 0),
-                'sort_order'    => $index,
-                'is_active'     => 1,
-                'created_at'    => current_time('mysql'),
-                'updated_at'    => current_time('mysql'),
-            ], ['%d', '%s', '%s', '%f', '%d', '%d', '%s', '%s']);
+            $type = sanitize_key($preset['option_type'] ?? 'individual') ?: 'individual';
+
+            if (!empty($existing_options[$type])) {
+                $existing_option = array_shift($existing_options[$type]);
+                $preset['price'] = $existing_option['price'];
+                if ($existing_option['price_mode'] !== '') {
+                    $preset['price_mode'] = $existing_option['price_mode'];
+                }
+                if ($existing_option['rules'] !== null) {
+                    $preset['pricing_rules'] = $existing_option['rules'];
+                }
+            } else {
+                $preset['price'] = (float) ($preset['price'] ?? 0);
+            }
+
+            $this->insert_attendance_options($event_post_id, [$preset], $index);
         }
     }
 

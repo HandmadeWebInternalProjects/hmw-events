@@ -56,7 +56,7 @@ class CouponService
             $max_uses = (int) get_post_meta($coupon_id, '_coupon_max_uses', true);
             if ($max_uses > 0) {
                 $usage_count = (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->prefix}hmwevents_coupon_usage WHERE coupon_code = %s",
+                    "SELECT COUNT(*) FROM " . \HMWEvents\Services\DatabaseService::get_table_name('coupon_usage') . " WHERE coupon_code = %s",
                     strtoupper($coupon_code)
                 ));
 
@@ -69,7 +69,7 @@ class CouponService
         if (!$is_staff && $registrant_email) {
             $max_per_user = (int) get_post_meta($coupon_id, '_coupon_max_per_user', true) ?: 1;
             $user_usage = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}hmwevents_coupon_usage WHERE coupon_code = %s AND registrant_email = %s",
+                "SELECT COUNT(*) FROM " . \HMWEvents\Services\DatabaseService::get_table_name('coupon_usage') . " WHERE coupon_code = %s AND registrant_email = %s",
                 strtoupper($coupon_code),
                 $registrant_email
             ));
@@ -153,9 +153,9 @@ class CouponService
         }
 
         $result = $wpdb->insert(
-            $wpdb->prefix . 'hmwevents_coupon_usage',
+            \HMWEvents\Services\DatabaseService::get_table_name('coupon_usage'),
             [
-                'coupon_id'       => $coupon_posts[0]->ID,
+                'coupon_post_id'  => $coupon_posts[0]->ID,
                 'coupon_code'     => strtoupper($coupon_code),
                 'booking_id'      => $booking_id,
                 'registrant_email' => $registrant_email,
@@ -169,6 +169,9 @@ class CouponService
             error_log('Failed to record coupon usage: ' . $wpdb->last_error);
             return false;
         }
+
+        $usage_count = (int) get_post_meta($coupon_posts[0]->ID, '_coupon_usage_count', true);
+        update_post_meta($coupon_posts[0]->ID, '_coupon_usage_count', $usage_count + 1);
 
         return true;
     }

@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery;
+use Patchwork;
 
 /**
  * Test Booking Cleanup Service functionality.
@@ -40,12 +41,16 @@ class BookingCleanupTest extends TestCase
         parent::setUp();
         Monkey\setUp();
 
-        $this->service = new BookingCleanup();
-
-        // Create wpdb mock
+        // Create wpdb mock before constructing the service (constructor resolves table names)
         $this->wpdb = Mockery::mock('wpdb');
         $this->wpdb->prefix = 'wp_';
         $GLOBALS['wpdb'] = $this->wpdb;
+
+        Patchwork\replace('HMWEvents\\Services\\DatabaseService::get_table_name', function ($name) {
+            return 'wp_hmwevents_' . $name;
+        });
+
+        $this->service = new BookingCleanup();
 
         // Mock common functions
         Functions\when('error_log')->justReturn(true);
@@ -72,8 +77,8 @@ class BookingCleanupTest extends TestCase
     public function test_register_adds_hooks()
     {
         Functions\expect('add_action')
-            ->times(4)
-            ->with(Mockery::anyOf('hmwevents_activation', 'hmwevents_deactivation', BookingCleanup::CRON_HOOK, BookingCleanup::PII_CRON_HOOK), Mockery::type('array'));
+            ->times(3)
+            ->with(Mockery::anyOf('init', BookingCleanup::CRON_HOOK, BookingCleanup::PII_CRON_HOOK), Mockery::type('array'));
 
         $this->service->register();
 

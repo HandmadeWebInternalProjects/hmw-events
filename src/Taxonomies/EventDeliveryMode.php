@@ -42,7 +42,7 @@ class EventDeliveryMode
         $args = [
             'labels'            => $labels,
             'description'       => __('How the event is delivered', 'hmw-events'),
-            'hierarchical'      => false,
+            'hierarchical'      => true,
             'public'            => true,
             'publicly_queryable' => true,
             'show_ui'           => true,
@@ -58,7 +58,6 @@ class EventDeliveryMode
                 'delete_terms' => 'manage_categories',
                 'assign_terms' => 'edit_posts',
             ],
-            'meta_box_cb'       => false,
         ];
 
         register_taxonomy(self::TAXONOMY, ['hmw_event'], $args);

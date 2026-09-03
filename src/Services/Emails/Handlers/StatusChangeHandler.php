@@ -26,7 +26,7 @@ class StatusChangeHandler extends AbstractEmailHandler
     const TYPE_BOOKING_CONFIRMED = 'booking_confirmed';
     const TYPE_PAYMENT_RECEIVED = 'payment_received';
     const TYPE_REFUND_ISSUED = 'refund_issued';
-    const TYPE_COURSE_CHANGED = 'course_changed';
+    const TYPE_EVENT_CHANGED = 'event_changed';
 
     /**
      * Template key (varies by status).
@@ -64,10 +64,10 @@ class StatusChangeHandler extends AbstractEmailHandler
 
         // Get booking details
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT b.*, c.post_title as customer_name, bg.total_amount
-             FROM {$wpdb->prefix}hmwevents_bookings b
-             INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
-             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            "SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_title as customer_name, bg.total_amount
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+             INNER JOIN {$wpdb->posts} c ON b.registrant_post_id = c.ID
+             INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
              WHERE b.id = %d",
             $booking_id
         ));
@@ -140,39 +140,18 @@ class StatusChangeHandler extends AbstractEmailHandler
             self::TYPE_BOOKING_CONFIRMED => 'booking_confirmed',
             self::TYPE_PAYMENT_RECEIVED  => 'payment_received',
             self::TYPE_REFUND_ISSUED     => 'refund_issued',
-            self::TYPE_COURSE_CHANGED    => 'course_changed',
+            self::TYPE_EVENT_CHANGED     => 'course_changed',
         ];
 
         $this->template_key = $mapping[$status_type] ?? '';
         $this->email_type = $status_type;
     }
 
-    /**
-     * Get customer email.
-     *
-     * @param int $customer_post_id Customer post ID.
-     * @return string|false Email address or false.
-     */
     private function get_registrant_email($customer_post_id)
     {
-        if (!$customer_post_id) {
-            return false;
-        }
-
-        $email = get_post_meta($customer_post_id, 'registrant_email', true);
-        if ($email) {
-            return $email;
-        }
-
-        if (function_exists('get_field')) {
-            $email = get_field('registrant_email', $customer_post_id);
-            if ($email) {
-                return $email;
-            }
-        }
-
-        return false;
+        return $this->get_registrant_email_address($customer_post_id);
     }
+
 
     /**
      * Get course date.
@@ -182,11 +161,9 @@ class StatusChangeHandler extends AbstractEmailHandler
      */
     private function get_course_date($course_id)
     {
-        if (function_exists('get_field')) {
-            $date = get_field('course_start_date', $course_id);
-            if ($date) {
-                return $this->format_date($date);
-            }
+        $date = $this->event_data()->get_start_date($course_id);
+        if ($date) {
+            return $this->format_date($date);
         }
 
         return get_the_date('F j, Y', $course_id);
@@ -203,34 +180,17 @@ class StatusChangeHandler extends AbstractEmailHandler
         return $this->get_course_location_address($course_id);
     }
 
-    /**
-     * Format date from various formats.
-     *
-     * @param string $date Date string.
-     * @return string Formatted date.
-     */
     private function format_date($date)
     {
-        $timestamp = strtotime($date);
-        if ($timestamp === false) {
-            return $date;
-        }
-
-        return date('F j, Y', $timestamp);
+        return $this->format_event_date($date);
     }
 
-    /**
-     * Format currency value.
-     *
-     * @param float $amount Amount.
-     * @param string $currency Currency code (defaults to AUD).
-     * @return string Formatted currency.
-     */
+
     private function format_currency($amount, $currency = 'AUD')
     {
-        $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
-        return $currency_symbol . number_format($amount, 2);
+        return $this->format_money($amount, $currency);
     }
+
 
     /**
      * Validate status change data.
@@ -274,10 +234,10 @@ class StatusChangeHandler extends AbstractEmailHandler
 
         // Get fresh booking details
         $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT b.*, c.post_title as customer_name, bg.total_amount
-             FROM {$wpdb->prefix}hmwevents_bookings b
-             INNER JOIN {$wpdb->posts} c ON b.customer_post_id = c.ID
-             INNER JOIN {$wpdb->prefix}hmwevents_booking_groups bg ON b.booking_group_id = bg.id
+            "SELECT b.*, b.registrant_post_id AS customer_post_id, c.post_title as customer_name, bg.total_amount
+             FROM " . \HMWEvents\Services\DatabaseService::get_table_name('bookings') . " b
+             INNER JOIN {$wpdb->posts} c ON b.registrant_post_id = c.ID
+             INNER JOIN " . \HMWEvents\Services\DatabaseService::get_table_name('booking_groups') . " bg ON b.booking_group_id = bg.id
              WHERE b.id = %d",
             $booking_id
         ));
@@ -325,14 +285,11 @@ class StatusChangeHandler extends AbstractEmailHandler
     public function get_template_variables_description()
     {
         return array_merge(parent::get_template_variables_description(), [
-            'booking_number'       => 'Booking confirmation number',
-            'amount'               => 'Amount (formatted)',
-            'status_change'        => 'Type of status change',
-            'course_location'      => 'Course location address',
-            'download_audio_track'  => 'Download link to audio file (if configured)',
-            'free_pre_course_audio_track' => 'Free pre-course audio track link',
-            'refund_amount'        => 'Refund amount (for refund emails)',
-            'new_course_date'      => 'New course date (for course change emails)',
+            'booking_number'  => 'Booking confirmation number',
+            'amount'          => 'Amount (formatted)',
+            'status_change'   => 'Type of status change',
+            'refund_amount'   => 'Refund amount (for refund emails)',
+            'new_course_date' => 'New course date (for course change emails)',
         ]);
     }
 }

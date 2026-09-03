@@ -9,25 +9,36 @@ defined('ABSPATH') || die('Don\'t run this file directly!');
 
 class GoogleMapsRenderer implements MapRendererInterface
 {
-	public function is_available(): bool
-	{
-		return (bool) \HMWEvents\Helpers\ConfigHelper::get_option('hmwevents_google_maps_api_key');
-	}
+    private ?\HMWEvents\Services\EventDataService $event_data_service = null;
 
-	public function get_renderer_id(): string
-	{
-		return 'google_maps';
-	}
+    private function event_data(): \HMWEvents\Services\EventDataService
+    {
+        if ($this->event_data_service === null) {
+            $this->event_data_service = new \HMWEvents\Services\EventDataService();
+        }
+        return $this->event_data_service;
+    }
 
-	public function get_renderer_name(): string
-	{
-		return __('Google Maps', 'hmw-events');
-	}
+    public function is_available(): bool
+    {
+        return (bool) \HMWEvents\Helpers\ConfigHelper::get_option('hmwevents_google_maps_api_key');
+    }
 
-	public function render(\WP_Post $event): string
-	{
-		$venue_name = get_post_meta($event->ID, '_event_venue_name', true);
-		$map_field  = get_post_meta($event->ID, '_event_venue_address', true);
+    public function get_renderer_id(): string
+    {
+        return 'google_maps';
+    }
+
+    public function get_renderer_name(): string
+    {
+        return __('Google Maps', 'hmw-events');
+    }
+
+    public function render(\WP_Post $event): string
+    {
+        $eds        = $this->event_data();
+        $venue_name = $eds->get_venue_name($event->ID);
+        $map_field  = $eds->get_venue_address($event->ID);
 
 		$address = GoogleMapField::get_address_string($map_field);
 		$lat     = GoogleMapField::get_lat($map_field);

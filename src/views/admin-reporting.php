@@ -55,6 +55,7 @@ $csv_url = add_query_arg(
 
         var formData = new FormData();
         formData.append('action', 'hmwevents_remove_test_data');
+        formData.append('nonce', '<?php echo esc_js(wp_create_nonce('hmwevents_remove_test_data')); ?>');
 
         fetch(ajaxurl, { method: 'POST', body: formData })
             .then(function(r) { return r.json(); })
@@ -273,7 +274,7 @@ $csv_url = add_query_arg(
                     <td><?php esc_html_e('Expired documents pending removal', 'hmw-events'); ?></td>
                     <td>
                         <?php
-                        $docs_table = $wpdb->prefix . 'hmwevents_registration_documents';
+                        $docs_table = \HMWEvents\Services\DatabaseService::get_table_name('registration_documents');
                         $doc_count = (int) $wpdb->get_var(
                             "SELECT COUNT(*) FROM {$docs_table} WHERE retention_until <= NOW()"
                         );
@@ -287,7 +288,7 @@ $csv_url = add_query_arg(
                     <td><?php esc_html_e('Booking audit entries', 'hmw-events'); ?></td>
                     <td>
                         <?php
-                        $history_table = $wpdb->prefix . 'hmwevents_booking_history';
+                        $history_table = \HMWEvents\Services\DatabaseService::get_table_name('booking_history');
                         $history_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$history_table}");
                         echo esc_html(sprintf(
                             _n('%d entry recorded', '%d entries recorded', $history_count, 'hmw-events'),

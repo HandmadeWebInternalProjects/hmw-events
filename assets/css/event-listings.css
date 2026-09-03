@@ -3,6 +3,38 @@
  * Uses CSS variables from the Theming settings.
  *========================================================*/
 
+:root {
+  --hmw-color-primary: #2563eb;
+  --hmw-color-primary-hover: #1d4ed8;
+  --hmw-color-primary-light: #eff6ff;
+  --hmw-color-error: #dc2626;
+  --hmw-color-error-bg: #fef2f2;
+  --hmw-color-success: #16a34a;
+  --hmw-color-success-bg: #f0fdf4;
+  --hmw-color-text: #1e293b;
+  --hmw-color-text-muted: #64748b;
+  --hmw-color-border: #e2e8f0;
+  --hmw-color-border-focus: #93c5fd;
+  --hmw-color-bg: #ffffff;
+  --hmw-color-bg-section: #f8fafc;
+  --hmw-color-bg-page: #f1f5f9;
+  --hmw-color-label: #334155;
+  --hmw-color-button-text: #ffffff;
+  --hmw-radius: 8px;
+  --hmw-radius-sm: 4px;
+  --hmw-gap: 16px;
+  --hmw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --hmw-font-size-xs: 1rem;
+  --hmw-font-size-sm: 1.2rem;
+  --hmw-font-size-base: 1.6rem;
+  --hmw-font-size-lg: 1.8rem;
+  --hmw-font-size-xl: 2rem;
+  --hmw-font-size-2xl: 2.4rem;
+  --hmw-shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
+  --hmw-shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
+  --hmw-transition: 150ms ease;
+}
+
 .hmw-event-listings-wrapper {
   font-family: var(--hmw-font-family);
   color: var(--hmw-color-text);
@@ -72,8 +104,8 @@
  *========================================================*/
 
 .hmw-event-filters {
-  background: var(--hmw-color-bg);
-  border: 1px solid var(--hmw-color-border);
+  background: var(--hmw-filter-bg, var(--hmw-color-bg));
+  border: 1px solid var(--hmw-filter-border, var(--hmw-color-border));
   border-radius: var(--hmw-radius);
   padding: 24px;
   margin-block-end: 24px;
@@ -102,7 +134,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .5px;
-  color: var(--hmw-color-text-muted);
+  color: var(--hmw-filter-label, var(--hmw-color-text-muted));
   margin-block-end: 10px;
 }
 
@@ -209,15 +241,15 @@
   font-size: var(--hmw-font-size-sm);
   font-weight: 600;
   font-family: inherit;
-  color: #fff;
-  background: var(--hmw-color-primary);
+  color: var(--hmw-filter-button-text, var(--hmw-color-button-text));
+  background: var(--hmw-filter-button-bg, var(--hmw-color-primary));
   border: none;
   border-radius: var(--hmw-radius-sm);
   cursor: pointer;
   transition: background var(--hmw-transition), transform var(--hmw-transition);
 
   &:hover {
-    background: var(--hmw-color-primary-hover);
+    background: var(--hmw-filter-button-hover, var(--hmw-color-primary-hover));
   }
 
   &:active {
@@ -290,9 +322,9 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: var(--hmw-color-bg-section);
+  background: var(--hmw-filter-tag-bg, var(--hmw-color-bg-section));
   color: var(--hmw-color-text);
-  border: 1px solid var(--hmw-color-border);
+  border: 1px solid var(--hmw-filter-tag-border, var(--hmw-color-border));
   padding: 4px 10px;
   border-radius: 100px;
   font-size: var(--hmw-font-size-xs);
@@ -318,7 +350,7 @@
   transition: color var(--hmw-transition), background var(--hmw-transition);
 
   &:hover {
-    color: #fff;
+    color: var(--hmw-color-button-text);
     background: var(--hmw-color-error);
   }
 }
@@ -326,7 +358,6 @@
 /*=========================================================
  * Event Grid
  *========================================================*/
-
 .hmw-event-listings {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -354,8 +385,8 @@
 .hmw-event-card {
   display: flex;
   flex-direction: column;
-  background: var(--hmw-color-bg);
-  border: 1px solid var(--hmw-color-border);
+  background: var(--hmw-card-bg, var(--hmw-color-bg));
+  border: 1px solid var(--hmw-card-border, var(--hmw-color-border));
   border-radius: var(--hmw-radius);
   overflow: hidden;
   box-shadow: var(--hmw-shadow-sm);
@@ -418,27 +449,27 @@
 
 .badge--online {
   background: color-mix(in srgb, var(--hmw-color-primary) 90%, transparent);
-  color: #fff;
+  color: var(--hmw-color-button-text);
 }
 
 .badge--in-person {
-  background: color-mix(in srgb, #065f46 85%, transparent);
-  color: #fff;
+  background: color-mix(in srgb, var(--hmw-color-success) 85%, transparent);
+  color: var(--hmw-color-button-text);
 }
 
 .badge--hybrid {
-  background: color-mix(in srgb, #92400e 85%, transparent);
-  color: #fff;
+  background: color-mix(in srgb, var(--hmw-color-warning, #d97706) 85%, transparent);
+  color: var(--hmw-color-button-text);
 }
 
 .badge--free {
   background: color-mix(in srgb, var(--hmw-color-success) 90%, transparent);
-  color: #fff;
+  color: var(--hmw-color-button-text);
 }
 
 .badge--full {
   background: color-mix(in srgb, var(--hmw-color-error) 90%, transparent);
-  color: #fff;
+  color: var(--hmw-color-button-text);
 }
 
 .hmw-event-card__content {
@@ -512,7 +543,7 @@
 }
 
 .hmw-event-card__excerpt {
-  font-size: var(--hmw-font-size-sm);
+  font-size: var(--hmw-font-size-base);
   color: var(--hmw-color-text-muted);
   line-height: 1.55;
   flex: 1;
@@ -581,7 +612,7 @@
 
 .hmw-event-listings-wrapper .hmw-btn--primary {
   background: var(--hmw-color-primary);
-  color: #fff;
+  color: var(--hmw-color-button-text);
   border: none;
 
   &:hover {
@@ -678,7 +709,7 @@
 
   & .current {
     background: var(--hmw-color-primary);
-    color: #fff;
+    color: var(--hmw-color-button-text);
     border-color: var(--hmw-color-primary);
     box-shadow: 0 2px 8px var(--hmw-color-primary-light);
   }

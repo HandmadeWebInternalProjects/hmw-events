@@ -14,6 +14,8 @@
   --hmw-color-bg-section: #f8fafc;
   --hmw-color-bg-page: #f1f5f9;
   --hmw-color-label: #334155;
+  --hmw-color-button-text: #ffffff;
+  --hmw-color-warning: #d97706;
   --hmw-radius: 8px;
   --hmw-radius-sm: 4px;
   --hmw-gap: 16px;
@@ -65,6 +67,83 @@
   color: var(--hmw-color-text);
   padding-block-end: 10px;
   border-block-end: 1px solid var(--hmw-color-border);
+}
+
+.hmw-reg-section--coupon {
+  background: var(--hmw-color-bg-section);
+}
+
+.hmw-v3-coupon-row {
+  display: flex;
+  gap: 8px;
+
+  & input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: var(--hmw-font-size-base);
+    font-family: inherit;
+    border: 1px solid var(--hmw-color-border);
+    border-radius: var(--hmw-radius-sm);
+    outline: none;
+    transition: border-color var(--hmw-transition), box-shadow var(--hmw-transition);
+
+    &:focus {
+      border-color: var(--hmw-color-border-focus);
+      box-shadow: 0 0 0 3px rgba(147, 197, 253, .25);
+    }
+  }
+}
+
+.hmw-v3-coupon-apply {
+  flex-shrink: 0;
+}
+
+.hmw-v3-coupon-message {
+  margin-block-start: 8px;
+  padding: 8px 12px;
+  font-size: var(--hmw-font-size-sm);
+  border-radius: var(--hmw-radius-sm);
+}
+
+.hmw-v3-coupon-message--success {
+  background: var(--hmw-color-success-bg);
+  color: var(--hmw-color-success);
+  border: 1px solid var(--hmw-color-success);
+}
+
+.hmw-v3-coupon-message--error {
+  background: var(--hmw-color-error-bg);
+  color: var(--hmw-color-error);
+  border: 1px solid var(--hmw-color-error);
+}
+
+.hmw-v3-coupon-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-start: 8px;
+  padding: 8px 12px;
+  font-size: var(--hmw-font-size-sm);
+  background: var(--hmw-color-success-bg);
+  color: var(--hmw-color-success);
+  border: 1px solid var(--hmw-color-success);
+  border-radius: var(--hmw-radius-sm);
+}
+
+.hmw-v3-coupon-remove {
+  background: none;
+  border: none;
+  color: var(--hmw-color-error);
+  font-size: var(--hmw-font-size-xl);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: var(--hmw-radius-sm);
+  transition: background var(--hmw-transition);
+
+  &:hover {
+    background: var(--hmw-color-error-bg);
+  }
 }
 
 .hmw-reg-section--payment {
@@ -154,6 +233,13 @@
 .hmw-required {
   color: var(--hmw-color-error);
   font-weight: 600;
+}
+
+.hmw-v3-field-hint {
+  margin: 0;
+  font-size: var(--hmw-font-size-xs);
+  color: var(--hmw-color-text-muted);
+  line-height: 1.4;
 }
 
 
@@ -306,7 +392,7 @@
 
 .hmw-btn--primary {
   background: var(--hmw-color-primary);
-  color: #fff;
+  color: var(--hmw-color-button-text);
 
   &:hover {
     background: var(--hmw-color-primary-hover);
@@ -375,6 +461,47 @@
   margin-block-start: 4px;
 }
 
+.hmw-v3-attendance-options {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.hmw-v3-attendance-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--hmw-color-border);
+  border-radius: var(--hmw-radius-sm);
+  background: var(--hmw-color-bg);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--hmw-color-border-focus);
+  }
+
+  &:has(input:checked) {
+    border-color: var(--hmw-color-primary);
+    background: var(--hmw-color-primary-light);
+  }
+
+  input[type="radio"] {
+    margin: 0;
+  }
+}
+
+.hmw-v3-attendance-option-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.hmw-v3-attendance-option-price {
+  color: var(--hmw-color-text-muted);
+  font-weight: 600;
+}
+
 @media (width <= 600px) {
   .hmw-v3-booking-wrapper {
     padding: 12px;
@@ -394,5 +521,129 @@
 
   .hmw-reg-field--full {
     grid-column: 1 / -1;
+  }
+}
+
+/* Session picker */
+.hmw-session-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hmw-gap);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.hmw-session-picker-day {
+  display: grid;
+  gap: 8px;
+}
+
+.hmw-session-picker-date {
+  font-size: var(--hmw-font-size-sm);
+  font-weight: 600;
+  color: var(--hmw-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hmw-session-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--hmw-color-border);
+  border-radius: var(--hmw-radius);
+  background: var(--hmw-color-bg);
+  cursor: pointer;
+  transition: border-color var(--hmw-transition), background var(--hmw-transition), box-shadow var(--hmw-transition);
+}
+
+.hmw-session-picker-option:hover {
+  border-color: var(--hmw-color-border-focus);
+}
+
+.hmw-session-picker-option:has(input:checked) {
+  border-color: var(--hmw-color-primary);
+  background: var(--hmw-color-primary-light);
+  box-shadow: inset 0 0 0 1px var(--hmw-color-primary);
+}
+
+.hmw-session-picker-option:has(input:focus-visible) {
+  outline: 2px solid var(--hmw-color-border-focus);
+  outline-offset: 2px;
+}
+
+.hmw-session-picker-option input {
+  margin: 0;
+  inline-size: 16px;
+  block-size: 16px;
+  flex-shrink: 0;
+  accent-color: var(--hmw-color-primary);
+}
+
+.hmw-session-picker-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.hmw-session-picker-time {
+  font-weight: 600;
+  color: var(--hmw-color-text);
+}
+
+.hmw-session-picker-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.hmw-session-picker-price {
+  font-weight: 600;
+  color: var(--hmw-color-text);
+}
+
+.hmw-session-picker-remaining {
+  font-size: var(--hmw-font-size-xs);
+  color: var(--hmw-color-text-muted);
+}
+
+.hmw-session-picker-option--full {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--hmw-color-bg-section);
+}
+
+.hmw-session-picker-option--full input {
+  cursor: not-allowed;
+}
+
+.hmw-session-picker-full {
+  font-size: var(--hmw-font-size-xs);
+  color: var(--hmw-color-text-muted);
+}
+
+.hmw-session-picker-full a {
+  color: var(--hmw-color-primary);
+}
+
+.hmw-session-picker-total {
+  margin-block: 8px 0;
+  font-weight: 600;
+  text-align: end;
+  color: var(--hmw-color-text);
+}
+
+@media (width <= 600px) {
+  .hmw-session-picker-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 }

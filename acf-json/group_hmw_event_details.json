@@ -21,6 +21,17 @@
             "return_format": "Y-m-d H:i:s"
         },
         {
+            "key": "field_event_enable_bookings",
+            "label": "Enable Bookings",
+            "name": "_event_enable_bookings",
+            "type": "true_false",
+            "instructions": "Turn off to hide the booking form and disable new bookings. Use for expression-of-interest events where you embed your own form in the event content.",
+            "default_value": 1,
+            "ui": 1,
+            "ui_on_text": "Bookings On",
+            "ui_off_text": "Bookings Off"
+        },
+        {
             "key": "field_event_price",
             "label": "Full Price",
             "name": "_event_price",
@@ -84,6 +95,7 @@
             "label": "Allow Net Terms / Pay Later",
             "name": "_event_allow_net_terms",
             "type": "true_false",
+            "instructions": "Allow registrants to pay later via invoice. This will override the 'Free Event' setting. Also requires the event to be set to invitation-only",
             "default_value": 0,
             "ui": 1
         },
@@ -176,6 +188,62 @@
                 ]
             ],
             "layout": "horizontal"
+        },
+        {
+            "key": "field_event_session_booking_mode",
+            "label": "Session Booking Mode",
+            "name": "_event_session_booking_mode",
+            "type": "select",
+            "instructions": "How bookings expand across sessions: 'Series track' means booking a time slot books every session with that time. 'Individual sessions' means the attendee selects exactly which sessions to attend and pays per session.",
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    }
+                ]
+            ],
+            "choices": {
+                "track": "Series track (book a slot, attend all matching sessions)",
+                "individual": "Individual sessions (attendee picks and pays per session)"
+            },
+            "default_value": "track",
+            "return_format": "value"
+        },
+        {
+            "key": "field_event_recurrence_times",
+            "label": "Session Times",
+            "name": "_event_recurrence_times",
+            "type": "repeater",
+            "instructions": "Optional. Add multiple start times for each occurrence day (e.g. 10:00 am, 11:15 am, 12:45 pm). Each time becomes its own bookable session with its own capacity. Leave empty to use the event's start time.",
+            "conditional_logic": [
+                [
+                    {
+                        "field": "field_event_is_recurring",
+                        "operator": "==",
+                        "value": "1"
+                    },
+                    {
+                        "field": "field_event_recurrence_unit",
+                        "operator": "!=",
+                        "value": "custom"
+                    }
+                ]
+            ],
+            "layout": "table",
+            "button_label": "Add Time",
+            "sub_fields": [
+                {
+                    "key": "field_event_recurrence_time",
+                    "label": "Start Time",
+                    "name": "time",
+                    "type": "time_picker",
+                    "required": 1,
+                    "display_format": "g:i a",
+                    "return_format": "H:i:s"
+                }
+            ]
         },
         {
             "key": "field_event_recurrence_end_type",
@@ -287,20 +355,29 @@
                     "display_format": "d/m/Y",
                     "return_format": "Y-m-d",
                     "first_day": 1
+                },
+                {
+                    "key": "field_event_recurrence_custom_date_time",
+                    "label": "Start Time",
+                    "name": "time",
+                    "type": "time_picker",
+                    "instructions": "Optional. Multiple rows on the same date with different times create separate sessions.",
+                    "display_format": "g:i a",
+                    "return_format": "H:i:s"
                 }
             ]
         },
         {
-            "key": "field_event_venue_name",
-            "label": "Venue Name",
-            "name": "_event_venue_name",
-            "type": "text"
-        },
-        {
-            "key": "field_event_venue_address",
-            "label": "Venue Address",
-            "name": "_event_venue_address",
-            "type": "google_map"
+            "key": "field_event_venue",
+            "label": "Venue",
+            "name": "_event_venue",
+            "type": "post_object",
+            "post_type": [
+                "event_location"
+            ],
+            "multiple": 0,
+            "allow_null": 1,
+            "return_format": "id"
         },
         {
             "key": "field_event_webinar_url",
@@ -348,5 +425,6 @@
     "instruction_placement": "label",
     "hide_on_screen": "",
     "active": true,
+    "modified": 1787804992,
     "description": ""
 }

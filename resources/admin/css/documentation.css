@@ -1,0 +1,147 @@
+.hmwevents-docs-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.hmwevents-docs-nav {
+  flex: 0 0 220px;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 10px 0;
+}
+
+.hmwevents-docs-nav ul {
+  margin: 0;
+  list-style: none;
+}
+
+.hmwevents-docs-nav a {
+  display: block;
+  padding: 7px 14px;
+  text-decoration: none;
+  color: #2271b1;
+  border-left: 3px solid transparent;
+}
+
+.hmwevents-docs-nav a:hover {
+  background: #f0f6fc;
+}
+
+.hmwevents-docs-nav li.is-active a {
+  border-left-color: #2271b1;
+  background: #f0f6fc;
+  color: #1d2327;
+  font-weight: 600;
+}
+
+.hmwevents-docs-content {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 4px;
+  padding: 24px 32px 32px;
+}
+
+.hmwevents-docs-content h1 {
+  margin-top: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dcdcde;
+}
+
+.hmwevents-docs-content h2 {
+  margin-top: 28px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #dcdcde;
+}
+
+.hmwevents-docs-content h3 {
+  margin-top: 20px;
+}
+
+.hmwevents-docs-content img {
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+  background: #f6f7f7;
+  padding: 4px;
+  margin: 8px 0;
+}
+
+.hmwevents-docs-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.hmwevents-docs-content th,
+.hmwevents-docs-content td {
+  border: 1px solid #c3c4c7;
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.hmwevents-docs-content thead th {
+  background: #f0f0f1;
+}
+
+.hmwevents-docs-content tbody tr:nth-child(2n) {
+  background: #f6f7f7;
+}
+
+.hmwevents-docs-content blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 4px solid #72aee6;
+  background: #f0f6fc;
+  border-radius: 0 4px 4px 0;
+}
+
+.hmwevents-docs-content blockquote p {
+  margin: 0 0 8px;
+}
+
+.hmwevents-docs-content blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.hmwevents-docs-content code {
+  background: #f0f0f1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.hmwevents-docs-content pre {
+  background: #f0f0f1;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.hmwevents-docs-content pre code {
+  background: none;
+  padding: 0;
+}
+
+@media screen and (max-width: 782px) {
+  .hmwevents-docs-layout {
+    flex-direction: column;
+  }
+
+  .hmwevents-docs-nav {
+    flex: none;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .hmwevents-docs-content {
+    padding: 16px 20px 24px;
+  }
+}

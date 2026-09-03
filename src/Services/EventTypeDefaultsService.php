@@ -2,6 +2,7 @@
 
 namespace HMWEvents\Services;
 
+use HMWEvents\Helpers\EventFieldConfig;
 use HMWEvents\Registry\EventTypeRegistry;
 use HMWEvents\Registry\RegistrationFieldRegistry;
 
@@ -114,10 +115,18 @@ class EventTypeDefaultsService
         }
 
         $all_hideable = array_values(array_unique($all_hideable));
+        $post_id = (int) get_the_ID();
+        $attendance_options = $post_id > 0
+            ? \HMWEvents\Helpers\EventHelper::get_active_attendance_options($post_id)
+            : [];
+        $simple_price_visible = !\HMWEvents\Services\AttendancePricingService::is_multi_options(array_map(static function ($option): array {
+            return ['option_type' => $option->option_type];
+        }, $attendance_options));
 
         wp_localize_script('jquery', 'hmwEventTypeDefaults', [
             'hiddenFields' => $hidden_fields_map,
             'allHideableFields' => $all_hideable,
+            'simplePriceVisible' => $simple_price_visible,
         ]);
         wp_add_inline_script('jquery', $this->get_inline_script());
         add_action('admin_head', [$this, 'output_field_visibility_css']);
@@ -201,8 +210,8 @@ class EventTypeDefaultsService
 
         $result = $this->apply_defaults_to_event($post_id, $type_slug);
 
-        $saved = get_post_meta($post_id, '_event_field_config', true);
-        $event_fields = is_array($saved) && isset($saved['event_fields']) ? $saved['event_fields'] : [];
+        $saved = EventFieldConfig::read($post_id);
+        $event_fields = $saved !== null && isset($saved['event_fields']) ? $saved['event_fields'] : [];
 
         wp_send_json_success([
             'message' => sprintf(
@@ -256,9 +265,9 @@ class EventTypeDefaultsService
             }
         }
 
-        $snapshot = get_post_meta($post_id, '_event_field_config', true);
+        $snapshot = EventFieldConfig::read($post_id);
         $registration_fields = [];
-        if (is_array($snapshot) && isset($snapshot['registration_fields'])
+        if ($snapshot !== null && isset($snapshot['registration_fields'])
             && is_array($snapshot['registration_fields'])
             && !empty($snapshot['registration_fields'])
         ) {
@@ -349,7 +358,7 @@ class EventTypeDefaultsService
                 'meta_key'      => $preset['meta_key'] ?? null,
                 'preset'        => true,
                 'per_attendee'  => true,
-                'options'       => [],
+                'options'       => $preset['options'] ?? [],
             ];
         }
 
@@ -388,17 +397,15 @@ class EventTypeDefaultsService
             return;
         }
 
+        if (!AttendancePricingService::is_multi_options($presets)) {
+            if (get_post_meta($post_id, '_event_price', true) === '' && isset($presets[0]['price'])) {
+                update_post_meta($post_id, '_event_price', (float) $presets[0]['price']);
+            }
+            return;
+        }
+
         foreach ($presets as $index => $preset) {
-            $wpdb->insert($table, [
-                'event_post_id' => $post_id,
-                'option_type'   => sanitize_key($preset['option_type'] ?? 'individual') ?: 'individual',
-                'label'         => sanitize_text_field($preset['label'] ?? 'Individual'),
-                'price'         => (float) ($preset['price'] ?? 0),
-                'sort_order'    => $index,
-                'is_active'     => 1,
-                'created_at'    => current_time('mysql'),
-                'updated_at'    => current_time('mysql'),
-            ], ['%d', '%s', '%s', '%f', '%d', '%d', '%s', '%s']);
+            AttendancePricingService::insert_attendance_option($post_id, $preset, $index);
         }
     }
 
@@ -477,9 +484,9 @@ class EventTypeDefaultsService
             return;
         }
 
-        $existing = get_post_meta($post_id, '_event_field_config', true);
+        $existing = EventFieldConfig::read($post_id);
 
-        if (is_array($existing) && !empty($existing)) {
+        if ($existing !== null && !empty($existing)) {
             $event_fields = $this->resolve_event_fields($post_id, $type_slug);
             $existing_hidden = array_values((array) ($existing['event_fields']['hidden'] ?? []));
             $new_hidden = array_values((array) ($event_fields['hidden'] ?? []));
@@ -519,6 +526,7 @@ class EventTypeDefaultsService
                 var key = String(templateId);
                 if(!key || key === '0' || !hiddenFields[key]) return;
                 \$.each(hiddenFields[key], function(i, fieldName){
+                    if(fieldName === 'event_price' && window.hmwEventTypeDefaults.simplePriceVisible) return;
                     \$('.acf-field[data-name=\"_' + fieldName + '\"]')
                         .addClass(HIDDEN_CLASS);
                 });

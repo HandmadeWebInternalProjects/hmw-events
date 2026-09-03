@@ -15,7 +15,7 @@ use HMWEvents\HMWEvents;
  * Requires at least: 6.3
  * Requires PHP: 8.0
  * Tested up to: 6.3
- * GitHub Plugin URI: https://github.com/HandmadeWebExternalProjects/hmw-events
+ * GitHub Plugin URI: https://github.com/HandmadeWebInternalProjects/hmw-events
  * Primary Branch: main
  */
 

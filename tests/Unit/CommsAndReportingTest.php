@@ -9,8 +9,6 @@
 namespace HMWEvents\Tests\Unit;
 
 use HMWEvents\Registry\CommunicationTriggerMatrix;
-use HMWEvents\Services\EmailTemplateManager;
-use HMWEvents\Services\EmailDispatchService;
 use HMWEvents\Services\EventListingService;
 use HMWEvents\Services\ReportingService;
 use PHPUnit\Framework\TestCase;
@@ -44,6 +42,7 @@ class CommsAndReportingTest extends TestCase
         });
         Functions\when('error_log')->justReturn(true);
         Functions\when('gmdate')->alias('date');
+        Functions\when('get_posts')->justReturn([]);
     }
 
     protected function tearDown(): void
@@ -56,10 +55,11 @@ class CommsAndReportingTest extends TestCase
     // Communication Trigger Matrix
     // ============================================================
 
-    public function test_trigger_matrix_has_all_12_triggers(): void
+    public function test_trigger_matrix_has_all_13_triggers(): void
     {
         $triggers = CommunicationTriggerMatrix::get_all_triggers();
-        $this->assertCount(12, $triggers);
+        $this->assertCount(13, $triggers);
+        $this->assertArrayHasKey('waitlist_joined', $triggers);
     }
 
     public function test_resolve_without_event_type(): void
@@ -92,38 +92,6 @@ class CommsAndReportingTest extends TestCase
         $this->assertContains('reminder_7_days', $triggers);
         $this->assertContains('reminder_1_day', $triggers);
         $this->assertContains('post_event', $triggers);
-    }
-
-    // ============================================================
-    // Email Template Manager
-    // ============================================================
-
-    public function test_template_manager_instantiable(): void
-    {
-        $manager = new EmailTemplateManager();
-        $this->assertInstanceOf(EmailTemplateManager::class, $manager);
-    }
-
-    public function test_template_manager_in_components(): void
-    {
-        $components = \HMWEvents\HMWEvents::get_components();
-        $this->assertContains(EmailTemplateManager::class, $components);
-    }
-
-    // ============================================================
-    // Email Dispatch Service
-    // ============================================================
-
-    public function test_dispatch_instantiable(): void
-    {
-        $service = new EmailDispatchService();
-        $this->assertInstanceOf(EmailDispatchService::class, $service);
-    }
-
-    public function test_dispatch_in_components(): void
-    {
-        $components = \HMWEvents\HMWEvents::get_components();
-        $this->assertContains(EmailDispatchService::class, $components);
     }
 
     // ============================================================
