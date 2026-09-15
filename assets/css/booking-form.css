@@ -2,6 +2,8 @@
  * Booking Form Styles
  */
 
+@layer hmw.components {
+
 .hmwevents-booking-form-wrapper {
     max-width: 800px;
     margin: 0 auto;
@@ -347,4 +349,5 @@
         align-items: flex-start;
         gap: 8px;
     }
+}
 }

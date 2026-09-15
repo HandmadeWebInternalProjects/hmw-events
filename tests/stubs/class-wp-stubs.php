@@ -190,3 +190,88 @@ if (!class_exists('WP_Post')) {
         }
     }
 }
+
+if (!class_exists('WP_Term')) {
+    /**
+     * Minimal WP_Term stub for testing.
+     */
+    class WP_Term
+    {
+        public $term_id;
+        public $name;
+        public $slug;
+        public $taxonomy = '';
+
+        public function __construct($data = null)
+        {
+            if (is_object($data)) {
+                foreach (get_object_vars($data) as $k => $v) {
+                    $this->$k = $v;
+                }
+            }
+        }
+    }
+}
+
+if (!class_exists('WP_Query')) {
+    /**
+     * Minimal WP_Query stub for testing.
+     *
+     * Tests configure the fake result set per test via the static
+     * $test_config property (posts, found_posts, max_num_pages) before
+     * triggering code that instantiates WP_Query.
+     */
+    class WP_Query
+    {
+        /** @var array<string, mixed> */
+        public static array $test_config = [];
+
+        /** @var array<int, self> */
+        public static array $instances = [];
+
+        /** @var array<int, mixed> */
+        public array $posts = [];
+        public $post;
+        public int $post_count = 0;
+        public int $found_posts = 0;
+        public int $max_num_pages = 1;
+        public array $query_vars = [];
+
+        private int $current_index = -1;
+
+        public function __construct($query_vars = [])
+        {
+            self::$instances[]   = $this;
+            $this->query_vars    = is_array($query_vars) ? $query_vars : [];
+            $config              = self::$test_config;
+            $this->posts         = array_values((array) ($config['posts'] ?? []));
+            $this->post_count    = count($this->posts);
+            $this->found_posts   = (int) ($config['found_posts'] ?? $this->post_count);
+            $this->max_num_pages = (int) ($config['max_num_pages'] ?? 1);
+            $this->current_index = -1;
+            $this->post          = $this->posts[0] ?? null;
+        }
+
+        public function have_posts(): bool
+        {
+            return $this->current_index + 1 < $this->post_count;
+        }
+
+        public function the_post()
+        {
+            $this->current_index++;
+            $this->post      = $this->posts[$this->current_index] ?? null;
+            $GLOBALS['post'] = $this->post;
+        }
+
+        public function get($var)
+        {
+            return $this->query_vars[$var] ?? null;
+        }
+
+        public function set($var, $value): void
+        {
+            $this->query_vars[$var] = $value;
+        }
+    }
+}

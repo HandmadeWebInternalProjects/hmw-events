@@ -1,3 +1,5 @@
+@layer hmw.components {
+
 .hmwevents-waitlist-wrapper {
   --hmw-wl-border: #d9dde3;
   --hmw-wl-text: #1c2430;
@@ -97,4 +99,6 @@
   .hmwevents-waitlist-form .hmwevents-form-row {
     grid-template-columns: 1fr;
   }
+}
+
 }

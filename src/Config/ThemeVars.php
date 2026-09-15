@@ -170,14 +170,6 @@ class ThemeVars
                         'default' => '16px',
                         'desc'    => 'Default gap between grid items and form sections.',
                     ],
-                    [
-                        'key'     => 'shadow',
-                        'var'     => '--hmw-shadow-sm',
-                        'type'    => 'text',
-                        'label'   => 'Card Shadow',
-                        'default' => '0 1px 2px rgba(0, 0, 0, .05)',
-                        'desc'    => 'CSS box-shadow value applied to cards, the filter bar, and buttons.',
-                    ],
                 ],
             ],
 
@@ -252,7 +244,7 @@ class ThemeVars
             ],
 
             'cards' => [
-                'header' => '<h3>Event Cards</h3><p>Overrides for event cards in the listings grid. Leave a colour empty to fall back to the matching general colour above.</p>',
+                'header' => '<h3>Event Cards</h3><p>Overrides for event cards in the listings grid. Leave a colour empty to fall back to the matching general colour above; leave other fields empty for the built-in default.</p>',
                 'fields' => [
                     [
                         'key'     => 'card_bg',
@@ -269,6 +261,46 @@ class ThemeVars
                         'label'   => 'Event Card Border',
                         'default' => '',
                         'desc'    => 'Leave empty to use the Border Colour.',
+                    ],
+                    [
+                        'key'     => 'card_title_color',
+                        'var'     => '--hmw-card-title-color',
+                        'type'    => 'color',
+                        'label'   => 'Card Title Colour',
+                        'default' => '',
+                        'desc'    => 'Leave empty to use the Text Colour.',
+                    ],
+                    [
+                        'key'     => 'card_padding',
+                        'var'     => '--hmw-card-padding',
+                        'type'    => 'text',
+                        'label'   => 'Card Padding',
+                        'default' => '',
+                        'desc'    => 'CSS padding for the card content area (e.g. 20px or 18px 20px). Leave empty for the default.',
+                    ],
+                    [
+                        'key'     => 'card_radius',
+                        'var'     => '--hmw-card-radius',
+                        'type'    => 'text',
+                        'label'   => 'Card Border Radius',
+                        'default' => '',
+                        'desc'    => 'Leave empty to use the Border Radius.',
+                    ],
+                    [
+                        'key'     => 'shadow',
+                        'var'     => '--hmw-shadow-sm',
+                        'type'    => 'text',
+                        'label'   => 'Card Shadow',
+                        'default' => '0 1px 2px rgba(0, 0, 0, .05)',
+                        'desc'    => 'CSS box-shadow value applied to event cards, the filter bar, and buttons.',
+                    ],
+                    [
+                        'key'     => 'card_shadow_hover',
+                        'var'     => '--hmw-card-shadow-hover',
+                        'type'    => 'text',
+                        'label'   => 'Card Hover Shadow',
+                        'default' => '',
+                        'desc'    => 'CSS box-shadow value shown when hovering an event card. Leave empty for the default.',
                     ],
                 ],
             ],

@@ -43,6 +43,70 @@ WordPress.
 | **Notification Email Override** | Send booking notifications for this event to a different email address. |
 | **Organizer** | Who runs this event. |
 
+## Categorising events
+
+Events are sorted into five categories. You manage the available options
+under the **Events** menu:
+
+| Menu item | What it describes |
+|---|---|
+| **Events → Event Types** | What kind of event it is — for example a workshop or webinar. |
+| **Events → Delivery Modes** | How the event runs — In Person, Online, or Hybrid. |
+| **Events → Audiences** | Who the event is for — for example parents or professionals. |
+| **Events → States** | The Australian state the event is available in. |
+| **Events → Topics** | The subject the event covers. |
+
+Event Types, Delivery Modes, Audiences, and Topics are chosen in boxes on
+the event editor. States are managed from the **Events → States** screen.
+
+### Delivery mode icons
+
+Each delivery mode can carry its own icon, shown to clients on event cards.
+
+1. Go to **Events → Delivery Modes** and click the delivery mode you want
+   to change (for example **Online**).
+2. In the **Delivery Mode Details** box, use **Icon (SVG)** to upload your
+   icon file.
+3. Click **Update**.
+
+Uploading SVG files is restricted to administrators — if you cannot upload
+one, ask your web team.
+
+### Where clients see categories
+
+- On **event cards** the delivery mode appears as an outlined pill above
+  the event title, with its icon to the left of the delivery mode's name.
+  A delivery mode without an icon shows the name on its own. After the
+  venue line, cards also list the event's **Audience** and **State** as
+  links to those categories' archive pages.
+- On the **event page** the event type badge at the top, and the
+  **Delivery**, **Audience**, **State**, and **Topic** rows in the event
+  details, all link to their category's archive page.
+
+### The listings filter bar
+
+Event listing pages (the `[hmw_event_listings]` shortcode) show a filter bar
+next to the results so clients can narrow the list. The sections appear in
+this order:
+
+| Section | What clients can choose |
+|---|---|
+| **Location** | A dropdown of states. **All Locations** clears the choice. |
+| **Topic** | Checkboxes, one per topic. |
+| **Delivery Mode** | Checkboxes — In Person, Online, Hybrid. |
+| **Cost** | **Paid** and **Free**. Ticking one shows only that kind; ticking both (or neither) shows everything. |
+| **Event Day** | **Weekdays** and **Weekends**, matched to the event's start date. Ticking both shows every day. |
+| **Month** | January to December, matched to the event's start date, shown in two columns. |
+| **Event Type** | Checkboxes. Hidden when the listing is already restricted to a single event type. |
+| **Date Range** | From and To dates. |
+| **Sort By** | Date, price, or title order. |
+
+A section only appears when there is something to filter by. Clients click
+**Apply Filters** to update the results. Active filters show as chips above
+the results — each chip has a × that removes that one filter — and **Clear
+All Filters** at the top of the bar resets everything. A search box sits
+above the sections.
+
 ## Prices with more than one attendance option
 
 If the event offers more than one attendance option — for example Individual,

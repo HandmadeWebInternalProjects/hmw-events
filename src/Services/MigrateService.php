@@ -243,7 +243,6 @@ class MigrateService
     {
         $count = 0;
         $count += $this->copy_terms('course_type', 'hmw_event_type');
-        $count += $this->copy_terms('course_state', 'hmw_event_state');
         return $count;
     }
 
@@ -254,7 +253,6 @@ class MigrateService
     {
         $mappings = [
             'course_type'  => 'hmw_event_type',
-            'course_state' => 'hmw_event_state',
         ];
 
         foreach ($mappings as $old_tax => $new_tax) {

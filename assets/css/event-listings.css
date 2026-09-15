@@ -1,39 +1,50 @@
 /*=========================================================
  * HMW Event Listings — Grid & Filter Bar
- * Uses CSS variables from the Theming settings.
+ * Cascade layers: theme CSS and the unlayered Theming settings
+ * block always override anything in the hmw layers.
+ * Child theme override pattern:
+ *   @layer hmw.components { .hmw-event-card { ... } }
+ * or simply write unlayered CSS — it always wins.
  *========================================================*/
 
-:root {
-  --hmw-color-primary: #2563eb;
-  --hmw-color-primary-hover: #1d4ed8;
-  --hmw-color-primary-light: #eff6ff;
-  --hmw-color-error: #dc2626;
-  --hmw-color-error-bg: #fef2f2;
-  --hmw-color-success: #16a34a;
-  --hmw-color-success-bg: #f0fdf4;
-  --hmw-color-text: #1e293b;
-  --hmw-color-text-muted: #64748b;
-  --hmw-color-border: #e2e8f0;
-  --hmw-color-border-focus: #93c5fd;
-  --hmw-color-bg: #ffffff;
-  --hmw-color-bg-section: #f8fafc;
-  --hmw-color-bg-page: #f1f5f9;
-  --hmw-color-label: #334155;
-  --hmw-color-button-text: #ffffff;
-  --hmw-radius: 8px;
-  --hmw-radius-sm: 4px;
-  --hmw-gap: 16px;
-  --hmw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --hmw-font-size-xs: 1rem;
-  --hmw-font-size-sm: 1.2rem;
-  --hmw-font-size-base: 1.6rem;
-  --hmw-font-size-lg: 1.8rem;
-  --hmw-font-size-xl: 2rem;
-  --hmw-font-size-2xl: 2.4rem;
-  --hmw-shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
-  --hmw-shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
-  --hmw-transition: 150ms ease;
+@layer hmw.base, hmw.components;
+
+@layer hmw.base {
+  :root {
+    --hmw-color-primary: #2563eb;
+    --hmw-color-primary-hover: #1d4ed8;
+    --hmw-color-primary-light: #eff6ff;
+    --hmw-color-error: #dc2626;
+    --hmw-color-error-bg: #fef2f2;
+    --hmw-color-success: #16a34a;
+    --hmw-color-success-bg: #f0fdf4;
+    --hmw-color-warning: #d97706;
+    --hmw-color-text: #1e293b;
+    --hmw-color-text-muted: #64748b;
+    --hmw-color-border: #e2e8f0;
+    --hmw-color-border-focus: #93c5fd;
+    --hmw-color-bg: #ffffff;
+    --hmw-color-bg-section: #f8fafc;
+    --hmw-color-bg-page: #f1f5f9;
+    --hmw-color-label: #334155;
+    --hmw-color-button-text: #ffffff;
+    --hmw-radius: 8px;
+    --hmw-radius-sm: 4px;
+    --hmw-gap: 16px;
+    --hmw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --hmw-font-size-xs: 1rem;
+    --hmw-font-size-sm: 1.2rem;
+    --hmw-font-size-base: 1.6rem;
+    --hmw-font-size-lg: 1.8rem;
+    --hmw-font-size-xl: 2rem;
+    --hmw-font-size-2xl: 2.4rem;
+    --hmw-shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
+    --hmw-shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
+    --hmw-transition: 150ms ease;
+  }
 }
+
+@layer hmw.components {
 
 .hmw-event-listings-wrapper {
   font-family: var(--hmw-font-family);
@@ -100,22 +111,110 @@
 }
 
 /*=========================================================
- * Filter Bar
+ * Listings Layout (cards + filter sidebar)
+ *========================================================*/
+
+.hmw-event-listings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 40px;
+  align-items: start;
+}
+
+.hmw-event-listings-layout__main,
+.hmw-event-listings-layout__sidebar {
+  min-inline-size: 0;
+}
+
+.hmw-event-listings-region {
+  &[aria-busy="true"] {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+}
+
+@media (width <= 1024px) {
+  .hmw-event-listings-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 28px;
+  }
+}
+
+@media (width <= 768px) {
+  .hmw-event-listings-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .hmw-event-listings-layout__sidebar {
+    order: -1;
+  }
+}
+
+/*=========================================================
+ * Filter Sidebar
  *========================================================*/
 
 .hmw-event-filters {
-  background: var(--hmw-filter-bg, var(--hmw-color-bg));
-  border: 1px solid var(--hmw-filter-border, var(--hmw-color-border));
-  border-radius: var(--hmw-radius);
-  padding: 24px;
-  margin-block-end: 24px;
-  box-shadow: var(--hmw-shadow-sm);
+  font-size: var(--hmw-font-size-sm);
+}
+
+.hmw-event-filters__search {
+  position: relative;
+  display: block;
+  margin-block-end: 14px;
+
+  & input {
+    inline-size: 100%;
+    padding: 11px 44px 11px 18px;
+    font-size: var(--hmw-font-size-sm);
+    font-family: inherit;
+    color: var(--hmw-color-text);
+    background: var(--hmw-color-bg);
+    border: 1px solid var(--hmw-color-border);
+    border-radius: 100px;
+    outline: none;
+    transition: border-color var(--hmw-transition), box-shadow var(--hmw-transition);
+
+    &::placeholder {
+      color: var(--hmw-color-text-muted);
+    }
+
+    &:focus {
+      border-color: var(--hmw-color-primary);
+      box-shadow: 0 0 0 3px var(--hmw-color-primary-light);
+    }
+  }
+
+  & svg {
+    position: absolute;
+    inset-inline-end: 16px;
+    inset-block-start: 50%;
+    transform: translateY(-50%);
+    color: var(--hmw-color-primary);
+    pointer-events: none;
+  }
+}
+
+.hmw-event-filters__clear {
+  display: inline-block;
+  font-size: var(--hmw-font-size-sm);
+  font-weight: 500;
+  color: var(--hmw-filter-clear, var(--hmw-color-primary));
+  text-decoration: none;
+  margin-block-end: 22px;
+  transition: color var(--hmw-transition);
+
+  &:hover {
+    color: var(--hmw-filter-clear-hover, var(--hmw-color-primary-hover));
+    text-decoration: underline;
+  }
 }
 
 .hmw-event-filters__inner {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
 }
 
 .hmw-event-filters__section {
@@ -129,19 +228,32 @@
 }
 
 .hmw-event-filters__label {
-  display: block;
-  font-size: var(--hmw-font-size-xs);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--hmw-font-size-base);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  color: var(--hmw-filter-label, var(--hmw-color-text-muted));
-  margin-block-end: 10px;
+  color: var(--hmw-filter-label, var(--hmw-color-label));
+  padding-block-end: 10px;
+  margin-block-end: 12px;
+  border-block-end: 1px solid var(--hmw-filter-divider, var(--hmw-color-border));
+
+  & svg {
+    flex-shrink: 0;
+    color: var(--hmw-color-text);
+  }
 }
 
 .hmw-event-filters__options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+}
+
+.hmw-event-filters__options--grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
 }
 
 .hmw-event-filters__checkbox,
@@ -229,13 +341,14 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  grid-column: 1 / -1;
   padding-block-start: 4px;
 }
 
 .hmw-event-filters__apply {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  inline-size: 100%;
   gap: 6px;
   padding: 10px 20px;
   font-size: var(--hmw-font-size-sm);
@@ -273,8 +386,10 @@
   .hmw-event-filters {
     display: none;
     padding: 16px;
+    background: var(--hmw-color-bg);
+    border: 1px solid var(--hmw-color-border);
     border-radius: var(--hmw-radius);
-    margin-block-end: 16px;
+    box-shadow: var(--hmw-shadow-sm);
   }
 
   .hmw-event-filters.is-open {
@@ -282,8 +397,7 @@
   }
 
   .hmw-event-filters__inner {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 16px;
   }
 
   .hmw-event-filters__actions {
@@ -297,6 +411,7 @@
 
   .hmw-event-filters__clear {
     text-align: center;
+    display: block;
   }
 }
 
@@ -378,6 +493,51 @@
   }
 }
 
+/* Single-column layout when the filter sidebar is active */
+.hmw-event-listings-layout .hmw-event-listings {
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.hmw-event-listings-layout .hmw-event-card {
+  flex-direction: row-reverse;
+  align-items: stretch;
+}
+
+.hmw-event-listings-layout .hmw-event-card__image {
+  flex: 0 0 340px;
+
+  & img {
+    block-size: 100%;
+    min-block-size: 240px;
+  }
+}
+
+@media (width <= 1024px) {
+  .hmw-event-listings-layout .hmw-event-card__image {
+    flex-basis: 240px;
+
+    & img {
+      min-block-size: 200px;
+    }
+  }
+}
+
+@media (width <= 640px) {
+  .hmw-event-listings-layout .hmw-event-card {
+    flex-direction: column;
+  }
+
+  .hmw-event-listings-layout .hmw-event-card__image {
+    flex-basis: auto;
+
+    & img {
+      block-size: 200px;
+      min-block-size: 0;
+    }
+  }
+}
+
 /*=========================================================
  * Event Card
  *========================================================*/
@@ -387,14 +547,14 @@
   flex-direction: column;
   background: var(--hmw-card-bg, var(--hmw-color-bg));
   border: 1px solid var(--hmw-card-border, var(--hmw-color-border));
-  border-radius: var(--hmw-radius);
+  border-radius: var(--hmw-card-radius, var(--hmw-radius));
   overflow: hidden;
   box-shadow: var(--hmw-shadow-sm);
   transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
   position: relative;
 
   &:hover {
-    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+    box-shadow: var(--hmw-card-shadow-hover, 0 8px 30px rgba(0, 0, 0, .12));
     transform: translateY(-3px);
     border-color: var(--hmw-color-primary);
   }
@@ -472,8 +632,52 @@
   color: var(--hmw-color-button-text);
 }
 
+.hmw-delivery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 12px;
+  border: 1.5px solid var(--hmw-color-primary);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--hmw-color-primary);
+  font-size: var(--hmw-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  line-height: 1.4;
+  margin-block-end: 10px;
+}
+
+.hmw-delivery-pill--in-person {
+  border-color: var(--hmw-color-success);
+  color: var(--hmw-color-success);
+}
+
+.hmw-delivery-pill--hybrid {
+  border-color: var(--hmw-color-warning, #d97706);
+  color: var(--hmw-color-warning, #d97706);
+}
+
+.hmw-delivery-pill__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 14px;
+  block-size: 14px;
+  flex-shrink: 0;
+
+  & svg,
+  & img {
+    inline-size: 100%;
+    block-size: 100%;
+    display: block;
+  }
+}
+
 .hmw-event-card__content {
-  padding: 18px 20px 20px;
+  padding: var(--hmw-card-padding, 18px 20px 20px);
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -495,7 +699,7 @@
   line-height: 1.35;
 
   & a {
-    color: var(--hmw-color-text);
+    color: var(--hmw-card-title-color, var(--hmw-color-text));
     text-decoration: none;
     transition: color var(--hmw-transition);
 
@@ -512,22 +716,7 @@
   margin-block-end: 12px;
 }
 
-.hmw-event-card__date {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: var(--hmw-font-size-sm);
-  color: var(--hmw-color-text);
-  line-height: 1.4;
-
-  & .hmw-icon {
-    flex-shrink: 0;
-    margin-block-start: 2px;
-    color: var(--hmw-color-text-muted);
-  }
-}
-
-.hmw-event-card__venue {
+.hmw-event-card__meta-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -539,6 +728,29 @@
     flex-shrink: 0;
     margin-block-start: 2px;
     color: var(--hmw-color-text-muted);
+  }
+}
+
+.hmw-event-card__date {
+  font-size: var(--hmw-font-size-sm);
+  color: var(--hmw-color-text);
+}
+
+.hmw-event-card__taxonomies {
+  & .hmw-event-card__term-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  & .hmw-event-card__term {
+    color: var(--hmw-color-text-muted);
+    text-decoration: none;
+    transition: color var(--hmw-transition);
+
+    &:hover {
+      color: var(--hmw-color-primary);
+    }
   }
 }
 
@@ -561,29 +773,21 @@
 
 .hmw-event-card__price {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--hmw-font-size-sm);
+  color: var(--hmw-color-text);
+  line-height: 1.4;
 
-  & .hmw-event-card__price-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .4px;
+  & .hmw-icon {
+    flex-shrink: 0;
+    margin-block-start: 2px;
     color: var(--hmw-color-text-muted);
-    margin-block-end: 1px;
-  }
-
-  & .hmw-event-card__price-value {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--hmw-color-primary);
-    line-height: 1.2;
   }
 }
 
 .hmw-event-card__price--free {
-  & .hmw-event-card__price-value {
-    color: var(--hmw-color-success);
-    font-size: var(--hmw-font-size-base);
-  }
+  color: var(--hmw-color-success);
 }
 
 /*=========================================================
@@ -713,4 +917,16 @@
     border-color: var(--hmw-color-primary);
     box-shadow: 0 2px 8px var(--hmw-color-primary-light);
   }
+}
+}
+
+.hmwevents-meta-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hmwevents-meta-heading .hmwevents-meta-icon {
+  flex-shrink: 0;
+  color: var(--hmw-color-text);
 }

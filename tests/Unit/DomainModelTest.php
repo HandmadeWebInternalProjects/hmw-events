@@ -63,11 +63,6 @@ class DomainModelTest extends TestCase
         $this->assertSame('hmw_event_delivery_mode', \HMWEvents\Taxonomies\EventDeliveryMode::TAXONOMY);
     }
 
-    public function test_event_state_taxonomy_constant(): void
-    {
-        $this->assertSame('hmw_event_state', \HMWEvents\Taxonomies\EventState::TAXONOMY);
-    }
-
     // ============================================================
     // Role constant
     // ============================================================
@@ -102,7 +97,6 @@ class DomainModelTest extends TestCase
             \HMWEvents\Taxonomies\EventType::TAXONOMY,
             \HMWEvents\Taxonomies\EventAudience::TAXONOMY,
             \HMWEvents\Taxonomies\EventDeliveryMode::TAXONOMY,
-            \HMWEvents\Taxonomies\EventState::TAXONOMY,
         ];
 
         foreach ($taxonomies as $tax) {
@@ -163,7 +157,31 @@ class DomainModelTest extends TestCase
         $this->assertContains(\HMWEvents\Taxonomies\EventType::class, $components);
         $this->assertContains(\HMWEvents\Taxonomies\EventAudience::class, $components);
         $this->assertContains(\HMWEvents\Taxonomies\EventDeliveryMode::class, $components);
-        $this->assertContains(\HMWEvents\Taxonomies\EventState::class, $components);
+    }
+
+    public function test_components_include_taxonomy_registrar(): void
+    {
+        $components = \HMWEvents\HMWEvents::get_components();
+
+        $this->assertContains(\HMWEvents\Services\TaxonomyRegistrar::class, $components);
+    }
+
+    public function test_components_exclude_legacy_topic_taxonomy_classes(): void
+    {
+        $components = \HMWEvents\HMWEvents::get_components();
+        $component_strings = array_map(function ($class) {
+            return is_string($class) ? $class : '';
+        }, $components);
+
+        $legacy_strings = [
+            'HMWEvents\\Taxonomies\\ParentingTopic',
+            'HMWEvents\\Taxonomies\\ProfessionalTopic',
+            'HMWEvents\\Taxonomies\\Program',
+        ];
+
+        foreach ($legacy_strings as $legacy) {
+            $this->assertNotContains($legacy, $component_strings, "Legacy class {$legacy} should not be in components");
+        }
     }
 
     public function test_components_include_event_organizer_role(): void

@@ -33,6 +33,7 @@ fine-tuning individual events, and managing the emails your attendees receive.
 |---|---|
 | **Events** | See, add, and edit your events |
 | **Events → Calendar** | A month-view calendar of all your sessions |
+| **Events → Delivery Modes** | Manage how events run — In Person, Online, Hybrid — and upload their card icons |
 | **Handmade Web Event Manager → Event Templates** | Build and edit templates |
 | **Handmade Web Event Manager → Email Templates** | Edit automatic emails |
 | **Handmade Web Event Manager → Email Queue** | See what emails were sent or are waiting |

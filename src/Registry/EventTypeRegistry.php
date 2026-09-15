@@ -49,7 +49,7 @@ class EventTypeRegistry
             return self::$archetypes;
         }
 
-        self::$archetypes = self::build();
+        self::$archetypes = TaxonomyRegistry::apply_to_type_configs(self::build());
         return self::$archetypes;
     }
 

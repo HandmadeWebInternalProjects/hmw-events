@@ -1,0 +1,137 @@
+/*=========================================================
+ * HMW Event Category Grid
+ * Category cards with upcoming dates. Uses CSS variables
+ * from the Theming settings.
+ *========================================================*/
+
+@layer hmw.components {
+
+.hmw-event-category-grid {
+  display: grid;
+  gap: 48px 40px;
+}
+
+.hmw-event-category-grid--cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.hmw-event-category-grid--cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hmw-event-category-grid--cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hmw-event-category-grid--cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hmw-event-category-grid--cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.hmw-event-category-grid--cols-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+@media (max-width: 1024px) {
+
+  .hmw-event-category-grid--cols-3,
+  .hmw-event-category-grid--cols-4,
+  .hmw-event-category-grid--cols-5,
+  .hmw-event-category-grid--cols-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .hmw-event-category-grid[class*="--cols-"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.hmw-event-category-card {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.hmw-event-category-card__media {
+  display: block;
+}
+
+.hmw-event-category-card__media img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--hmw-radius, 8px);
+}
+
+.hmw-event-category-card__title {
+  margin: 24px 0 12px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.hmw-event-category-card__title a {
+  color: var(--hmw-color-text, #1e293b);
+  text-decoration: none;
+  transition: color var(--hmw-transition, 150ms ease);
+
+  &:hover {
+    color: var(--hmw-color-primary, #2563eb);
+  }
+}
+
+.hmw-event-category-card__description {
+  margin: 0 0 16px;
+  color: var(--hmw-color-text, #1e293b);
+  font-size: var(--hmw-font-size-base, 16px);
+  line-height: 1.65;
+}
+
+.hmw-event-category-card__dates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style: none;
+}
+
+.hmw-event-category-card__dates a {
+  color: var(--hmw-color-primary, #2563eb);
+  font-size: var(--hmw-font-size-base, 16px);
+  line-height: 1.5;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.hmw-event-category-card__button {
+  margin-top: auto;
+  align-self: flex-start;
+  display: inline-block;
+  padding: 12px 28px;
+  border-radius: 999px;
+  background: var(--hmw-color-primary, #2563eb);
+  color: var(--hmw-color-button-text, #ffffff);
+  font-size: var(--hmw-font-size-base, 16px);
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color var(--hmw-transition, 150ms ease);
+
+  &:hover {
+    background: var(--hmw-color-primary-hover, #1d4ed8);
+    color: var(--hmw-color-button-text, #ffffff);
+  }
+}
+}

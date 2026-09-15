@@ -339,6 +339,39 @@ class EventDataService
     }
 
     /**
+     * Resolve the suburb of an event's venue from the Google Map field.
+     *
+     * Prefers the denormalised `_event_venue_suburb` meta written by
+     * VenueSuburbService, falling back to parsing the map field.
+     *
+     * @param int $event_id
+     * @return string|null Suburb name, or null when unavailable.
+     */
+    public function get_venue_suburb(int $event_id): ?string
+    {
+        if (!$this->is_event($event_id)) {
+            return null;
+        }
+
+        $stored = get_post_meta($event_id, VenueSuburbService::META_EVENT_SUBURB, true);
+
+        if (is_string($stored) && $stored !== '') {
+            return $stored;
+        }
+
+        $address = $this->get_venue_address($event_id);
+
+        if (!is_array($address)) {
+            return null;
+        }
+
+        $parsed = GoogleMapField::parse_google_map_address($address);
+        $suburb = trim((string) ($parsed['suburb'] ?? ''));
+
+        return $suburb !== '' ? $suburb : null;
+    }
+
+    /**
      * @param int $event_id
      * @return string|null Webinar URL, or null for non-event posts.
      */

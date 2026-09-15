@@ -1,3 +1,5 @@
+@layer hmw.components {
+
 .organizer-card {
 	background: #fff;
 	border-radius: 12px;
@@ -143,3 +145,4 @@
 }
 
 
+}

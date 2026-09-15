@@ -28,8 +28,36 @@ class ACF
 
     // Debug panel for field visibility.
     add_action('add_meta_boxes_hmw_event', [$this, 'add_debug_meta_box']);
+
+    // Allow SVG uploads for the delivery mode icon field.
+    add_filter('upload_mimes', [$this, 'allow_svg_uploads']);
+    add_filter('wp_check_filetype_and_ext', [$this, 'fix_svg_filetype'], 10, 4);
   }
 
+  public function allow_svg_uploads($mimes)
+  {
+    if (current_user_can('manage_options')) {
+      $mimes['svg'] = 'image/svg+xml';
+      $mimes['svgz'] = 'image/svg+xml';
+    }
+
+    return $mimes;
+  }
+
+  public function fix_svg_filetype($data, $file, $filename, $mimes)
+  {
+    if (!current_user_can('manage_options')) {
+      return $data;
+    }
+
+    $check = wp_check_filetype($filename, $mimes);
+    if (str_ends_with(strtolower($filename), '.svg') || ($check['ext'] ?? '') === 'svg' || ($check['type'] ?? '') === 'image/svg+xml') {
+      $data['ext'] = 'svg';
+      $data['type'] = 'image/svg+xml';
+    }
+
+    return $data;
+  }
 
   public function custom_acf_json_save_point($path)
   {

@@ -54,8 +54,14 @@ class FrontEnd
     {
 
         // Styles.
-        wp_enqueue_style('hmwevents-frontend-style', HMWEvents::plugin_url() . '/resources/css/frontend.css', [], HMWEvents_VERSION);
-        wp_enqueue_style('hmwevents-event-listings', HMWEvents::plugin_url() . '/assets/css/event-listings.css', [], HMWEvents_VERSION);
+        $cards_css_path = HMWEvents_ABSPATH . 'resources/css/cards.css';
+        wp_enqueue_style('hmwevents-cards', HMWEvents::plugin_url() . '/resources/css/cards.css', [], file_exists($cards_css_path) ? filemtime($cards_css_path) : HMWEvents_VERSION);
+
+        $listings_css_path = HMWEvents_ABSPATH . 'assets/css/event-listings.css';
+        wp_enqueue_style('hmwevents-event-listings', HMWEvents::plugin_url() . '/assets/css/event-listings.css', [], file_exists($listings_css_path) ? filemtime($listings_css_path) : HMWEvents_VERSION);
+
+        $category_cards_css_path = HMWEvents_ABSPATH . 'assets/css/event-category-cards.css';
+        wp_enqueue_style('hmwevents-event-category-cards', HMWEvents::plugin_url() . '/assets/css/event-category-cards.css', [], file_exists($category_cards_css_path) ? filemtime($category_cards_css_path) : HMWEvents_VERSION);
 
         // Scripts.
         wp_register_script('hmwevents-frontend-module', HMWEvents::plugin_url() . '/resources/js/frontend.js', [], HMWEvents_VERSION, true);

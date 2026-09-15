@@ -6,6 +6,8 @@
 // Load Composer autoloader
 require_once __DIR__ . '/../vendor/autoload.php';
 
+require_once __DIR__ . '/../vendor/antecedent/patchwork/Patchwork.php';
+
 // Load WordPress class stubs
 require_once __DIR__ . '/stubs/class-wp-stubs.php';
 
@@ -18,6 +20,10 @@ if (!defined('WP_DEBUG')) {
     define('WP_DEBUG', true);
 }
 
+if (!defined('HOUR_IN_SECONDS')) {
+    define('HOUR_IN_SECONDS', 3600);
+}
+
 // Mock WordPress functions that are commonly used
 \Brain\Monkey\Functions\when('wp_parse_args')->alias(function($args, $defaults = []) {
     return array_merge((array) $defaults, (array) $args);
@@ -26,6 +32,8 @@ if (!defined('WP_DEBUG')) {
 // Mock other common WordPress functions
 \Brain\Monkey\Functions\when('get_option')->justReturn(false);
 \Brain\Monkey\Functions\when('update_option')->justReturn(true);
+
+require_once __DIR__ . '/stubs/wp-filters-stubs.php';
 
 // Set up WordPress-like environment for testing
 function hexToRgb($hex) {

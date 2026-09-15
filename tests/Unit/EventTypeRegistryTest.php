@@ -9,6 +9,7 @@
 namespace HMWEvents\Tests\Unit;
 
 use HMWEvents\Registry\EventTypeRegistry;
+use HMWEvents\Registry\TaxonomyRegistry;
 use HMWEvents\Services\EventTemplateService;
 use HMWEvents\Services\DatabaseService;
 use PHPUnit\Framework\TestCase;
@@ -25,12 +26,29 @@ class EventTypeRegistryTest extends TestCase
         if (!defined('HMWEvents_ABSPATH')) {
             define('HMWEvents_ABSPATH', dirname(__DIR__, 2) . '/');
         }
+
+        $this->reset_static_caches();
     }
 
     protected function tearDown(): void
     {
+        $this->reset_static_caches();
         Monkey\tearDown();
         parent::tearDown();
+    }
+
+    private function reset_static_caches(): void
+    {
+        foreach ([
+            TaxonomyRegistry::class   => 'definitions',
+            EventTypeRegistry::class  => 'archetypes',
+        ] as $class => $property) {
+            $cache = new \ReflectionProperty($class, $property);
+            if (PHP_VERSION_ID < 80100) {
+                $cache->setAccessible(true);
+            }
+            $cache->setValue(null, null);
+        }
     }
 
     // ============================================================
@@ -77,6 +95,30 @@ class EventTypeRegistryTest extends TestCase
     {
         $this->assertFalse(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_venue'));
         $this->assertTrue(EventTypeRegistry::is_field_visible('parenting-webinar', 'event_start_date'));
+    }
+
+    public function test_parent_archetypes_hide_professional_topic(): void
+    {
+        $parent_slugs = [
+            'parenting-webinar',
+            'professional-webinar',
+            'parent-one-off-free',
+            'parent-walk-in',
+            'parent-course',
+        ];
+
+        foreach ($parent_slugs as $slug) {
+            $this->assertFalse(
+                EventTypeRegistry::is_field_visible($slug, 'event_professional_topic'),
+                "{$slug} must hide event_professional_topic"
+            );
+        }
+    }
+
+    public function test_professional_archetypes_show_professional_topic(): void
+    {
+        $this->assertTrue(EventTypeRegistry::is_field_visible('professional-online', 'event_professional_topic'));
+        $this->assertTrue(EventTypeRegistry::is_field_visible('professional-in-person', 'event_professional_topic'));
     }
 
     public function test_parent_one_off_free_does_not_hide_venue(): void
@@ -133,6 +175,40 @@ class EventTypeRegistryTest extends TestCase
         $this->assertTrue(EventTypeRegistry::is_field_required('parenting-webinar', 'event_start_date'));
         $this->assertTrue(EventTypeRegistry::is_field_required('parenting-webinar', 'event_webinar_url'));
         $this->assertFalse(EventTypeRegistry::is_field_required('parenting-webinar', 'event_venue'));
+    }
+
+    public function test_all_archetypes_require_parenting_topic(): void
+    {
+        foreach (array_keys(EventTypeRegistry::all()) as $slug) {
+            $this->assertTrue(
+                EventTypeRegistry::is_field_required($slug, 'event_parenting_topic'),
+                "{$slug} must require event_parenting_topic"
+            );
+        }
+    }
+
+    public function test_professional_archetypes_require_professional_topic(): void
+    {
+        $this->assertTrue(EventTypeRegistry::is_field_required('professional-online', 'event_professional_topic'));
+        $this->assertTrue(EventTypeRegistry::is_field_required('professional-in-person', 'event_professional_topic'));
+        $this->assertFalse(EventTypeRegistry::is_field_required('parenting-webinar', 'event_professional_topic'));
+    }
+
+    public function test_filter_can_remove_professional_topic_requirements(): void
+    {
+        Functions\when('apply_filters')->alias(function ($hook, $value) {
+            if ($hook === 'hmwevents_taxonomies') {
+                return array_diff_key($value, ['hmw_event_professional_topic' => null]);
+            }
+
+            return $value;
+        });
+
+        $config = EventTypeRegistry::get('professional-online');
+
+        $this->assertNotContains('event_professional_topic', $config['required_fields']);
+        $this->assertNotContains('event_professional_topic', $config['hidden_fields']);
+        $this->assertContains('event_parenting_topic', $config['required_fields']);
     }
 
     public function test_professional_in_person_requires_venue(): void

@@ -1,35 +1,10 @@
-:root {
-  --hmw-color-primary: #2563eb;
-  --hmw-color-primary-hover: #1d4ed8;
-  --hmw-color-primary-light: #eff6ff;
-  --hmw-color-error: #dc2626;
-  --hmw-color-error-bg: #fef2f2;
-  --hmw-color-success: #16a34a;
-  --hmw-color-success-bg: #f0fdf4;
-  --hmw-color-text: #1e293b;
-  --hmw-color-text-muted: #64748b;
-  --hmw-color-border: #e2e8f0;
-  --hmw-color-border-focus: #93c5fd;
-  --hmw-color-bg: #ffffff;
-  --hmw-color-bg-section: #f8fafc;
-  --hmw-color-bg-page: #f1f5f9;
-  --hmw-color-label: #334155;
-  --hmw-color-button-text: #ffffff;
-  --hmw-color-warning: #d97706;
-  --hmw-radius: 8px;
-  --hmw-radius-sm: 4px;
-  --hmw-gap: 16px;
-  --hmw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --hmw-font-size-xs: 1rem;
-  --hmw-font-size-sm: 1.2rem;
-  --hmw-font-size-base: 1.6rem;
-  --hmw-font-size-lg: 1.8rem;
-  --hmw-font-size-xl: 2rem;
-  --hmw-font-size-2xl: 2.4rem;
-  --hmw-shadow-sm: 0 1px 2px rgba(0, 0, 0, .05);
-  --hmw-shadow: 0 1px 3px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .06);
-  --hmw-transition: 150ms ease;
-}
+/*=========================================================
+ * HMW v3 Booking Form
+ * CSS custom properties are defined in the hmw.base layer
+ * (event-listings.css, enqueued globally).
+ *========================================================*/
+
+@layer hmw.components {
 
 .hmw-v3-booking-wrapper {
   font-family: var(--hmw-font-family);
@@ -70,7 +45,7 @@
 }
 
 .hmw-reg-section--coupon {
-  background: var(--hmw-color-bg-section);
+  background: var(--hmw-filter-bg);
 }
 
 .hmw-v3-coupon-row {
@@ -147,17 +122,15 @@
 }
 
 .hmw-reg-section--payment {
-  background: var(--hmw-color-primary-light);
-  border-color: var(--hmw-color-border-focus);
+  background: var(--hmw-filter-bg)
 }
 
 .hmw-reg-section--payment .hmw-reg-section-title {
   color: var(--hmw-color-primary);
-  border-color: var(--hmw-color-border-focus);
 }
 
 .hmw-reg-section--attendees {
-  background: var(--hmw-color-bg-section);
+  background: var(--hmw-filter-bg);
 }
 
 .hmw-reg-section-desc {
@@ -646,4 +619,5 @@
     align-items: flex-start;
     gap: 2px;
   }
+}
 }

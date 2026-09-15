@@ -36,6 +36,7 @@ $organizer_id = $event->post_author;
 $event_types  = get_the_terms($event->ID, 'hmw_event_type');
 $delivery     = get_the_terms($event->ID, 'hmw_event_delivery_mode');
 $audience     = get_the_terms($event->ID, 'hmw_event_audience');
+$suburb       = $event_data->get_venue_suburb($event->ID);
 $display_price = (float) $price + $surcharge;
 $display_deposit = (float) $deposit + $surcharge;
 
@@ -58,8 +59,16 @@ do_action('hmwevents_before_single_event', $event);
         <?php if ($event_types && !is_wp_error($event_types)) : ?>
             <div class="hmwevents-event-types">
                 <?php foreach ($event_types as $type) : ?>
-                    <?php $badge_classes = apply_filters('hmwevents_event_type_badge_classes', ['hmwevents-event-type-badge'], $type, $event); ?>
-                    <span class="<?php echo esc_attr(implode(' ', $badge_classes)); ?>"><?php echo esc_html($type->name); ?></span>
+                    <?php
+                    $badge_classes = apply_filters('hmwevents_event_type_badge_classes', ['hmwevents-event-type-badge'], $type, $event);
+                    $badge_class_attr = esc_attr(implode(' ', $badge_classes));
+                    $type_link = get_term_link($type);
+                    ?>
+                    <?php if (!is_wp_error($type_link)) : ?>
+                        <a class="<?php echo $badge_class_attr; ?>" href="<?php echo esc_url($type_link); ?>"><?php echo esc_html($type->name); ?></a>
+                    <?php else : ?>
+                        <span class="<?php echo $badge_class_attr; ?>"><?php echo esc_html($type->name); ?></span>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -81,7 +90,7 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Starts', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($start_date))); ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -98,7 +107,7 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Ends', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($end_date))); ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -115,10 +124,10 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Venue', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <?php echo esc_html($venue); ?>
                 <?php if ($venue_addr) : ?>
-                    <br><small><?php echo esc_html($venue_addr); ?></small>
+                    <br><?php echo esc_html($venue_addr); ?>
                 <?php endif; ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -135,7 +144,7 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Webinar Link', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <a href="<?php echo esc_url($webinar_url); ?>" target="_blank" rel="noopener"><?php esc_html_e('Join Webinar', 'hmw-events'); ?></a>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -152,9 +161,14 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Delivery', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <?php foreach ($delivery as $mode) : ?>
-                    <span><?php echo esc_html($mode->name); ?></span>
+                    <?php $mode_link = get_term_link($mode); ?>
+                    <?php if (!is_wp_error($mode_link)) : ?>
+                        <a href="<?php echo esc_url($mode_link); ?>"><?php echo esc_html($mode->name); ?></a>
+                    <?php else : ?>
+                        <span><?php echo esc_html($mode->name); ?></span>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -163,6 +177,75 @@ do_action('hmwevents_before_single_event', $event);
                 <?php echo $meta_value_html; ?>
             </div>
         <?php endif; ?>
+
+        <?php if ($audience && !is_wp_error($audience)) : ?>
+            <?php
+            $meta_key = 'audience';
+            $meta_classes = apply_filters('hmwevents_event_meta_item_classes', ['hmwevents-meta-item'], $meta_key, $event);
+            $meta_label = apply_filters('hmwevents_event_meta_label', __('Audience', 'hmw-events'), $meta_key, $event);
+            ob_start();
+            ?>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
+                <?php foreach ($audience as $audience_term) : ?>
+                    <?php $audience_link = get_term_link($audience_term); ?>
+                    <?php if (!is_wp_error($audience_link)) : ?>
+                        <a href="<?php echo esc_url($audience_link); ?>"><?php echo esc_html($audience_term->name); ?></a>
+                    <?php else : ?>
+                        <span><?php echo esc_html($audience_term->name); ?></span>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php
+            $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
+            ?>
+            <div class="<?php echo esc_attr(implode(' ', $meta_classes)); ?>">
+                <?php echo $meta_value_html; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($suburb) : ?>
+            <?php
+            $meta_key = 'location';
+            $meta_classes = apply_filters('hmwevents_event_meta_item_classes', ['hmwevents-meta-item'], $meta_key, $event);
+            $meta_label = apply_filters('hmwevents_event_meta_label', __('Location', 'hmw-events'), $meta_key, $event);
+            ob_start();
+            ?>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
+                <span><?php echo esc_html($suburb); ?></span>
+            <?php
+            $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
+            ?>
+            <div class="<?php echo esc_attr(implode(' ', $meta_classes)); ?>">
+                <?php echo $meta_value_html; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php foreach (\HMWEvents\Registry\TaxonomyRegistry::single_meta_taxonomies() as $meta_taxonomy => $meta_def) : ?>
+            <?php
+            $meta_terms = get_the_terms($event->ID, $meta_taxonomy);
+            if (!$meta_terms || is_wp_error($meta_terms)) {
+                continue;
+            }
+            $meta_key      = $meta_def['filter_key'] ?: $meta_def['event_field_key'];
+            $meta_classes  = apply_filters('hmwevents_event_meta_item_classes', ['hmwevents-meta-item'], $meta_key, $event);
+            $meta_label    = apply_filters('hmwevents_event_meta_label', __($meta_def['singular'], 'hmw-events'), $meta_key, $event);
+            ob_start();
+            ?>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
+                <?php foreach ($meta_terms as $meta_term) : ?>
+                    <?php $meta_term_link = get_term_link($meta_term); ?>
+                    <?php if (!is_wp_error($meta_term_link)) : ?>
+                        <a href="<?php echo esc_url($meta_term_link); ?>"><?php echo esc_html($meta_term->name); ?></a>
+                    <?php else : ?>
+                        <span><?php echo esc_html($meta_term->name); ?></span>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php
+            $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
+            ?>
+            <div class="<?php echo esc_attr(implode(' ', $meta_classes)); ?>">
+                <?php echo $meta_value_html; ?>
+            </div>
+        <?php endforeach; ?>
 
         <?php if ($capacity > 0) : ?>
             <?php
@@ -173,7 +256,7 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Places remaining', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <?php echo (int) $places_remaining; ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);
@@ -190,7 +273,7 @@ do_action('hmwevents_before_single_event', $event);
             $meta_label = apply_filters('hmwevents_event_meta_label', __('Price', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 $<?php echo number_format($display_price, 2); ?>
                 <?php if ($surcharge > 0) : ?>
                     <small>(<?php esc_html_e('includes surcharge', 'hmw-events'); ?>: $<?php echo number_format($surcharge, 2); ?>)</small>
@@ -210,10 +293,10 @@ do_action('hmwevents_before_single_event', $event);
             <?php
             $meta_key = 'organizer';
             $meta_classes = apply_filters('hmwevents_event_meta_item_classes', ['hmwevents-meta-item'], $meta_key, $event);
-            $meta_label = apply_filters('hmwevents_event_meta_label', __('Organizer', 'hmw-events'), $meta_key, $event);
+            $meta_label = apply_filters('hmwevents_event_meta_label', __('Organiser', 'hmw-events'), $meta_key, $event);
             ob_start();
             ?>
-                <strong><?php echo esc_html($meta_label); ?>:</strong>
+                <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 <?php echo esc_html(get_the_author_meta('display_name', $organizer_id)); ?>
             <?php
             $meta_value_html = apply_filters('hmwevents_event_meta_value_html', ob_get_clean(), $meta_key, $event);

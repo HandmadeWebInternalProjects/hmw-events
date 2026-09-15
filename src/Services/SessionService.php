@@ -956,7 +956,7 @@ class SessionService
         }
 
         // Copy parent taxonomies
-        $taxonomies = ['hmw_event_type', 'hmw_event_audience', 'hmw_event_delivery_mode', 'hmw_event_state'];
+        $taxonomies = ['hmw_event_type', 'hmw_event_audience', 'hmw_event_delivery_mode'];
         foreach ($taxonomies as $tax) {
             $terms = wp_get_object_terms($parent->ID, $tax, ['fields' => 'slugs']);
             if (!empty($terms) && !is_wp_error($terms)) {

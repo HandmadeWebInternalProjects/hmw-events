@@ -105,7 +105,7 @@
 | Assign audience | ✅ | `hmw_event_audience` taxonomy |
 | Assign delivery mode | ✅ | `hmw_event_delivery_mode` taxonomy |
 | Assign cost type | ✅ | Via `_event_price`, `_event_is_free`, Free/Paid badges |
-| Assign topic | ✅ | New `hmw_event_topic` taxonomy, filterable in listing UI |
+| Assign topic | ✅ | `hmw_event_parenting_topic` taxonomy, filterable in listing UI |
 | Assign event type | ✅ | `hmw_event_type` taxonomy |
 | Assign categories | ✅ | WP core categories now registered for `hmw_event` |
 | Assign tags | ✅ | WP core tags now registered for `hmw_event` |
@@ -119,7 +119,7 @@
 | Cards show single/multi-session | ✅ | New Multi-Session badge |
 
 ### New files
-- `src/Taxonomies/EventTopic.php` — `hmw_event_topic` taxonomy
+- `src/Taxonomies/ParentingTopic.php`, `src/Taxonomies/ProfessionalTopic.php`, `src/Taxonomies/Program.php` — replaced the deleted `src/Taxonomies/EventTopic.php` (`hmw_event_topic`)
 - Updated `src/PostTypes/Event.php` — WP categories + tags support
 - Updated `src/Services/EventListingService.php` — topic filter, multi-session badge, filter bar
 

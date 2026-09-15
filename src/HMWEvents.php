@@ -122,6 +122,7 @@ final class HMWEvents
           Services\SessionService::class,
           Services\SessionBookingService::class,
           Services\EventListingService::class,
+          Services\VenueSuburbService::class,
           Services\ReportingService::class,
 
           // Post Types
@@ -134,8 +135,7 @@ final class HMWEvents
           Taxonomies\EventType::class,
           Taxonomies\EventAudience::class,
           Taxonomies\EventDeliveryMode::class,
-          Taxonomies\EventState::class,
-          Taxonomies\EventTopic::class,
+          Services\TaxonomyRegistrar::class,
 
           // User Roles
           Roles\EventOrganizerRole::class,
@@ -168,6 +168,7 @@ final class HMWEvents
           Shortcodes\ResumePayment::class,
           Shortcodes\BookingForm::class,
           Shortcodes\BookingConfirmation::class,
+          Shortcodes\EventCategoryGrid::class,
         ];
     }
 

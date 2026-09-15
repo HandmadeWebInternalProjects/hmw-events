@@ -41,7 +41,7 @@ src/
 ├── Middleware/            # Middleware patterns
 ├── PostTypes/             # CPT registrations (Event, Registrant, Coupon)
 ├── Providers/             # Service provider patterns
-├── Registry/              # Config registries (EventTypeRegistry, RegistrationFieldRegistry, EmailTypeRegistry)
+├── Registry/              # Config registries (EventTypeRegistry, TaxonomyRegistry, RegistrationFieldRegistry, EmailTypeRegistry)
 ├── Roles/                 # Custom user roles (EventOrganizerRole)
 ├── Services/              # Business logic services (35+ classes)
 │   ├── Emails/            # Email system (queue, templates, handlers, dispatch)
@@ -105,9 +105,17 @@ field names are prefixed with an underscore (e.g. `_event_start_date`).
 | `group_hmw_registrant_details.json` | Registrant Details | `hmw_registrant` |
 | `group_67bbf23362437.json` | Global Settings | Options page |
 | `group_69897a1809a0a.json` | Birth Stories Posts | `post` (category: birth-stories) |
+| `group_hmw_taxonomy_image.json` | Taxonomy Image | Term edit screens: `hmw_event_type`, `hmw_event_parenting_topic`, `hmw_event_audience`, `hmw_event_program` |
+| `group_hmw_delivery_mode.json` | Delivery Mode Details | `hmw_event_delivery_mode` term edit |
+| `group_hmw_event_location.json` | Venue Details | `event_location` post type |
 
-The Event Details group contains 20 fields including the new recurrence
-fields (see below). The Registrant Details group has 9 fields.
+The Event Details group contains 25 fields, including the recurrence fields
+(see below). Its three `taxonomy`-type fields — `field_event_parenting_topic`
+(`_event_parenting_topic`), `field_event_professional_topic`
+(`_event_professional_topic`), and `field_event_program` (`_event_program`) —
+are **not** in the JSON: `TaxonomyRegistrar::inject_acf_fields()` adds them
+dynamically on `acf/init` (see Taxonomies). The Registrant Details group has
+9 fields.
 
 **ACF field naming rule:** For `hmw_event` posts, field names are prefixed
 `_event_` (e.g. `_event_start_date`). For legacy `educator_course` posts,
@@ -139,12 +147,90 @@ differ between post types.
 
 ### Taxonomies
 
-| Taxonomy | Purpose |
-|---|---|
-| `hmw_event_type` | Event category/type |
-| `hmw_event_audience` | Target audience |
-| `hmw_event_delivery_mode` | In-person vs online (webinar) |
-| `hmw_event_state` | Australian state |
+| Taxonomy | Purpose | Registration |
+|---|---|---|
+| `hmw_event_type` | Event category/type | `src/Taxonomies/EventType.php` |
+| `hmw_event_audience` | Target audience | `src/Taxonomies/EventAudience.php` |
+| `hmw_event_delivery_mode` | In-person vs online (webinar) | `src/Taxonomies/EventDeliveryMode.php` |
+| `hmw_event_parenting_topic` | Parenting subject areas (sleep, feeding, toddler behaviour, mental health) | `TaxonomyRegistry` definition |
+| `hmw_event_professional_topic` | Clinical/professional frameworks (admin-only: not public, no rewrite/query var) | `TaxonomyRegistry` definition |
+| `hmw_event_program` | Named programs (Circle of Security, Bringing Up Great Kids, First Steps Count) | `TaxonomyRegistry` definition |
+
+**Declarative content taxonomies.** The three topic/program taxonomies are
+defined declaratively in `TaxonomyRegistry`
+(`src/Registry/TaxonomyRegistry.php`) and registered generically by
+`TaxonomyRegistrar` (`src/Services/TaxonomyRegistrar.php`, registered in
+`get_components()` under Taxonomies). There are no per-taxonomy classes for
+them. Definitions are wrapped in `apply_filters('hmwevents_taxonomies', ...)`,
+so projects can deregister bundled taxonomies or register new ones without
+touching plugin code.
+
+`TaxonomyRegistrar::register()`:
+- Registers every definition against `hmw_event` on `init`.
+- Seeds `default_terms` idempotently on `init` priority 20, gated per
+  definition by its `option_flag` (e.g. `hmwevents_parenting_topics_inserted`;
+  a fallback flag is derived from the slug when empty).
+- Injects an ACF `taxonomy` checkbox field into the Event Details group on
+  `acf/init` for each definition with an `event_field_key` — local field key
+  `field_<event_field_key>`, field name `_<event_field_key>` (e.g.
+  `field_event_parenting_topic` / `_event_parenting_topic`). `save_terms`/
+  `load_terms` on, `create_terms` off; registrations use `meta_box_cb => false`,
+  so terms are assigned via the ACF field, not a meta box.
+- Appends `TaxonomyRegistry::archive_taxonomies()` (definitions with `archive`
+  and `publicly_queryable` true — currently parenting topic and program) to the
+  `hmwevents_event_archive_taxonomies` filter. The base list in
+  `Services/Hooks.php::event_archive_template()` is the 4 platform taxonomies.
+
+**Definition keys:** `name`, `singular`, `description`, `hierarchical`,
+`public`, `publicly_queryable`, `show_admin_column`, `rewrite` (string slug |
+false | array), `query_var`, `default_terms` (slug => label), `option_flag`,
+`event_field_key`, `field_label`, `required_for`, `hidden_for` (archetype
+slugs or `*`), `filter_key` (listing filter), `show_single_meta`, `archive`.
+`TaxonomyRegistry::normalize()` fills defaults; helpers: `get()`,
+`filter_key_map()`, `archive_taxonomies()`, `single_meta_taxonomies()`,
+`apply_to_type_configs()`.
+
+**Wiring driven by the registry:**
+- `EventTypeRegistry::all()` applies `TaxonomyRegistry::apply_to_type_configs()`
+  to the archetype configs, so required/hidden wiring comes from the taxonomy
+  definitions, not hardcoded archetype arrays: `event_parenting_topic` is
+  required for all 7 archetypes (`required_for: ['*']`),
+  `event_professional_topic` is hidden for 5 archetypes (parenting-webinar,
+  professional-webinar, parent-one-off-free, parent-walk-in, parent-course)
+  and required for `professional-online` / `professional-in-person`;
+  `event_program` is optional everywhere.
+- `EventListingService` resolves the `topic` filter's taxonomy dynamically via
+  `TaxonomyRegistry::filter_key_map()` (shortcode att `topic`, `ev_topic` URL
+  param, filter bar, chips, `tax_query`). `TERM_TAXONOMY_ATT_KEYS` holds only
+  the 4 platform taxonomies; content-taxonomy mappings come from the registry
+  via `att_key_for_taxonomy()` / `content_filter_taxonomy()`.
+- `src/views/single-event.php` renders a meta row for each definition with
+  `show_single_meta` true, keyed by `filter_key ?: event_field_key`.
+
+**Project customisation** (mu-plugin or theme) — deregister a bundled
+taxonomy by unsetting its slug key, register a new one by adding a
+definition array. No class file or ACF JSON edit needed:
+
+```php
+add_filter('hmwevents_taxonomies', function (array $taxonomies): array {
+    unset($taxonomies['hmw_event_program']);
+    $taxonomies['hmw_event_region'] = [
+        'name'            => 'Regions',
+        'singular'        => 'Region',
+        'rewrite'         => 'event-region',
+        'default_terms'   => ['metro' => 'Metro'],
+        'option_flag'     => 'hmwevents_regions_inserted',
+        'event_field_key' => 'event_region',
+        'field_label'     => 'Region',
+        'filter_key'      => 'region',
+    ];
+    return $taxonomies;
+});
+```
+
+Deregistering removes the taxonomy, its ACF editor field, its
+`EventTypeRegistry` required/hidden wiring, its listing filter taxonomy, and
+its archive template support automatically.
 
 ### Recurring events
 
@@ -305,7 +391,23 @@ enqueued on screens whose id contains `hmwevents-documentation`. Tests:
 
 `src/Registry/` contains configuration registry classes:
 - `EventTypeRegistry` — maps event type slugs to field visibility configs
-  (which ACF fields to hide/require per event type)
+  (which ACF fields to hide/require per event type). Merged with
+  `TaxonomyRegistry::apply_to_type_configs()` at `all()`, so topic-field
+  requirements come from the taxonomy definitions, not hardcoded archetype
+  arrays: `event_parenting_topic` is required for all 7 archetypes;
+  `event_professional_topic` is hidden for the 5 parent archetypes and
+  required for `professional-online` and `professional-in-person`.
+- `TaxonomyRegistry` — declarative definitions for the content taxonomies
+  (`hmw_event_parenting_topic`, `hmw_event_professional_topic`,
+  `hmw_event_program`), wrapped in the `hmwevents_taxonomies` filter so
+  projects can deregister or add taxonomies (see Taxonomies). Keys cover
+  labels, registration args (`hierarchical`, `public`, `publicly_queryable`,
+  `show_admin_column`, `rewrite`, `query_var`), `default_terms` + `option_flag`
+  seeding, the ACF editor field (`event_field_key`, `field_label`),
+  archetype wiring (`required_for`, `hidden_for`), and frontend surface
+  (`filter_key`, `show_single_meta`, `archive`). Consumed by
+  `TaxonomyRegistrar`, `EventTypeRegistry`, `EventListingService`, and
+  `src/views/single-event.php`.
 - `RegistrationFieldRegistry` — registration form field definitions
 - `CommunicationTriggerMatrix` — maps events to email triggers
 - `EmailTypeRegistry` — single source of truth for disable-able email

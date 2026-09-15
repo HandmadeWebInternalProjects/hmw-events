@@ -1,3 +1,5 @@
+@layer hmw.components {
+
 .hmwevents-session-slots {
     display: flex;
     flex-wrap: wrap;
@@ -41,3 +43,4 @@
     opacity: 0.6;
 }
 
+}

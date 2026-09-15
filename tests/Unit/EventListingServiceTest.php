@@ -42,6 +42,15 @@ class EventListingServiceTest extends TestCase
         Functions\when('get_the_post_thumbnail_url')->justReturn('');
         Functions\when('wp_trim_words')->returnArg(1);
         Functions\when('get_terms')->justReturn([]);
+        Functions\when('wp_get_object_terms')->justReturn([]);
+        Functions\when('get_field')->justReturn(false);
+        Functions\when('wp_get_attachment_url')->justReturn('');
+        Functions\when('get_post_mime_type')->justReturn('');
+        Functions\when('get_attached_file')->justReturn('');
+        Functions\when('get_term_link')->alias(function ($term, $taxonomy = '') {
+            $slug = is_object($term) ? ($term->slug ?? '') : (string) $term;
+            return 'https://example.com/' . $taxonomy . '/' . $slug;
+        });
         Functions\when('is_wp_error')->alias(function ($thing) {
             return $thing instanceof \WP_Error;
         });
@@ -59,6 +68,19 @@ class EventListingServiceTest extends TestCase
         Functions\when('selected')->alias(function ($selected, $current = true) {
             return $selected == $current ? 'selected="selected"' : '';
         });
+        Functions\when('wp_doing_ajax')->justReturn(false);
+        Functions\when('wp_get_referer')->justReturn(false);
+        Functions\when('home_url')->alias(function ($path = '') {
+            return 'https://example.com' . $path;
+        });
+        Functions\when('wp_parse_url')->alias(function ($url, $component = -1) {
+            return parse_url($url, $component);
+        });
+        Functions\when('esc_url_raw')->returnArg();
+        Functions\when('wp_json_encode')->alias(function ($data, $flags = 0) {
+            return json_encode($data, $flags);
+        });
+        Functions\when('wp_unslash')->returnArg();
 
         $this->service = new EventListingService();
 
@@ -252,11 +274,21 @@ class EventListingServiceTest extends TestCase
         $this->assertEquals('hmw_event_delivery_mode', $args['tax_query'][0]['taxonomy']);
     }
 
-    public function test_build_query_state_tax(): void
+    public function test_build_query_location_meta(): void
     {
-        $args = $this->service->build_query(['state' => ['nsw']]);
-        $this->assertEquals(1, $this->tax_query_count($args));
-        $this->assertEquals('hmw_event_state', $args['tax_query'][0]['taxonomy']);
+        $args = $this->service->build_query(['location' => ['Penrith', 'Castle Hill']]);
+        $this->assertEquals(2, $this->meta_query_count($args));
+
+        $entry = null;
+        foreach ($args['meta_query'] as $k => $v) {
+            if ($k !== 'relation' && isset($v['key']) && $v['key'] === '_event_venue_suburb') {
+                $entry = $v;
+                break;
+            }
+        }
+        $this->assertNotNull($entry);
+        $this->assertEquals(['Penrith', 'Castle Hill'], $entry['value']);
+        $this->assertEquals('IN', $entry['compare']);
     }
 
     public function test_build_query_audience_tax(): void
@@ -270,7 +302,7 @@ class EventListingServiceTest extends TestCase
     {
         $args = $this->service->build_query(['topic' => ['parenting', 'sleep']]);
         $this->assertEquals(1, $this->tax_query_count($args));
-        $this->assertEquals('hmw_event_topic', $args['tax_query'][0]['taxonomy']);
+        $this->assertEquals('hmw_event_parenting_topic', $args['tax_query'][0]['taxonomy']);
         $this->assertEquals('slug', $args['tax_query'][0]['field']);
         $this->assertEquals(['parenting', 'sleep'], $args['tax_query'][0]['terms']);
     }
@@ -342,7 +374,7 @@ class EventListingServiceTest extends TestCase
             ]);
         });
 
-        Functions\when('wp_get_object_terms')->alias(function ($id, $tax, $args) {
+        Functions\when('wp_get_object_terms')->alias(function ($id, $tax, $args = []) {
             return match ($tax) {
                 'hmw_event_type' => ['parent-one-off-free'],
                 'hmw_event_audience' => ['parents'],
@@ -370,10 +402,15 @@ class EventListingServiceTest extends TestCase
         $this->assertEquals('Test Venue', $card['venue']);
         $this->assertEquals('123 Test St', $card['venue_address']);
         $this->assertEquals('in-person', $card['delivery_mode']);
+        $this->assertEquals('In Person', $card['delivery_mode_label']);
+        $this->assertEquals('', $card['delivery_mode_icon']);
+        $this->assertSame([], $card['badges']);
         $this->assertEquals(20, $card['capacity']);
         $this->assertEquals(['parent-one-off-free'], $card['event_types']);
         $this->assertEquals(['parents'], $card['audiences']);
-        $this->assertNotEmpty($card['badges']);
+        $this->assertSame('parents', $card['audience_terms'][0]['name']);
+        $this->assertSame('https://example.com/hmw_event_audience/parents', $card['audience_terms'][0]['link']);
+        $this->assertNull($card['suburb']);
         $this->assertEquals('https://example.com/event/test', $card['permalink']);
     }
 
@@ -439,11 +476,11 @@ class EventListingServiceTest extends TestCase
 
     public function test_get_event_card_delivery_modes(): void
     {
-        $modes = ['online' => 'badge--online', 'hybrid' => 'badge--hybrid'];
+        $modes = ['online' => 'Online', 'hybrid' => 'Hybrid', 'in-person' => 'In Person'];
 
-        foreach ($modes as $slug => $badge_class) {
+        foreach ($modes as $slug => $label) {
             Functions\when('get_post_meta')->justReturn('');
-            Functions\when('wp_get_object_terms')->alias(function ($id, $tax, $args) use ($slug) {
+            Functions\when('wp_get_object_terms')->alias(function ($id, $tax, $args = []) use ($slug) {
                 return $tax === 'hmw_event_delivery_mode' ? [$slug] : [];
             });
 
@@ -457,15 +494,12 @@ class EventListingServiceTest extends TestCase
 
             $card = $this->service->get_event_card($post);
             $this->assertEquals($slug, $card['delivery_mode']);
+            $this->assertEquals($label, $card['delivery_mode_label']);
 
-            $has_badge = false;
-            foreach ($card['badges'] as $badge) {
-                if ($badge['class'] === $badge_class) {
-                    $has_badge = true;
-                    break;
-                }
-            }
-            $this->assertTrue($has_badge);
+            $badge_classes = array_column($card['badges'], 'class');
+            $this->assertNotContains('badge--online', $badge_classes);
+            $this->assertNotContains('badge--in-person', $badge_classes);
+            $this->assertNotContains('badge--hybrid', $badge_classes);
         }
     }
 
@@ -589,6 +623,7 @@ class EventListingServiceTest extends TestCase
             'audience'     => '',
             'topic'        => '',
             'mode'         => '',
+            'location'     => '',
             'state'        => '',
             'free'         => '',
             'limit'        => 12,

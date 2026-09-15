@@ -3,6 +3,9 @@
 namespace HMWEvents\Services;
 
 use HMWEvents\PostTypes\Event;
+use HMWEvents\Taxonomies\EventAudience;
+use HMWEvents\Taxonomies\EventDeliveryMode;
+use HMWEvents\Taxonomies\EventType;
 
 defined('ABSPATH') || die("Don't run this file directly!");
 
@@ -19,6 +22,10 @@ class Hooks
 
     // Provide default single event template (theme-overridable via hmw-events/ in theme)
     add_filter('single_template', [static::class, 'single_event_template']);
+
+    // Provide default event archive template (theme-overridable via hmw-events/ in theme)
+    add_filter('taxonomy_template', [static::class, 'event_archive_template']);
+    add_filter('archive_template', [static::class, 'event_archive_template']);
 
     add_action('hmwevents_after_event_content', [static::class, 'render_session_schedule']);
 
@@ -131,6 +138,56 @@ class Hooks
     }
 
     $plugin_template = \hmwevents_locate_template('single-event.php');
+    if ($plugin_template && file_exists($plugin_template)) {
+      return $plugin_template;
+    }
+
+    return $template;
+  }
+
+  /**
+   * Provide a default event archive template for event taxonomies and the
+   * event post type archive, rendering the standard listings grid.
+   *
+   * Theme override priority:
+   *   1. {theme}/taxonomy-{taxonomy}.php or {theme}/archive-hmw_event.php (WordPress native, event-specific)
+   *   2. {theme}/hmw-events/archive-event.php (namespaced)
+   *   3. Plugin default: src/views/archive-event.php
+   *
+   * Generic templates (archive.php, taxonomy.php) never take priority over
+   * the plugin default. Disable entirely with the
+   * hmwevents_event_archive_enabled filter.
+   */
+  public static function event_archive_template(string $template): string
+  {
+    if (!apply_filters('hmwevents_event_archive_enabled', true)) {
+      return $template;
+    }
+
+    $taxonomies = apply_filters('hmwevents_event_archive_taxonomies', [
+      EventType::TAXONOMY,
+      EventAudience::TAXONOMY,
+      EventDeliveryMode::TAXONOMY,
+    ]);
+
+    $native_candidates = [];
+    if (is_tax($taxonomies)) {
+      $queried = get_queried_object();
+      if ($queried instanceof \WP_Term) {
+        $native_candidates[] = 'taxonomy-' . $queried->taxonomy . '.php';
+      }
+    } elseif (is_post_type_archive(Event::POST_TYPE)) {
+      $native_candidates[] = 'archive-hmw_event.php';
+    } else {
+      return $template;
+    }
+
+    $theme_template = locate_template($native_candidates);
+    if ($theme_template) {
+      return $theme_template;
+    }
+
+    $plugin_template = \hmwevents_locate_template('archive-event.php');
     if ($plugin_template && file_exists($plugin_template)) {
       return $plugin_template;
     }

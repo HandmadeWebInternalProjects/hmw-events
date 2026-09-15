@@ -3,7 +3,12 @@
  *
  * @package HMWEvents
  * @since 1.0.0
+ *
+ * The print block stays unlayered on purpose: it must keep beating
+ * unlayered Breakdance print styles on Breakdance-rendered pages.
  */
+
+@layer hmw.components {
 
 .hmwevents-confirmation-wrapper {
     max-width: 800px;
@@ -388,6 +393,8 @@
     flex: none;
 }
 
+}
+
 /* Print Styles */
 @media print {
     @page {
@@ -686,25 +693,31 @@
 }
 
 @media (max-width: 480px) {
-    .hmwevents-confirmation-wrapper {
-        padding: 1rem 0.5rem;
-    }
 
-    .hmwevents-confirmation-header h1 {
-        font-size: 2.4rem;
-    }
+@layer hmw.components {
 
-    .hmwevents-confirmation-section {
-        padding: 1rem;
-    }
+.hmwevents-confirmation-wrapper {
+    padding: 1rem 0.5rem;
+}
 
-    .hmwevents-payment-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.25rem;
-    }
+.hmwevents-confirmation-header h1 {
+    font-size: 2.4rem;
+}
 
-    .hmwevents-reference-number {
-        font-size: 2rem;
-    }
+.hmwevents-confirmation-section {
+    padding: 1rem;
+}
+
+.hmwevents-payment-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.hmwevents-reference-number {
+    font-size: 2rem;
+}
+
+}
+
 }
