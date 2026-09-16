@@ -521,14 +521,14 @@ class RegistrationFormRenderer
                 <input type="hidden" name="token" value="<?php echo esc_attr(sanitize_text_field(wp_unslash($_GET['token']))); ?>" />
             <?php endif; ?>
 
-            <?php if ($event_capacity > 0): ?>
+            <!-- <?php if ($event_capacity > 0): ?>
                 <p class="hmw-v3-places-remaining">
                     <?php
                     /* translators: %d is the number of places remaining for the event */
                     echo esc_html(sprintf(__('%d places remaining', 'hmw-events'), $event_places_remaining));
                     ?>
                 </p>
-            <?php endif; ?>
+            <?php endif; ?> -->
 
             <?php if (count($attendance_options) > 1): ?>
                 <div class="hmw-reg-section hmw-reg-section--attendance-options">

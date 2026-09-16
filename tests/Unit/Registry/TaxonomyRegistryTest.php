@@ -90,9 +90,12 @@ class TaxonomyRegistryTest extends TestCase
     // Derived lookups
     // ============================================================
 
-    public function test_filter_key_map_returns_only_parenting_topic(): void
+    public function test_filter_key_map_maps_parenting_topic_and_program(): void
     {
-        $this->assertSame(['hmw_event_parenting_topic' => 'topic'], TaxonomyRegistry::filter_key_map());
+        $this->assertSame(
+            ['hmw_event_parenting_topic' => 'topic', 'hmw_event_program' => 'program'],
+            TaxonomyRegistry::filter_key_map()
+        );
     }
 
     public function test_archive_taxonomies_exclude_non_public_taxonomies(): void
@@ -103,12 +106,17 @@ class TaxonomyRegistryTest extends TestCase
         );
     }
 
-    public function test_single_meta_taxonomies_contains_only_parenting_topic(): void
+    public function test_single_meta_taxonomies_includes_all_three_content_taxonomies(): void
     {
         $defs = TaxonomyRegistry::single_meta_taxonomies();
 
-        $this->assertSame(['hmw_event_parenting_topic'], array_keys($defs));
+        $this->assertSame(
+            ['hmw_event_parenting_topic', 'hmw_event_professional_topic', 'hmw_event_program'],
+            array_keys($defs)
+        );
         $this->assertTrue($defs['hmw_event_parenting_topic']['show_single_meta']);
+        $this->assertTrue($defs['hmw_event_professional_topic']['show_single_meta']);
+        $this->assertTrue($defs['hmw_event_program']['show_single_meta']);
     }
 
     // ============================================================

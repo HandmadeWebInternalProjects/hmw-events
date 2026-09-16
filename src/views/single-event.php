@@ -306,6 +306,8 @@ do_action('hmwevents_before_single_event', $event);
             </div>
         <?php endif; ?>
 
+        <?php do_action('hmwevents_event_meta_bottom', $event); ?>
+
     </div>
 
     <?php do_action('hmwevents_after_event_meta', $event); ?>

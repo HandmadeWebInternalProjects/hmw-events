@@ -179,16 +179,21 @@ touching plugin code.
 - Appends `TaxonomyRegistry::archive_taxonomies()` (definitions with `archive`
   and `publicly_queryable` true — currently parenting topic and program) to the
   `hmwevents_event_archive_taxonomies` filter. The base list in
-  `Services/Hooks.php::event_archive_template()` is the 4 platform taxonomies.
+  `Services/Hooks.php::event_archive_template()` is the 3 platform taxonomies
+  (type, audience, delivery mode).
 
 **Definition keys:** `name`, `singular`, `description`, `hierarchical`,
 `public`, `publicly_queryable`, `show_admin_column`, `rewrite` (string slug |
 false | array), `query_var`, `default_terms` (slug => label), `option_flag`,
 `event_field_key`, `field_label`, `required_for`, `hidden_for` (archetype
 slugs or `*`), `filter_key` (listing filter), `show_single_meta`, `archive`.
-`TaxonomyRegistry::normalize()` fills defaults; helpers: `get()`,
-`filter_key_map()`, `archive_taxonomies()`, `single_meta_taxonomies()`,
-`apply_to_type_configs()`.
+`filter_key` is generic: any definition with one automatically gets a filter
+bar section, an `ev_<filter_key>` URL param, a `<filter_key>` shortcode att,
+an active-filter chip group, a canonical-URL param, and a `tax_query` clause
+(see Wiring). `show_single_meta` adds a meta row for the taxonomy on the
+event single template. `TaxonomyRegistry::normalize()` fills defaults;
+helpers: `get()`, `filter_key_map()`, `archive_taxonomies()`,
+`single_meta_taxonomies()`, `apply_to_type_configs()`.
 
 **Wiring driven by the registry:**
 - `EventTypeRegistry::all()` applies `TaxonomyRegistry::apply_to_type_configs()`
@@ -199,13 +204,27 @@ slugs or `*`), `filter_key` (listing filter), `show_single_meta`, `archive`.
   professional-webinar, parent-one-off-free, parent-walk-in, parent-course)
   and required for `professional-online` / `professional-in-person`;
   `event_program` is optional everywhere.
-- `EventListingService` resolves the `topic` filter's taxonomy dynamically via
-  `TaxonomyRegistry::filter_key_map()` (shortcode att `topic`, `ev_topic` URL
-  param, filter bar, chips, `tax_query`). `TERM_TAXONOMY_ATT_KEYS` holds only
-  the 4 platform taxonomies; content-taxonomy mappings come from the registry
-  via `att_key_for_taxonomy()` / `content_filter_taxonomy()`.
+- `EventListingService` builds content-taxonomy filters generically from
+  `TaxonomyRegistry::filter_key_map()`: any definition with a `filter_key`
+  gets a filter-bar checkbox section (label = definition `name`, rendered
+  only when the taxonomy has terms), an `ev_<filter_key>` URL param, a
+  `<filter_key>` shortcode att, an active-filter chip group, a canonical-URL
+  param, and a `tax_query` clause. Implemented as generic loops in
+  `parse_filter_params()`, `build_query()`, `render_filter_bar()` (via the
+  `content_filter_sections()` helper), `render_active_filters()`, and
+  `build_canonical_url()`. `sanitize_atts()` merges att defaults from
+  `filter_key_map()`, so new filter keys are accepted without touching
+  `ATTS_DEFAULTS` (which has no `topic` att). `TERM_TAXONOMY_ATT_KEYS` holds
+  only the 3 platform taxonomies; `att_key_for_taxonomy()` resolves a
+  term-archive taxonomy → att key via `filter_key_map()` first. Currently
+  filterable: parenting topic (`filter_key: 'topic'`) and program
+  (`filter_key: 'program'`); professional topic has `filter_key: null`
+  (non-public) and is not filterable.
 - `src/views/single-event.php` renders a meta row for each definition with
-  `show_single_meta` true, keyed by `filter_key ?: event_field_key`.
+  `show_single_meta` true (currently all three content taxonomies), keyed by
+  `filter_key ?: event_field_key`. Terms link to their term archive when the
+  taxonomy is publicly queryable; non-public taxonomies (professional topic)
+  render as plain text because `get_term_link()` returns an error.
 
 **Project customisation** (mu-plugin or theme) — deregister a bundled
 taxonomy by unsetting its slug key, register a new one by adding a
@@ -230,7 +249,11 @@ add_filter('hmwevents_taxonomies', function (array $taxonomies): array {
 
 Deregistering removes the taxonomy, its ACF editor field, its
 `EventTypeRegistry` required/hidden wiring, its listing filter taxonomy, and
-its archive template support automatically.
+its archive template support automatically. To make a custom taxonomy
+filterable, set `'filter_key' => 'something'` in its definition — the filter
+bar section, `ev_something` URL param, `something` shortcode att, and chips
+come for free. Set `'show_single_meta' => true` to add it to the event
+single template meta rows.
 
 ### Recurring events
 

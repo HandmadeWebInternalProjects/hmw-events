@@ -29,9 +29,7 @@ class EventListingService
     private const ATTS_DEFAULTS = [
         'type'         => '',
         'audience'     => '',
-        'topic'        => '',
         'mode'         => '',
-        'location'     => '',
         'state'        => '',
         'free'         => '',
         'limit'        => 12,
@@ -95,7 +93,7 @@ class EventListingService
      * @param array $filters {
      *     event_type:       string|string[]    Event type slug(s).
      *     audience:         string|string[]    Audience slug(s).
-     *     topic:            string|string[]    Parenting topic slug(s).
+     *     topic:            string|string[]    Content-filter slug(s) keyed by registry filter_key (e.g. topic, program).
      *     delivery_mode:    string|string[]    Delivery mode slug(s).
      *     location:         string|string[]    Suburb name(s) inferred from venue addresses.
      *     free_only:        bool               Only free events.
@@ -248,13 +246,12 @@ class EventListingService
             ];
         }
 
-        if (!empty($filters['topic'])) {
-            $topic_taxonomy = $this->content_filter_taxonomy('topic');
-            if ($topic_taxonomy) {
+        foreach (TaxonomyRegistry::filter_key_map() as $content_taxonomy => $filter_key) {
+            if (!empty($filters[$filter_key])) {
                 $args['tax_query'][] = [
-                    'taxonomy' => $topic_taxonomy,
+                    'taxonomy' => $content_taxonomy,
                     'field'    => 'slug',
-                    'terms'    => (array) $filters['topic'],
+                    'terms'    => (array) $filters[$filter_key],
                 ];
             }
         }
@@ -650,7 +647,7 @@ class EventListingService
      */
     public function render_listings(array $atts = [], string $content = '', ?string $base_url = null): string
     {
-        $atts = $this->sanitize_atts(shortcode_atts(self::ATTS_DEFAULTS, $atts));
+        $atts = $this->sanitize_atts(shortcode_atts($this->att_defaults(), $atts));
 
         $show_filters = $this->is_truthy($atts['show_filters']);
 
@@ -824,15 +821,16 @@ class EventListingService
             $filters['audience'] = explode(',', $atts['audience']);
         }
 
-        if ($atts['topic']) {
-            $filters['topic'] = explode(',', $atts['topic']);
-            $filters['topic_is_restriction'] = true;
-        } else {
-            $url_topic = isset($_GET['ev_topic']) ? (array) $_GET['ev_topic'] : [];
-            $url_topic = array_map('sanitize_text_field', $url_topic);
-            $url_topic = array_filter($url_topic);
-            if ($url_topic) {
-                $filters['topic'] = $url_topic;
+        foreach (TaxonomyRegistry::filter_key_map() as $content_taxonomy => $filter_key) {
+            if (!empty($atts[$filter_key])) {
+                $filters[$filter_key] = explode(',', (string) $atts[$filter_key]);
+                $filters[$filter_key . '_is_restriction'] = true;
+            } else {
+                $url_values = isset($_GET['ev_' . $filter_key]) ? (array) $_GET['ev_' . $filter_key] : [];
+                $url_values = array_filter(array_map('sanitize_text_field', $url_values));
+                if ($url_values) {
+                    $filters[$filter_key] = $url_values;
+                }
             }
         }
 
@@ -935,14 +933,12 @@ class EventListingService
         $event_types        = $this->get_filter_terms('hmw_event_type', $type_filter_parent);
         $delivery_modes  = $this->get_filter_terms('hmw_event_delivery_mode');
         $suburbs         = $this->venue_suburbs();
-        $topic_taxonomy  = $this->content_filter_taxonomy('topic');
-        $topics          = $topic_taxonomy ? $this->get_filter_terms($topic_taxonomy) : [];
+        $content_filters = $this->content_filter_sections($filters);
 
         $active_types      = isset($filters['event_type']) ? (array) $filters['event_type'] : [];
         $active_modes      = isset($filters['delivery_mode']) ? (array) $filters['delivery_mode'] : [];
-        $active_locations  = isset($filters['location']) ? (array) $filters['location'] : [];
-        $active_topics     = isset($filters['topic']) ? (array) $filters['topic'] : [];
-        $active_location   = $active_locations[0] ?? '';
+        $active_location   = isset($filters['location']) ? (array) $filters['location'] : [];
+        $active_location   = $active_location[0] ?? '';
         $active_days       = isset($filters['event_day']) ? (array) $filters['event_day'] : [];
         $active_months     = isset($filters['months']) ? array_map('intval', (array) $filters['months']) : [];
         $active_price      = isset($filters['free_only']) && $filters['free_only'] ? 'free'
@@ -995,26 +991,26 @@ class EventListingService
                     </div>
                     <?php endif; ?>
 
-                    <?php if ($topics): ?>
+                    <?php foreach ($content_filters as $content_filter): ?>
                     <div class="hmw-event-filters__section">
                         <span class="hmw-event-filters__label">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                 <path d="M2 2.8c0-.44.36-.8.8-.8h4.5c.21 0 .42.08.57.23l5.9 5.9a.8.8 0 010 1.14l-4.5 4.5a.8.8 0 01-1.14 0l-5.9-5.9A.8.8 0 012 7.3V2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
                                 <circle cx="5.4" cy="5.4" r="1" fill="currentColor"/>
                             </svg>
-                            <?php esc_html_e('Topic', 'hmw-events'); ?>
+                            <?php echo esc_html($content_filter['label']); ?>
                         </span>
                         <div class="hmw-event-filters__options">
-                            <?php foreach ($topics as $term): ?>
+                            <?php foreach ($content_filter['terms'] as $term): ?>
                                 <label class="hmw-event-filters__checkbox">
-                                    <input type="checkbox" name="ev_topic[]" value="<?php echo esc_attr($term->slug); ?>"
-                                        <?php checked(in_array($term->slug, $active_topics, true)); ?> />
+                                    <input type="checkbox" name="ev_<?php echo esc_attr($content_filter['filter_key']); ?>[]" value="<?php echo esc_attr($term->slug); ?>"
+                                        <?php checked(in_array($term->slug, $content_filter['active'], true)); ?> />
                                     <?php echo esc_html($this->get_term_label($term)); ?>
                                 </label>
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
 
                     <?php if ($delivery_modes): ?>
                     <div class="hmw-event-filters__section">
@@ -1241,15 +1237,18 @@ class EventListingService
             }
         }
 
-        if (isset($filters['topic']) && empty($filters['topic_is_restriction'])) {
-            $topic_taxonomy = $this->content_filter_taxonomy('topic');
-            $terms = $topic_taxonomy ? get_terms(['taxonomy' => $topic_taxonomy, 'slug' => (array) $filters['topic'], 'hide_empty' => false]) : [];
+        foreach (TaxonomyRegistry::filter_key_map() as $content_taxonomy => $filter_key) {
+            if (!isset($filters[$filter_key]) || !empty($filters[$filter_key . '_is_restriction'])) {
+                continue;
+            }
+
+            $terms = get_terms(['taxonomy' => $content_taxonomy, 'slug' => (array) $filters[$filter_key], 'hide_empty' => false]);
             if ($terms && !is_wp_error($terms)) {
                 foreach ($terms as $term) {
                     $tags[] = [
                         'label'  => $this->get_term_label($term),
-                        'group'  => __('Topic', 'hmw-events'),
-                        'remove' => 'ev_topic',
+                        'group'  => $this->content_filter_label($content_taxonomy),
+                        'remove' => 'ev_' . $filter_key,
                         'value'  => $term->slug,
                     ];
                 }
@@ -1443,8 +1442,10 @@ class EventListingService
             $params['ev_type'] = array_values((array) $filters['event_type']);
         }
 
-        if (!empty($filters['topic']) && $atts['topic'] === '') {
-            $params['ev_topic'] = array_values((array) $filters['topic']);
+        foreach (TaxonomyRegistry::filter_key_map() as $content_taxonomy => $filter_key) {
+            if (!empty($filters[$filter_key]) && $atts[$filter_key] === '') {
+                $params['ev_' . $filter_key] = array_values((array) $filters[$filter_key]);
+            }
         }
 
         if (!empty($filters['delivery_mode']) && $atts['mode'] === '') {
@@ -1492,11 +1493,24 @@ class EventListingService
         return add_query_arg($params, $base);
     }
 
+    private function att_defaults(): array
+    {
+        return array_merge(
+            self::ATTS_DEFAULTS,
+            array_fill_keys(array_values(TaxonomyRegistry::filter_key_map()), ''),
+            ['location' => '']
+        );
+    }
+
     private function sanitize_atts(array $atts): array
     {
-        $atts = array_merge(self::ATTS_DEFAULTS, array_intersect_key($atts, self::ATTS_DEFAULTS));
+        $content_keys = array_values(TaxonomyRegistry::filter_key_map());
+        $defaults = $this->att_defaults();
 
-        foreach (['type', 'audience', 'topic', 'mode', 'location', 'state', 'event_type_filter_parent'] as $key) {
+        $atts = array_merge($defaults, array_intersect_key($atts, $defaults));
+
+        $text_keys = array_merge(['type', 'audience', 'mode', 'location', 'state', 'event_type_filter_parent'], $content_keys);
+        foreach ($text_keys as $key) {
             $atts[$key] = is_scalar($atts[$key]) ? sanitize_text_field((string) $atts[$key]) : '';
         }
 
@@ -1544,6 +1558,35 @@ class EventListingService
     /**
      * Get terms for filter checkboxes, sorted by name.
      */
+    private function content_filter_sections(array $filters): array
+    {
+        $sections = [];
+
+        foreach (TaxonomyRegistry::filter_key_map() as $content_taxonomy => $filter_key) {
+            $terms = $this->get_filter_terms($content_taxonomy);
+            if (!$terms) {
+                continue;
+            }
+
+            $sections[] = [
+                'filter_key' => $filter_key,
+                'label'      => $this->content_filter_label($content_taxonomy),
+                'terms'      => $terms,
+                'active'     => isset($filters[$filter_key]) ? (array) $filters[$filter_key] : [],
+            ];
+        }
+
+        return $sections;
+    }
+
+    private function content_filter_label(string $taxonomy): string
+    {
+        $def = TaxonomyRegistry::get($taxonomy);
+        $name = $def['name'] ?? $taxonomy;
+
+        return _x($name, 'taxonomy general name', 'hmw-events');
+    }
+
     private function att_key_for_taxonomy(string $taxonomy): string
     {
         $content_keys = TaxonomyRegistry::filter_key_map();
@@ -1552,12 +1595,6 @@ class EventListingService
         }
 
         return self::TERM_TAXONOMY_ATT_KEYS[$taxonomy] ?? 'type';
-    }
-
-    private function content_filter_taxonomy(string $filter_key): ?string
-    {
-        $taxonomy = array_search($filter_key, TaxonomyRegistry::filter_key_map(), true);
-        return $taxonomy === false ? null : $taxonomy;
     }
 
     private function get_filter_terms(string $taxonomy, int $parent_id = 0): array

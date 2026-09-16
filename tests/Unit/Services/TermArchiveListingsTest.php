@@ -40,6 +40,7 @@ class TermArchiveListingsTest extends TestCase
         $this->captured_get_terms_args = [];
 
         Functions\when('__')->returnArg();
+        Functions\when('_x')->returnArg();
         Functions\when('esc_html__')->returnArg();
         Functions\when('esc_attr__')->returnArg();
         Functions\when('esc_attr')->returnArg();
@@ -165,6 +166,7 @@ class TermArchiveListingsTest extends TestCase
             'type'         => '',
             'audience'     => '',
             'topic'        => '',
+            'program'      => '',
             'mode'         => '',
             'location'     => '',
             'state'        => '',
@@ -380,7 +382,7 @@ class TermArchiveListingsTest extends TestCase
 
         $output = $this->render_active_filters(['topic' => ['sleep']]);
 
-        $this->assertStringContainsString('Topic: Sleep', $output);
+        $this->assertStringContainsString('Parenting Topics: Sleep', $output);
         $this->assertStringContainsString('hmw-active-filter__remove', $output);
         $this->assertSame(
             'hmw_event_parenting_topic',

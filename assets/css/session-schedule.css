@@ -1,5 +1,40 @@
 @layer hmw.components {
 
+.hmwevents-session-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+}
+
+.hmwevents-session-table th,
+.hmwevents-session-table td {
+    padding: 0.5rem 0.75rem 0.5rem 0;
+    text-align: start;
+    border-block-end: 1px solid var(--hmw-color-border);
+}
+
+.hmwevents-session-table tr[hidden] {
+    display: none;
+}
+
+.hmwevents-session-schedule__toggle {
+    margin-block-start: 1rem;
+    padding: 0.5rem 1.25rem;
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--hmw-color-text);
+    background: transparent;
+    border: 1px solid var(--hmw-color-border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color var(--hmw-transition, 0.2s ease), color var(--hmw-transition, 0.2s ease);
+}
+
+.hmwevents-session-schedule__toggle:hover,
+.hmwevents-session-schedule__toggle:focus-visible {
+    border-color: var(--hmw-color-primary);
+    color: var(--hmw-color-primary);
+}
+
 .hmwevents-session-slots {
     display: flex;
     flex-wrap: wrap;

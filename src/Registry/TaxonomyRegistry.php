@@ -72,7 +72,7 @@ class TaxonomyRegistry
                     'parent-course',
                 ],
                 'filter_key'         => null,
-                'show_single_meta'   => false,
+                'show_single_meta'   => true,
                 'archive'            => false,
             ],
 
@@ -93,8 +93,8 @@ class TaxonomyRegistry
                 'field_label'        => 'Program',
                 'required_for'       => [],
                 'hidden_for'         => [],
-                'filter_key'         => null,
-                'show_single_meta'   => false,
+                'filter_key'         => 'program',
+                'show_single_meta'   => true,
                 'archive'            => true,
             ],
         ];

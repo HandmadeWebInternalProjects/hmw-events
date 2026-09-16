@@ -27,7 +27,7 @@ class Hooks
     add_filter('taxonomy_template', [static::class, 'event_archive_template']);
     add_filter('archive_template', [static::class, 'event_archive_template']);
 
-    add_action('hmwevents_after_event_content', [static::class, 'render_session_schedule']);
+    add_action('hmwevents_event_meta_bottom', [static::class, 'render_session_schedule']);
 
     add_action('hmwevents_after_event_content', [static::class, 'render_same_day_slots'], 10);
 
@@ -263,8 +263,26 @@ class Hooks
     }
 
     self::enqueue_session_schedule_styles();
+    self::enqueue_session_schedule_scripts();
 
     hmwevents_get_template_part('session-schedule', null, ['event' => $event, 'sessions' => $sessions]);
+  }
+
+  private static function enqueue_session_schedule_scripts(): void
+  {
+    $js_path = \HMWEvents\HMWEvents::plugin_path() . '/assets/js/session-schedule.js';
+
+    if (!file_exists($js_path)) {
+      return;
+    }
+
+    wp_enqueue_script(
+      'hmwevents-session-schedule',
+      \HMWEvents\HMWEvents::plugin_url() . '/assets/js/session-schedule.js',
+      [],
+      filemtime($js_path),
+      true
+    );
   }
 
   /**

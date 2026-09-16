@@ -307,6 +307,15 @@ class EventListingServiceTest extends TestCase
         $this->assertEquals(['parenting', 'sleep'], $args['tax_query'][0]['terms']);
     }
 
+    public function test_build_query_program_filter(): void
+    {
+        $args = $this->service->build_query(['program' => ['circle-of-security']]);
+        $this->assertEquals(1, $this->tax_query_count($args));
+        $this->assertEquals('hmw_event_program', $args['tax_query'][0]['taxonomy']);
+        $this->assertEquals('slug', $args['tax_query'][0]['field']);
+        $this->assertEquals(['circle-of-security'], $args['tax_query'][0]['terms']);
+    }
+
     public function test_build_query_search(): void
     {
         $args = $this->service->build_query(['search' => 'birth preparation']);
@@ -622,6 +631,7 @@ class EventListingServiceTest extends TestCase
             'type'         => '',
             'audience'     => '',
             'topic'        => '',
+            'program'      => '',
             'mode'         => '',
             'location'     => '',
             'state'        => '',
@@ -632,6 +642,16 @@ class EventListingServiceTest extends TestCase
             'sort_order'   => 'ASC',
             'event_type_filter_parent' => '',
         ], $overrides);
+    }
+
+    public function test_program_att_sets_program_filter_and_restriction_flag(): void
+    {
+        $_GET['ev_program'] = ['bringing-up-great-kids'];
+
+        $filters = $this->parse_filter_params($this->filter_bar_atts(['program' => 'circle-of-security']));
+
+        $this->assertSame(['circle-of-security'], $filters['program']);
+        $this->assertTrue($filters['program_is_restriction']);
     }
 
     public function test_type_attr_only_hides_type_filter(): void

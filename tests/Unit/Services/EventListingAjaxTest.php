@@ -190,8 +190,8 @@ class EventListingAjaxTest extends TestCase
         $this->assertArrayNotHasKey('bogus', $atts);
 
         foreach ([
-            'type', 'audience', 'topic', 'mode', 'state', 'free',
-            'limit', 'show_filters', 'sort', 'sort_order', 'event_type_filter_parent',
+            'type', 'audience', 'topic', 'program', 'mode', 'state', 'location',
+            'free', 'limit', 'show_filters', 'sort', 'sort_order', 'event_type_filter_parent',
         ] as $key) {
             $this->assertArrayHasKey($key, $atts);
         }

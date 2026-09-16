@@ -23,9 +23,27 @@ foreach ($sessions as $session) {
         'end'     => $end,
     ];
 }
+
+$visible_days  = (int) apply_filters('hmwevents_session_schedule_visible_days', 4);
+$total_days    = count($grouped);
+$collapsible   = $visible_days >= 0 && $total_days > $visible_days;
+$schedule_id   = 'hmwevents-session-schedule-' . (int) $event->ID;
+$rendered_days = 0;
+
+$classes = $collapsible
+    ? ['hmwevents-session-schedule', 'hmwevents-session-schedule--collapsible']
+    : ['hmwevents-session-schedule'];
+$schedule_classes = implode(' ', apply_filters('hmwevents_session_schedule_classes', $classes, $event, $grouped));
+
+$show_all_label = sprintf(
+    /* translators: %s: total number of session dates. */
+    _n('Show all %s date', 'Show all %s dates', $total_days, 'hmw-events'),
+    number_format_i18n($total_days)
+);
+$show_fewer_label = __('Show fewer dates', 'hmw-events');
 ?>
 
-<div class="hmwevents-session-schedule">
+<div class="<?php echo esc_attr($schedule_classes); ?>" id="<?php echo esc_attr($schedule_id); ?>">
     <h3><?php esc_html_e('Session Schedule', 'hmw-events'); ?></h3>
     <table class="hmwevents-session-table">
         <thead>
@@ -37,12 +55,15 @@ foreach ($sessions as $session) {
         <tbody>
             <?php foreach ($grouped as $day => $slots): ?>
                 <?php
+                $rendered_days++;
+                $is_extra  = $collapsible && $rendered_days > $visible_days;
+                $row_class = $is_extra ? ' class="hmwevents-session-schedule__extra"' : '';
                 $day_label = $day !== 'unknown'
                     ? esc_html(date_i18n($date_format, strtotime($day)))
                     : '&mdash;';
                 $multiple = count($slots) > 1;
                 ?>
-                <tr>
+                <tr<?php echo $row_class; ?> <?php echo $is_extra ? 'hidden' : ''; ?>>
                     <td><?php echo $day_label; ?></td>
                     <td>
                         <div class="<?php echo esc_attr(implode(' ', apply_filters('hmwevents_session_slot_classes', $multiple ? ['hmwevents-session-slots'] : [], $day, $slots))); ?>">
@@ -74,4 +95,15 @@ foreach ($sessions as $session) {
             <?php endforeach; ?>
         </tbody>
     </table>
+
+    <?php if ($collapsible) : ?>
+        <button
+            type="button"
+            class="hmwevents-session-schedule__toggle"
+            aria-expanded="false"
+            aria-controls="<?php echo esc_attr($schedule_id); ?>"
+            data-collapsed-label="<?php echo esc_attr($show_all_label); ?>"
+            data-expanded-label="<?php echo esc_attr($show_fewer_label); ?>"
+        ><?php echo esc_html($show_all_label); ?></button>
+    <?php endif; ?>
 </div>
