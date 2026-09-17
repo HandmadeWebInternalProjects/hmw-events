@@ -228,11 +228,12 @@ class EventHelper
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$table}
             WHERE event_post_id = %d
-              AND option_type = %s
               AND is_active = 1
+              AND (option_key = %s OR (option_key = '' AND option_type = %s))
             ORDER BY sort_order ASC
             LIMIT 1",
             $event_id,
+            $attendance_type,
             $attendance_type
         )) ?: null;
     }
@@ -240,7 +241,7 @@ class EventHelper
     /**
      * Return all active attendance options for an event, ordered for display.
      *
-     * @return object[] Rows with id, option_type, label, price, capacity, sort_order.
+     * @return object[] Rows with id, option_type, option_key, label, description, price, capacity, sort_order.
      */
     public static function get_active_attendance_options(int $event_id): array
     {
@@ -248,7 +249,7 @@ class EventHelper
         $table = DatabaseService::get_table_name('event_attendance_options');
 
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, option_type, label, price, price_mode, pricing_rules, capacity, sort_order
+            "SELECT id, option_type, option_key, label, description, price, price_mode, pricing_rules, capacity, sort_order
             FROM {$table}
             WHERE event_post_id = %d
               AND is_active = 1
@@ -267,9 +268,12 @@ class EventHelper
     }
 
     /**
-     * Resolve the full active attendance option row for an event + type.
+     * Resolve the full active attendance option row for an event + selection key.
      *
-     * @return object|null Row with id, option_type, label, price, capacity.
+     * Matches option_key first; rows without a key still resolve by
+     * option_type for backwards compatibility.
+     *
+     * @return object|null Row with id, option_type, option_key, label, description, price, capacity.
      */
     public static function resolve_attendance_option(int $event_id, string $attendance_type): ?object
     {
@@ -277,14 +281,15 @@ class EventHelper
         $table = DatabaseService::get_table_name('event_attendance_options');
 
         $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, option_type, label, price, price_mode, pricing_rules, capacity
+            "SELECT id, option_type, option_key, label, description, price, price_mode, pricing_rules, capacity
             FROM {$table}
             WHERE event_post_id = %d
-              AND option_type = %s
               AND is_active = 1
+              AND (option_key = %s OR (option_key = '' AND option_type = %s))
             ORDER BY sort_order ASC
             LIMIT 1",
             $event_id,
+            $attendance_type,
             $attendance_type
         ));
 

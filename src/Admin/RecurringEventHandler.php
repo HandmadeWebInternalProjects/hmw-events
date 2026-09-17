@@ -405,6 +405,8 @@ class RecurringEventHandler
                 '_event_enable_bookings' => get_field('_event_enable_bookings', $post_id),
                 '_event_price'          => get_field('_event_price', $post_id),
                 '_event_deposit'        => get_field('_event_deposit', $post_id),
+                '_event_surcharge'      => get_field('_event_surcharge', $post_id),
+                '_event_surcharge_type' => get_field('_event_surcharge_type', $post_id),
                 '_event_booking_notes'  => get_field('_event_booking_notes', $post_id),
                 '_event_capacity'       => get_field('_event_capacity', $post_id),
                 '_event_venue'          => get_field('_event_venue', $post_id),
@@ -431,6 +433,8 @@ class RecurringEventHandler
             EventHelper::ensure_course_availability_row($clone_id);
 
             update_post_meta($clone_id, '_cloned_from', $post_id);
+
+            $this->session_service()->sync_attendance_options_to($post_id, $clone_id);
 
             $template_override = get_post_meta($post_id, '_event_template_override', true);
             $apply_to_children = get_post_meta($post_id, '_event_template_override_apply_to_children', true);
@@ -690,6 +694,8 @@ class RecurringEventHandler
                 '_event_enable_bookings' => get_field('_event_enable_bookings', $post_id),
                 '_event_price'          => get_field('_event_price', $post_id),
                 '_event_deposit'        => get_field('_event_deposit', $post_id),
+                '_event_surcharge'      => get_field('_event_surcharge', $post_id),
+                '_event_surcharge_type' => get_field('_event_surcharge_type', $post_id),
                 '_event_booking_notes'  => get_field('_event_booking_notes', $post_id),
                 '_event_capacity'       => get_field('_event_capacity', $post_id),
                 '_event_venue'          => get_field('_event_venue', $post_id),
@@ -712,6 +718,8 @@ class RecurringEventHandler
             EventHelper::ensure_course_availability_row($clone_id);
 
             update_post_meta($clone_id, '_cloned_from', $post_id);
+
+            $this->session_service()->sync_attendance_options_to($post_id, $clone_id);
 
             $template_override = get_post_meta($post_id, '_event_template_override', true);
             $apply_to_children = get_post_meta($post_id, '_event_template_override_apply_to_children', true);
@@ -1162,9 +1170,21 @@ class RecurringEventHandler
 
         $service = $this->session_service();
         $updated = $service->cascade_to_children($parent_id, [
-            'event_venue'         => get_post_meta($parent_id, '_event_venue', true),
-            'event_capacity'      => get_post_meta($parent_id, '_event_capacity', true),
-            'event_webinar_url'   => get_post_meta($parent_id, '_event_webinar_url', true),
+            'event_venue'               => get_post_meta($parent_id, '_event_venue', true),
+            'event_capacity'            => get_post_meta($parent_id, '_event_capacity', true),
+            'event_webinar_url'         => get_post_meta($parent_id, '_event_webinar_url', true),
+            'event_enable_bookings'     => get_post_meta($parent_id, '_event_enable_bookings', true),
+            'event_price'               => get_post_meta($parent_id, '_event_price', true),
+            'event_deposit'             => get_post_meta($parent_id, '_event_deposit', true),
+            'event_surcharge'           => get_post_meta($parent_id, '_event_surcharge', true),
+            'event_surcharge_type'      => get_post_meta($parent_id, '_event_surcharge_type', true),
+            'event_is_free'             => get_post_meta($parent_id, '_event_is_free', true),
+            'event_max_per_registrant'  => get_post_meta($parent_id, '_event_max_per_registrant', true),
+            'event_allow_net_terms'     => get_post_meta($parent_id, '_event_allow_net_terms', true),
+            'event_booking_notes'       => get_post_meta($parent_id, '_event_booking_notes', true),
+            'event_notification_email'  => get_post_meta($parent_id, '_event_notification_email', true),
+            'event_field_config'        => get_post_meta($parent_id, '_event_field_config', true),
+            'event_session_booking_mode' => get_post_meta($parent_id, '_event_session_booking_mode', true),
         ]);
 
         wp_send_json_success([

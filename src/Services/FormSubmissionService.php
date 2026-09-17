@@ -43,7 +43,7 @@ class FormSubmissionService
             return $normalized;
         }
 
-        $config = FormConfigResolver::for_attendance($config, $normalized['attendance_type']);
+        $config = FormConfigResolver::for_attendance($config, $this->attendance_type_for_fields($event_id, $normalized['attendance_type']));
         $config = $this->apply_multi_config($event_id, $config, $has_multi, $normalized['attendance_type']);
 
         $errors = $this->validate_submission($normalized, $config);
@@ -136,7 +136,7 @@ class FormSubmissionService
         $attendee_count = max(1, count($normalized['attendees'] ?? [1]));
         $service = new SessionBookingService();
 
-        return $service->expand_selection($event_id, $normalized['selected_sessions'], null, $attendee_count);
+        return $service->expand_selection($event_id, $normalized['selected_sessions'], null, $attendee_count, (string) ($normalized['attendance_type'] ?? ''));
     }
 
 
@@ -294,7 +294,7 @@ class FormSubmissionService
         if ($session_booking) {
             $total = $session_booking['total'];
             $unit_price = $session_booking['total'];
-            $surcharge = $this->event_data()->get_surcharge($event_id);
+            $surcharge = $this->event_data()->calculate_surcharge($event_id, (float) $session_booking['total']);
 
             if ($surcharge > 0 && !empty($session_booking['rows'])) {
                 $total += $surcharge;
@@ -495,7 +495,7 @@ class FormSubmissionService
             return $normalized;
         }
 
-        $config = FormConfigResolver::for_attendance($config, $normalized['attendance_type']);
+        $config = FormConfigResolver::for_attendance($config, $this->attendance_type_for_fields($event_id, $normalized['attendance_type']));
         $config = $this->apply_multi_config($event_id, $config, $has_multi, $normalized['attendance_type']);
 
         $errors = $this->validate_submission($normalized, $config);
@@ -519,6 +519,20 @@ class FormSubmissionService
         }
 
         return ['sections' => [], 'multi_booking' => ['enabled' => false, 'min' => 1, 'max' => 10]];
+    }
+
+    private function attendance_type_for_fields(int $event_id, string $attendance_key): string
+    {
+        $option = EventHelper::resolve_attendance_option($event_id, $attendance_key);
+
+        if ($option !== null) {
+            $type = sanitize_key((string) ($option->option_type ?? ''));
+            if ($type !== '') {
+                return $type;
+            }
+        }
+
+        return sanitize_key($attendance_key) ?: 'individual';
     }
 
     private function normalize_submission(\WP_REST_Request $request, array $config, bool $has_multi): array|\WP_Error

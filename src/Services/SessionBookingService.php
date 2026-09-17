@@ -3,6 +3,7 @@
 namespace HMWEvents\Services;
 
 use HMWEvents\Services\Hooks;
+use HMWEvents\Helpers\EventHelper;
 
 defined('ABSPATH') || die('Don\'t run this file directly!');
 
@@ -115,9 +116,15 @@ class SessionBookingService
      * Individual mode: each picked session becomes its own row priced at
      * session price × attendee count.
      *
+     * When the selected attendance option carries a positive price, the
+     * option is the product: the option price × attendee count is charged
+     * once (on the primary row) regardless of how many sessions are picked,
+     * overriding per-session prices. Free options fall back to per-session
+     * pricing.
+     *
      * @return array|\WP_Error {rows, total, booking_type, session_ids, slot}
      */
-    public function expand_selection(int $event_id, array $picked_ids, ?string $mode = null, int $attendee_count = 1)
+    public function expand_selection(int $event_id, array $picked_ids, ?string $mode = null, int $attendee_count = 1, ?string $attendance_type = null)
     {
         $attendee_count = max(1, $attendee_count);
         $picked_ids = array_values(array_unique(array_map('intval', $picked_ids)));
@@ -128,6 +135,8 @@ class SessionBookingService
         }
 
         $mode = $mode ?: $this->event_data()->get_session_booking_mode($event_id);
+        $option_price = $this->resolve_option_price($event_id, $attendance_type);
+
         $index = [];
         foreach ($this->get_bookable_sessions($event_id) as $occurrence) {
             $index[$occurrence['id']] = $occurrence;
@@ -156,6 +165,22 @@ class SessionBookingService
         }
 
         if ($mode === self::MODE_INDIVIDUAL) {
+            if ($option_price !== null) {
+                $total = $option_price * $attendee_count;
+                $rows = [];
+                foreach ($picked_ids as $i => $id) {
+                    $rows[] = ['event_post_id' => $id, 'booking_amount' => $i === 0 ? $total : 0.0];
+                }
+
+                return [
+                    'rows'         => $rows,
+                    'total'        => $total,
+                    'booking_type' => 'package',
+                    'session_ids'  => $picked_ids,
+                    'slot'         => null,
+                ];
+            }
+
             $rows = [];
             $total = 0.0;
             foreach ($picked_ids as $id) {
@@ -183,7 +208,7 @@ class SessionBookingService
             }
         }
 
-        $total = $index[$primary_id]['price'] * $attendee_count;
+        $total = ($option_price ?? $index[$primary_id]['price']) * $attendee_count;
         $rows = [];
         foreach ($track_ids as $i => $id) {
             $rows[] = [
@@ -199,6 +224,26 @@ class SessionBookingService
             'session_ids'  => $track_ids,
             'slot'         => $slot,
         ];
+    }
+
+    /**
+     * Price for the selected attendance option when it carries one, so
+     * session-picker bookings charge the option rather than per-session
+     * meta prices. Null when no paid option applies.
+     */
+    private function resolve_option_price(int $event_id, ?string $attendance_type): ?float
+    {
+        if ($attendance_type === null || $attendance_type === '') {
+            return null;
+        }
+
+        $option = EventHelper::resolve_attendance_option($event_id, $attendance_type);
+
+        if ($option === null || (float) $option->price <= 0) {
+            return null;
+        }
+
+        return (float) $option->price;
     }
 
     /**

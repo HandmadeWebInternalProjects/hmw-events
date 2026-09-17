@@ -116,13 +116,13 @@ class BookingForm
     // Get pricing
     $full_cost = $this->event_data()->get_price($course_id);
     $deposit_cost = $this->event_data()->get_deposit($course_id);
-    $surcharge = $this->event_data()->get_surcharge($course_id);
+    $surcharge = $this->event_data()->calculate_surcharge($course_id, floatval($full_cost));
     $currency = $this->event_data()->get_currency($course_id);
     $currency_symbol = \HMWEvents\Meta\CourseMeta::get_currency_symbol($currency);
     $organizer_id = $course->post_author;
 
     $display_full = floatval($full_cost) + $surcharge;
-    $display_deposit = floatval($deposit_cost) + $surcharge;
+    $display_deposit = floatval($deposit_cost) + $this->event_data()->calculate_surcharge($course_id, floatval($deposit_cost));
 
     $deposits_enabled = apply_filters('hmwevents_deposit_enabled', false);
     $deposit_cost = $deposits_enabled ? $deposit_cost : 0;

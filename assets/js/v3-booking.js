@@ -32,6 +32,7 @@
     updateDobFieldState();
     updateAttendeeDetailsVisibility();
     updatePaymentFields();
+    updateSessionPickerRowPrices();
     updatePriceDisplay();
   }
 
@@ -64,13 +65,14 @@
       removeCoupon();
     });
 
-    $(document).on('change', '.hmw-v3-attendance-option input[type="radio"]', function () {
-      updateAttendanceFields();
-      syncAttendeeBlocks();
-      updateDobFieldState();
-      updateAttendeeDetailsVisibility();
-      updatePriceDisplay();
-    });
+  $(document).on('change', '.hmw-v3-attendance-option input[type="radio"]', function () {
+    updateAttendanceFields();
+    syncAttendeeBlocks();
+    updateDobFieldState();
+    updateAttendeeDetailsVisibility();
+    updateSessionPickerRowPrices();
+    updatePriceDisplay();
+  });
 
     $(document).on('change', 'input[name="payment_type"]', function () {
       updatePaymentFields();
@@ -82,8 +84,20 @@
     });
   }
 
+  function selectedAttendanceType() {
+    var option = selectedOption();
+    if (option && option.option_type) {
+      return option.option_type;
+    }
+    var $checked = $('input[name="attendance_type"]');
+    if ($checked.attr('data-option-type')) {
+      return $checked.attr('data-option-type');
+    }
+    return data.attendanceDefaultType || '';
+  }
+
   function updateAttendanceFields() {
-    var selected = $('input[name="attendance_type"]:checked').val() || data.attendanceDefault || 'individual';
+    var selected = selectedAttendanceType();
 
     $('.hmw-reg-field[data-attendance-types]').each(function () {
       var $field = $(this);
@@ -136,26 +150,20 @@
     $('.hmw-v3-card-fields').toggle(!netTerms);
   }
 
-  function currentOptionPrice() {
-    var option = selectedOption();
-    if (option) {
-      if (option.display_price !== undefined && option.display_price !== null) {
-        return parseFloat(option.display_price) || 0;
-      }
-      return parseFloat(option.price) || 0;
-    }
-    return parseFloat(data.price) || 0;
-  }
-
   function selectedOption() {
-    var selected = $('input[name="attendance_type"]:checked').val();
+    var selected = $('input[name="attendance_type"]').val();
+    var $checked = $('input[name="attendance_type"]:checked');
+    if ($checked.length) {
+      selected = $checked.val();
+    }
     if (!selected && data.attendanceOptions && data.attendanceOptions.length === 1) {
-      selected = data.attendanceOptions[0].option_type;
+      selected = data.attendanceOptions[0].option_key || data.attendanceOptions[0].option_type;
     }
     if (data.attendanceOptions && selected) {
       for (var i = 0; i < data.attendanceOptions.length; i++) {
-        if (data.attendanceOptions[i].option_type === selected) {
-          return data.attendanceOptions[i];
+        var option = data.attendanceOptions[i];
+        if (option.option_key ? option.option_key === selected : option.option_type === selected) {
+          return option;
         }
       }
     }
@@ -369,11 +377,21 @@
   }
 
   function sessionPickerTotal() {
+    var option = selectedOption();
+    if (option && parseFloat(option.display_price) > 0) {
+      return parseFloat(option.display_price) * attendeeIndex;
+    }
     var sum = 0;
     $('.hmw-session-picker input[data-price]:checked').each(function () {
       sum += parseFloat($(this).data('price')) || 0;
     });
     return sum * attendeeIndex;
+  }
+
+  function updateSessionPickerRowPrices() {
+    var option = selectedOption();
+    var optionDrivesPricing = !!(option && parseFloat(option.display_price) > 0);
+    $('.hmw-session-picker-price').toggle(!optionDrivesPricing);
   }
 
   function hasSessionPicker() {
@@ -386,18 +404,26 @@
     });
   }
 
+  function computeSurcharge(base) {
+    var mode = data.surchargeMode || 'flat';
+    var rate = parseFloat(data.surchargeRate);
+    if (isNaN(rate)) rate = parseFloat(data.surcharge) || 0;
+    if (mode === 'percent') {
+      return Math.round(base * rate) / 100;
+    }
+    return rate;
+  }
+
   function updatePriceDisplay() {
-    var unitPrice = currentOptionPrice();
-    var surcharge = parseFloat(data.surcharge) || 0;
     var base = hasSessionPicker() ? sessionPickerTotal() : computeBase();
-    var courseFee = base.toFixed(2);
+    var surcharge = computeSurcharge(base);
     var subTotal = base + surcharge;
     var total = subTotal;
     var discountAmount = 0;
 
     var option = selectedOption();
-    var mode = option && option.price_mode ? option.price_mode : 'flat';
-    $('.hmw-v3-course-fee-label').text(mode === 'flat' ? (data.courseFeeLabel || 'Course fee:') : (data.courseFeePerAttendeeLabel || 'Course fee per attendee:'));
+    var optionLabel = option && option.label ? option.label : (data.attendanceDefaultType || '');
+    $('.hmw-v3-summary-option').text(attendeeIndex + ' x ' + optionLabel);
 
     if (couponData && couponData.coupon) {
       var dcType = couponData.coupon.discount_type;
@@ -410,8 +436,8 @@
       total = Math.max(0, subTotal - discountAmount);
     }
 
-    $('.hmw-v3-course-fee').text('$' + unitPrice.toFixed(2));
-    $('.hmw-v3-attendee-count').text(attendeeIndex);
+    $('.hmw-v3-course-fee').text('$' + base.toFixed(2));
+    $('.hmw-v3-surcharge').text('$' + surcharge.toFixed(2));
     $('#hmw-v3-total').text('$' + total.toFixed(2));
 
     var discountEl = $('.hmw-v3-coupon-discount-line');
@@ -420,7 +446,7 @@
         ? couponData.coupon.discount_value + '% off'
         : '-$' + discountAmount.toFixed(2);
       if (!discountEl.length) {
-        $('.hmw-reg-payment-summary').append(
+        $('.hmw-v3-summary-total-row').before(
           '<p class="hmw-v3-coupon-discount-line" style="color:#16a34a;">' +
           'Coupon discount: <span>' + discountText + '</span></p>'
         );
@@ -466,7 +492,7 @@
         organizer_id: data.organizerId || 0,
         registrant_email: email,
         payment_type: 'full',
-        amount: computeBase() + (parseFloat(data.surcharge) || 0)
+        amount: computeBase() + computeSurcharge(computeBase())
       }),
       success: function (response) {
         $applyBtn.prop('disabled', false).text('Apply');

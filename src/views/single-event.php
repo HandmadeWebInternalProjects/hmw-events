@@ -30,15 +30,17 @@ $venue_addr   = $event_data->get_venue_address_string($event->ID);
 $webinar_url  = $event_data->get_webinar_url($event->ID);
 $price        = $event_data->get_price($event->ID);
 $deposit      = $event_data->get_deposit($event->ID);
-$surcharge    = $event_data->get_surcharge($event->ID);
+$surcharge_rate = $event_data->get_surcharge($event->ID);
+$surcharge_mode = $event_data->get_surcharge_type($event->ID);
 $is_free      = $event_data->get_is_free($event->ID);
 $organizer_id = $event->post_author;
 $event_types  = get_the_terms($event->ID, 'hmw_event_type');
 $delivery     = get_the_terms($event->ID, 'hmw_event_delivery_mode');
 $audience     = get_the_terms($event->ID, 'hmw_event_audience');
 $suburb       = $event_data->get_venue_suburb($event->ID);
+$surcharge    = $event_data->calculate_surcharge($event->ID, (float) $price);
 $display_price = (float) $price + $surcharge;
-$display_deposit = (float) $deposit + $surcharge;
+$display_deposit = (float) $deposit + $event_data->calculate_surcharge($event->ID, (float) $deposit);
 
 $article_classes = apply_filters('hmwevents_single_event_classes', ['hmwevents-single-event'], $event);
 
@@ -276,7 +278,7 @@ do_action('hmwevents_before_single_event', $event);
                 <span class="hmwevents-meta-heading"><?php echo hmwevents_meta_icon($meta_key); ?><strong><?php echo esc_html($meta_label); ?>:</strong></span>
                 $<?php echo number_format($display_price, 2); ?>
                 <?php if ($surcharge > 0) : ?>
-                    <small>(<?php esc_html_e('includes surcharge', 'hmw-events'); ?>: $<?php echo number_format($surcharge, 2); ?>)</small>
+                    <small>(<?php esc_html_e('includes surcharge', 'hmw-events'); ?><?php echo $surcharge_mode === 'percent' ? ' ' . (string) (float) $surcharge_rate . '%' : ''; ?>: $<?php echo number_format($surcharge, 2); ?>)</small>
                 <?php endif; ?>
                 <?php if ($deposit && apply_filters('hmwevents_deposit_enabled', false)) : ?>
                     <small>(<?php esc_html_e('Deposit', 'hmw-events'); ?>: $<?php echo number_format($display_deposit, 2); ?>)</small>

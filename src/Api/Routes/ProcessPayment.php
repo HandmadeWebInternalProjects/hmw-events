@@ -545,12 +545,11 @@ class ProcessPayment
     $eds          = $this->event_data_service();
     $course_cost  = $eds->get_price($event_id) ?? 0.0;
     $deposit_cost = $eds->get_deposit($event_id) ?? 0.0;
-    $surcharge    = $eds->get_surcharge($event_id);
 
     $effective_deposit = $is_deposit && $deposit_cost > 0;
     $base = $effective_deposit ? $deposit_cost : $course_cost;
 
-    return $base + $surcharge;
+    return $base + $eds->calculate_surcharge($event_id, $base);
   }
 
   /**
@@ -820,8 +819,7 @@ class ProcessPayment
 
       // Get course pricing from ACF fields (stored in dollars)
       $course_full_price = $this->event_data_service()->get_price($booking->event_post_id) ?? 0.0;
-      $course_surcharge  = $this->event_data_service()->get_surcharge($booking->event_post_id);
-      $course_full_price += $course_surcharge;
+      $course_full_price += $this->event_data_service()->calculate_surcharge((int) $booking->event_post_id, $course_full_price);
       $deposit_paid = floatval($booking_group->total_amount);
 
       if ($course_full_price) {
@@ -1036,8 +1034,7 @@ class ProcessPayment
     $deposit_cost = $this->event_data_service()->get_deposit($event_id) ?? 0.0;
 
     $amount    = $payment_type === 'deposit' && $deposit_cost > 0 ? $deposit_cost : $course_cost;
-    $surcharge = $this->event_data_service()->get_surcharge($event_id);
-    $amount += $surcharge;
+    $amount += $this->event_data_service()->calculate_surcharge((int) $event_id, (float) $amount);
 
     // Validate coupon
     $coupon_data = $coupon_service->validate_coupon(
@@ -1117,8 +1114,7 @@ class ProcessPayment
     // Calculate amount based on payment type
     $is_deposit = $is_deposit && !empty($deposit_cost);
     $amount    = $is_deposit ? floatval($deposit_cost) : floatval($course_cost);
-    $surcharge = $this->event_data_service()->get_surcharge($event_id);
-    $amount += $surcharge;
+    $amount += $this->event_data_service()->calculate_surcharge((int) $event_id, $amount);
 
     return new \WP_REST_Response([
       'success' => true,

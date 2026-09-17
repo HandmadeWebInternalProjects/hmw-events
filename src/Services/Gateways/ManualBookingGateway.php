@@ -144,7 +144,7 @@ class ManualBookingGateway extends AbstractPaymentGateway
             $session_booking = null;
             if ($session_ids) {
                 $session_booking = (new \HMWEvents\Services\SessionBookingService())
-                    ->expand_selection($event_id, $session_ids, null, max(1, $ticket_quantity));
+                    ->expand_selection($event_id, $session_ids, null, max(1, $ticket_quantity), $attendance_type);
                 if (is_wp_error($session_booking)) {
                     throw new \Exception($session_booking->get_error_message());
                 }

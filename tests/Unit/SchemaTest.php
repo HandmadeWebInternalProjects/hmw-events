@@ -123,6 +123,29 @@ class SchemaTest extends TestCase
     }
 
     /**
+     * Event attendance options has a description column after label.
+     */
+    public function test_event_attendance_options_has_description(): void
+    {
+        $sql = $this->schemas['event_attendance_options'];
+        $this->assertStringContainsString('description mediumtext', $sql, 'event_attendance_options must have a description column');
+        $this->assertGreaterThan(strpos($sql, 'label'), (int) strpos($sql, 'description'), 'description must follow label');
+    }
+
+    /**
+     * Event attendance options has a freeform option_key column after
+     * option_type plus a composite event/key index.
+     */
+    public function test_event_attendance_options_has_option_key(): void
+    {
+        $sql = $this->schemas['event_attendance_options'];
+
+        $this->assertStringContainsString('option_key varchar(191)', $sql, 'event_attendance_options must have an option_key column');
+        $this->assertGreaterThan((int) strpos($sql, 'option_type'), (int) strpos($sql, 'option_key'), 'option_key must follow option_type');
+        $this->assertStringContainsString('KEY idx_event_key (event_post_id, option_key)', $sql, 'event_attendance_options must have the idx_event_key index');
+    }
+
+    /**
      * Event availability has waitlisted_count.
      */
     public function test_event_availability_has_waitlisted_count(): void

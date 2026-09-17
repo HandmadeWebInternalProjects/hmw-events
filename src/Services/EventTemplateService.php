@@ -497,7 +497,7 @@ class EventTemplateService
         global $wpdb;
         $table = DatabaseService::get_table_name('event_attendance_options');
         $existing = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, option_type, price, price_mode, pricing_rules FROM {$table} WHERE event_post_id = %d",
+            "SELECT id, option_type, price, price_mode, pricing_rules, description FROM {$table} WHERE event_post_id = %d",
             $event_post_id
         ));
         $existing_options = [];
@@ -505,9 +505,10 @@ class EventTemplateService
         foreach ((array) $existing as $row) {
             $type = sanitize_key($row->option_type);
             $existing_options[$type][] = [
-                'price'      => (float) $row->price,
-                'price_mode' => (string) ($row->price_mode ?? ''),
-                'rules'      => AttendancePricingService::decode_rules($row->pricing_rules ?? null),
+                'price'       => (float) $row->price,
+                'price_mode'  => (string) ($row->price_mode ?? ''),
+                'rules'       => AttendancePricingService::decode_rules($row->pricing_rules ?? null),
+                'description' => (string) ($row->description ?? ''),
             ];
         }
 
@@ -531,6 +532,9 @@ class EventTemplateService
                 }
                 if ($existing_option['rules'] !== null) {
                     $preset['pricing_rules'] = $existing_option['rules'];
+                }
+                if ($existing_option['description'] !== '') {
+                    $preset['description'] = $existing_option['description'];
                 }
             } else {
                 $preset['price'] = (float) ($preset['price'] ?? 0);

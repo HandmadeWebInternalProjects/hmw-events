@@ -140,12 +140,14 @@ jQuery(document).ready(function($) {
 
   function mbSelectedOption() {
     var cfg = manualBookingConfig();
-    var selected = $('#hmwevents-add-booking-form').find('input[name="attendance_type"]:checked').val();
-    if (!selected) selected = cfg.defaultOptionType;
+    var $checked = $('#hmwevents-add-booking-form').find('input[name="attendance_type"]:checked');
+    var selected = $checked.length ? $checked.val() : ($('#hmwevents-add-booking-form').find('input[name="attendance_type"]').val() || '');
+    if (!selected) selected = cfg.defaultOptionKey || cfg.defaultOptionType;
     var options = cfg.options || [];
-    if (!selected && options.length === 1) selected = options[0].option_type;
+    if (!selected && options.length === 1) selected = options[0].option_key || options[0].option_type;
     for (var i = 0; i < options.length; i++) {
-      if (options[i].option_type === selected) return options[i];
+      var option = options[i];
+      if (option.option_key ? option.option_key === selected : option.option_type === selected) return option;
     }
     return null;
   }
@@ -346,11 +348,23 @@ jQuery(document).ready(function($) {
     return parseFloat(option.display_price !== undefined && option.display_price !== null ? option.display_price : option.price) || 0;
   }
 
+  function mbSurcharge(base) {
+    var cfg = manualBookingConfig();
+    var mode = cfg.surchargeMode || 'flat';
+    var rate = parseFloat(cfg.surchargeRate);
+    if (isNaN(rate)) rate = parseFloat(cfg.surcharge) || 0;
+    if (mode === 'percent') {
+      return Math.round(base * rate) / 100;
+    }
+    return rate;
+  }
+
   function mbUpdateTotal() {
     var cfg = manualBookingConfig();
     var $modal = $('#hmwevents-add-booking-modal');
     if (!$modal.length || !cfg.options) return;
-    var total = mbComputeBase() + (parseFloat(cfg.surcharge) || 0);
+    var base = mbComputeBase();
+    var total = base + mbSurcharge(base);
     $modal.find('.hmwevents-total-value').text('$' + total.toFixed(2));
   }
 
@@ -414,11 +428,11 @@ jQuery(document).ready(function($) {
     $form.find('input[type="checkbox"], input[type="radio"]').prop('checked', false);
     $form.find('select').prop('selectedIndex', 0);
 
-    var defaultType = manualBookingConfig().defaultOptionType;
+    var defaultKey = manualBookingConfig().defaultOptionKey || manualBookingConfig().defaultOptionType;
     var $radios = $form.find('input[name="attendance_type"]');
-    if (defaultType && $radios.filter('[value="' + defaultType + '"]').length) {
+    if (defaultKey && $radios.filter('[value="' + defaultKey + '"]').length) {
       $radios.prop('checked', false);
-      $radios.filter('[value="' + defaultType + '"]').prop('checked', true);
+      $radios.filter('[value="' + defaultKey + '"]').prop('checked', true);
     }
 
     $('.hmwevents-attendee-blocks').empty();

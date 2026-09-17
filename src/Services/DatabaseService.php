@@ -30,7 +30,7 @@ class DatabaseService
    *
    * @since 2.0.0 Reset to 2.0 for rebuild.
    */
-  const CURRENT_DB_VERSION = '2.7';
+  const CURRENT_DB_VERSION = '2.9';
 
   /**
    * Get the WordPress database instance.
@@ -152,6 +152,7 @@ class DatabaseService
       self::migrate_by_invitation_status();
       self::migrate_new_status();
       self::migrate_educator_template_keys();
+      self::migrate_attendance_option_keys();
 
       // Update version after successful upgrade
       update_option(self::DB_VERSION_OPTION, self::CURRENT_DB_VERSION);
@@ -301,6 +302,44 @@ class DatabaseService
     error_log('HMWEvents: Renamed educator_new_booking email template keys to organizer_new_booking (' . (int) $templates . ' templates, ' . (int) $queue . ' queue rows).');
 
     return (int) $templates + (int) $queue;
+  }
+
+  /**
+   * Backfill freeform selection keys for attendance options.
+   *
+   * Existing rows keep working through option_type: option_key is set to
+   * option_type, and duplicate types within one event get a -{id} suffix on
+   * every row except the oldest one, so each option resolves uniquely.
+   * Idempotent: rows with a key and no same-event duplicates are untouched.
+   *
+   * @since 2.9.0
+   */
+  public static function migrate_attendance_option_keys(): int
+  {
+    global $wpdb;
+
+    $table = self::get_table_name('event_attendance_options');
+
+    $filled = (int) $wpdb->query("UPDATE {$table} SET option_key = option_type WHERE option_key = ''");
+
+    $deduped = (int) $wpdb->query(
+      "UPDATE {$table} eao
+       JOIN (
+         SELECT e2.id
+         FROM {$table} e2
+         JOIN {$table} e3
+           ON e3.event_post_id = e2.event_post_id
+          AND e3.option_key = e2.option_key
+          AND e3.id < e2.id
+       ) dupes ON dupes.id = eao.id
+       SET eao.option_key = CONCAT(eao.option_key, '-', eao.id)"
+    );
+
+    if ($filled > 0 || $deduped > 0) {
+      error_log('HMWEvents: Backfilled attendance option keys (' . $filled . ' filled, ' . $deduped . ' deduplicated).');
+    }
+
+    return $filled + $deduped;
   }
 
   /**

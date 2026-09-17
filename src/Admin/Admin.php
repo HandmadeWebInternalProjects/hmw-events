@@ -900,23 +900,24 @@ class Admin
     if (strpos($screen_id, 'hmwevents-event-templates') !== false) {
       add_thickbox();
       wp_enqueue_script('jquery-ui-sortable');
-      wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
-      wp_enqueue_style('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/css/event-templates.css', [], HMWEvents_VERSION);
-      wp_enqueue_style('hmwevents-attendance-options', HMWEvents::plugin_url() . '/resources/admin/css/attendance-options.css', [], HMWEvents_VERSION);
-      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['hmwevents-form-builder-shared'], HMWEvents_VERSION, true);
+      wp_enqueue_script('quicktags');
+      wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], $this->asset_version('/resources/admin/js/form-builder-shared.js'), true);
+      wp_enqueue_style('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/css/event-templates.css', [], $this->asset_version('/resources/admin/css/event-templates.css'));
+      wp_enqueue_style('hmwevents-attendance-options', HMWEvents::plugin_url() . '/resources/admin/css/attendance-options.css', [], $this->asset_version('/resources/admin/css/attendance-options.css'));
+      wp_enqueue_script('hmwevents-event-templates', HMWEvents::plugin_url() . '/resources/admin/js/event-templates.js', ['hmwevents-form-builder-shared'], $this->asset_version('/resources/admin/js/event-templates.js'), true);
     }
 
     wp_enqueue_style('admin-css', HMWEvents::plugin_url() . '/resources/admin/css/admin.css', [], HMWEvents_VERSION);
     // Event template override meta box (on hmw_event edit screen)
     if ($screen && ($screen->id === 'hmw_event' || $screen->post_type === 'hmw_event')) {
-      wp_enqueue_style('hmwevents-attendance-options', HMWEvents::plugin_url() . '/resources/admin/css/attendance-options.css', [], HMWEvents_VERSION);
+      wp_enqueue_style('hmwevents-attendance-options', HMWEvents::plugin_url() . '/resources/admin/css/attendance-options.css', [], $this->asset_version('/resources/admin/css/attendance-options.css'));
       add_thickbox();
       $acf_fields = $this->get_override_acf_fields();
       $reg_fields  = $this->get_override_reg_fields();
 
       wp_enqueue_script('jquery-ui-sortable');
-      wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], HMWEvents_VERSION, true);
-      wp_enqueue_script('hmwevents-event-template-override', HMWEvents::plugin_url() . '/resources/admin/js/event-template-override.js', ['hmwevents-form-builder-shared'], HMWEvents_VERSION, true);
+      wp_enqueue_script('hmwevents-form-builder-shared', HMWEvents::plugin_url() . '/resources/admin/js/form-builder-shared.js', ['jquery', 'jquery-ui-sortable', 'thickbox'], $this->asset_version('/resources/admin/js/form-builder-shared.js'), true);
+      wp_enqueue_script('hmwevents-event-template-override', HMWEvents::plugin_url() . '/resources/admin/js/event-template-override.js', ['hmwevents-form-builder-shared'], $this->asset_version('/resources/admin/js/event-template-override.js'), true);
       wp_localize_script('hmwevents-event-template-override', 'hmwEventOverride', [
         'ajaxUrl'            => admin_url('admin-ajax.php'),
         'nonce'              => wp_create_nonce('hmwevents_event_override'),
@@ -1066,6 +1067,13 @@ class Admin
       </div>
     </div>
 <?php
+  }
+
+  private function asset_version(string $relative_path): string
+  {
+    $file = HMWEvents::plugin_path() . ltrim($relative_path, '/');
+
+    return file_exists($file) ? (string) filemtime($file) : HMWEvents_VERSION;
   }
 
   private function get_override_acf_fields(): array

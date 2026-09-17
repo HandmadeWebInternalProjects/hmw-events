@@ -82,7 +82,7 @@ class Event
             'menu_position'       => 20,
             'menu_icon'           => 'dashicons-calendar-alt',
             'supports'            => ['title', 'editor', 'author', 'thumbnail', 'excerpt', 'custom-fields', 'page-attributes'],
-            'taxonomies'          => ['category', 'post_tag'],
+            'taxonomies'          => [],
             'delete_with_user'    => false,
         ];
 

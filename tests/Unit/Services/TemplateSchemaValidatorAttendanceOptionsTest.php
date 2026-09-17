@@ -249,4 +249,52 @@ class TemplateSchemaValidatorAttendanceOptionsTest extends TestCase
         $this->assertInstanceOf(\WP_Error::class, $result);
         $this->assertSame('invalid_template_schema', $result->get_error_code());
     }
+
+    public function test_normalize_preserves_description_trimmed(): void
+    {
+        $options = $this->normalizeOptions([
+            ['option_type' => 'individual', 'label' => 'Individual', 'price' => 120, 'description' => '  Includes catering + resources  '],
+        ]);
+
+        $this->assertCount(1, $options);
+        $this->assertSame('Includes catering + resources', $options[0]['description']);
+    }
+
+    public function test_normalize_defaults_description_to_empty_string_when_absent(): void
+    {
+        $options = $this->normalizeOptions([
+            ['option_type' => 'individual', 'label' => 'Individual', 'price' => 120],
+        ]);
+
+        $this->assertCount(1, $options);
+        $this->assertArrayHasKey('description', $options[0]);
+        $this->assertSame('', $options[0]['description']);
+    }
+
+    public function test_normalize_preserves_description_alongside_other_fields(): void
+    {
+        $options = $this->normalizeOptions([
+            [
+                'option_type'   => 'parent_child',
+                'label'         => 'Parent + Child',
+                'description'   => '  <p>Two full-day sessions</p>  ',
+                'price'         => 0,
+                'price_mode'    => 'per_attendee',
+                'pricing_rules' => [
+                    ['role' => 'adult', 'price' => 100],
+                    ['role' => 'child', 'price' => 50],
+                ],
+                'capacity'      => 8,
+            ],
+        ]);
+
+        $this->assertCount(1, $options);
+        $this->assertSame('parent_child', $options[0]['option_type']);
+        $this->assertSame('Parent + Child', $options[0]['label']);
+        $this->assertSame('<p>Two full-day sessions</p>', $options[0]['description']);
+        $this->assertSame(0.0, $options[0]['price']);
+        $this->assertSame('per_attendee', $options[0]['price_mode']);
+        $this->assertSame(8, $options[0]['capacity']);
+        $this->assertCount(2, $options[0]['pricing_rules']);
+    }
 }

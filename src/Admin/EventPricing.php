@@ -96,6 +96,21 @@ class EventPricing
             echo '<button type="button" class="button button-small hmwevents-add-age-band" data-option-id="' . (int) $option->id . '">+ ' . esc_html__('Add age band', 'hmw-events') . '</button>';
             echo '</div>';
 
+            echo '<div class="hmwevents-pricing-description">';
+            echo '<p class="hmwevents-pricing-help">' . esc_html__('Description shown with this option on the booking form. Overrides the template description.', 'hmw-events') . '</p>';
+            wp_editor(
+                (string) ($option->description ?? ''),
+                'hmwevents_option_description_' . (int) $option->id,
+                [
+                    'textarea_name' => 'hmwevents_attendance_options[' . (int) $option->id . '][description]',
+                    'textarea_rows' => 5,
+                    'media_buttons' => false,
+                    'tinymce'       => ['toolbar1' => 'bold,italic,bullist,numlist,link,unlink,undo,redo'],
+                    'quicktags'     => ['buttons' => 'strong,em,ul,ol,li,link'],
+                ]
+            );
+            echo '</div>';
+
             echo '</td></tr>';
         }
 
@@ -139,10 +154,11 @@ class EventPricing
                     'price'         => $mode === AttendancePricingService::MODE_FLAT ? $flat_price : 0.0,
                     'price_mode'    => $mode,
                     'pricing_rules' => AttendancePricingService::encode_rules($rules),
+                    'description'   => wp_kses_post((string) ($data['description'] ?? '')),
                     'updated_at'    => current_time('mysql'),
                 ],
                 ['id' => (int) $option_id, 'event_post_id' => $post_id, 'is_active' => 1],
-                ['%f', '%s', '%s', '%s'],
+                ['%f', '%s', '%s', '%s', '%s'],
                 ['%d', '%d', '%d']
             );
         }

@@ -7,6 +7,7 @@
 @layer hmw.components {
 
 .hmw-v3-booking-wrapper {
+  --hmw-color-accent: #ed5c2d;
   font-family: var(--hmw-font-family);
   color: var(--hmw-color-text);
   line-height: 1.6;
@@ -293,9 +294,24 @@
 .hmw-reg-payment-summary {
   font-size: var(--hmw-font-size-lg);
 
+  & p {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-block: 6px;
+  }
+
   & strong {
     color: var(--hmw-color-primary);
   }
+}
+
+.hmw-v3-summary-total-row {
+  border-top: 1px solid var(--hmw-color-border);
+  margin-block-start: 10px;
+  padding-block-start: 10px;
+  font-weight: 600;
 }
 
 .hmw-v3-attendee-block {
@@ -436,43 +452,96 @@
 
 .hmw-v3-attendance-options {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 28px;
+  grid-template-columns: 1fr;
 }
 
-.hmw-v3-attendance-option {
+.hmw-v3-attendance-option-header {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--hmw-color-border);
-  border-radius: var(--hmw-radius-sm);
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.hmw-v3-attendance-option-header input[type="radio"] {
+  appearance: none;
+  inline-size: 18px;
+  block-size: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  position: relative;
+  inset-block-start: 2px;
+  border: 2px solid var(--hmw-color-text-muted);
+  border-radius: 3px;
   background: var(--hmw-color-bg);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: background-color var(--hmw-transition), border-color var(--hmw-transition);
+}
 
-  &:hover {
-    border-color: var(--hmw-color-border-focus);
-  }
+.hmw-v3-attendance-option-header input[type="radio"]:checked {
+  border-color: var(--hmw-color-accent);
+  background-color: var(--hmw-color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M3 8.5l3.2 3.2L13 5'/%3E%3C/svg%3E");
+  background-size: 12px 12px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
 
-  &:has(input:checked) {
-    border-color: var(--hmw-color-primary);
-    background: var(--hmw-color-primary-light);
-  }
-
-  input[type="radio"] {
-    margin: 0;
-  }
+.hmw-v3-attendance-option-header input[type="radio"]:focus-visible {
+  outline: 2px solid var(--hmw-color-border-focus);
+  outline-offset: 2px;
 }
 
 .hmw-v3-attendance-option-label {
-  flex: 1;
-  font-weight: 500;
+  font-size: var(--hmw-font-size-xl);
+  font-weight: 600;
+  color: var(--hmw-color-text);
 }
 
 .hmw-v3-attendance-option-price {
-  color: var(--hmw-color-text-muted);
+  font-size: var(--hmw-font-size-xl);
   font-weight: 600;
+  color: var(--hmw-color-text);
+}
+
+.hmw-v3-attendance-option-remaining {
+  font-size: var(--hmw-font-size-sm);
+  font-weight: 400;
+  color: var(--hmw-color-text-muted);
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
+.hmw-v3-attendance-option-description {
+  margin-block-start: 10px;
+  padding-inline-start: 28px;
+  color: var(--hmw-color-text);
+}
+
+.hmw-v3-attendance-option-description ul,
+.hmw-v3-attendance-option-description ol {
+  margin: 0.75em 0;
+  padding-inline-start: 1.4em;
+}
+
+.hmw-v3-attendance-option-description ul {
+  list-style-type: square;
+}
+
+.hmw-v3-attendance-option-description li {
+  margin-block: 0.35em;
+}
+
+.hmw-v3-attendance-option-description li::marker {
+  color: var(--hmw-color-accent);
+}
+
+.hmw-reg-section-title--options {
+  font-size: var(--hmw-font-size-2xl);
+  font-weight: 600;
+  color: var(--hmw-color-primary);
+  border-block-end: 0;
+  margin-block-end: 8px;
 }
 
 @media (width <= 600px) {

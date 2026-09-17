@@ -33,7 +33,7 @@ class AttendancePricingServiceTest extends TestCase
         parent::tearDown();
     }
 
-    private function mockCalculateTotalEnvironment(array $options, ?string $start_date = null): void
+    private function mockCalculateTotalEnvironment(array $options, ?string $start_date = null, array $meta = []): void
     {
         \Patchwork\replace('HMWEvents\\Helpers\\EventHelper::get_active_attendance_options', function () use ($options) {
             return $options;
@@ -44,7 +44,11 @@ class AttendancePricingServiceTest extends TestCase
         });
 
         Functions\when('get_post')->justReturn((object) ['post_type' => 'hmw_event']);
-        Functions\when('get_post_meta')->alias(function ($id, $key, $single = true) use ($start_date) {
+        Functions\when('get_post_meta')->alias(function ($id, $key, $single = true) use ($start_date, $meta) {
+            if (array_key_exists($key, $meta)) {
+                return $meta[$key];
+            }
+
             if ($key === '_event_start_date' && $start_date !== null) {
                 return $start_date;
             }
@@ -211,6 +215,68 @@ class AttendancePricingServiceTest extends TestCase
         $this->assertSame('flat', $result['mode']);
     }
 
+    public function test_calculate_total_flat_applies_percent_surcharge(): void
+    {
+        $row = (object) [
+            'id'            => 1,
+            'option_type'   => 'individual',
+            'label'         => 'Individual',
+            'price'         => 250.0,
+            'price_mode'    => 'flat',
+            'pricing_rules' => null,
+            'capacity'      => null,
+        ];
+
+        $this->mockCalculateTotalEnvironment([$row], null, [
+            '_event_surcharge'      => 2,
+            '_event_surcharge_type' => 'percent',
+        ]);
+
+        $service = new AttendancePricingService();
+        $result = $service->calculate_total(1, 'individual', [
+            ['role' => 'adult'],
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertSame(255.0, $result['total']);
+        $this->assertSame(250.0, $result['base_amount']);
+        $this->assertSame(5.0, $result['surcharge']);
+        $this->assertSame('flat', $result['mode']);
+    }
+
+    public function test_calculate_total_per_attendee_applies_percent_surcharge(): void
+    {
+        $row = (object) [
+            'id'            => 1,
+            'option_type'   => 'parent_child',
+            'label'         => 'Parent + Child',
+            'price'         => 0.0,
+            'price_mode'    => 'per_attendee',
+            'pricing_rules' => json_encode([
+                ['role' => 'adult', 'min_age' => 0, 'max_age' => null, 'price' => 100],
+                ['role' => 'child', 'min_age' => 0, 'max_age' => null, 'price' => 50],
+            ]),
+            'capacity'      => null,
+        ];
+
+        $this->mockCalculateTotalEnvironment([$row], null, [
+            '_event_surcharge'      => 10,
+            '_event_surcharge_type' => 'percent',
+        ]);
+
+        $service = new AttendancePricingService();
+        $result = $service->calculate_total(1, 'parent_child', [
+            ['role' => 'adult'],
+            ['role' => 'child'],
+        ]);
+
+        $this->assertIsArray($result);
+        $this->assertSame(150.0, $result['base_amount']);
+        $this->assertSame(15.0, $result['surcharge']);
+        $this->assertSame(165.0, $result['total']);
+        $this->assertSame('per_attendee', $result['mode']);
+    }
+
     public function test_calculate_total_age_band_requires_dob(): void
     {
         $row = (object) [
@@ -237,28 +303,42 @@ class AttendancePricingServiceTest extends TestCase
         $this->assertSame('missing_date_of_birth', $result->get_error_code());
     }
 
-    public function test_resolve_default_option_type_returns_individual_when_no_requested(): void
+    public function test_resolve_default_option_key_returns_individual_when_no_requested(): void
     {
-        $this->assertSame('individual', AttendancePricingService::resolve_default_option_type([], ''));
+        $this->assertSame('individual', AttendancePricingService::resolve_default_option_key([], ''));
     }
 
-    public function test_resolve_default_option_type_returns_requested_when_no_rows(): void
+    public function test_resolve_default_option_key_returns_requested_when_no_rows(): void
     {
-        $this->assertSame('couple', AttendancePricingService::resolve_default_option_type([], 'couple'));
+        $this->assertSame('couple', AttendancePricingService::resolve_default_option_key([], 'couple'));
     }
 
-    public function test_resolve_default_option_type_matches_requested_row(): void
+    public function test_resolve_default_option_key_matches_requested_row_key(): void
+    {
+        $rows = [(object) ['option_key' => 'individual'], (object) ['option_key' => 'couple']];
+
+        $this->assertSame('couple', AttendancePricingService::resolve_default_option_key($rows, 'couple'));
+    }
+
+    public function test_resolve_default_option_key_matches_requested_legacy_option_type(): void
     {
         $rows = [(object) ['option_type' => 'individual'], (object) ['option_type' => 'couple']];
 
-        $this->assertSame('couple', AttendancePricingService::resolve_default_option_type($rows, 'couple'));
+        $this->assertSame('couple', AttendancePricingService::resolve_default_option_key($rows, 'couple'));
     }
 
-    public function test_resolve_default_option_type_falls_back_to_first_row(): void
+    public function test_resolve_default_option_key_falls_back_to_first_row_key(): void
+    {
+        $rows = [(object) ['option_key' => 'individual'], (object) ['option_key' => 'couple']];
+
+        $this->assertSame('individual', AttendancePricingService::resolve_default_option_key($rows, 'professional'));
+    }
+
+    public function test_resolve_default_option_key_falls_back_to_first_row_type(): void
     {
         $rows = [(object) ['option_type' => 'individual'], (object) ['option_type' => 'couple']];
 
-        $this->assertSame('individual', AttendancePricingService::resolve_default_option_type($rows, 'professional'));
+        $this->assertSame('individual', AttendancePricingService::resolve_default_option_key($rows, 'professional'));
     }
 
     public function test_build_selection_context_individual_flat(): void
@@ -284,6 +364,7 @@ class AttendancePricingServiceTest extends TestCase
         $ctx = (new AttendancePricingService())->build_selection_context(1, 'individual');
 
         $this->assertSame('individual', $ctx['default_option_type']);
+        $this->assertSame('individual', $ctx['default_option_key']);
         $this->assertFalse($ctx['is_free']);
         $this->assertSame(120.0, $ctx['base_price']);
         $this->assertSame(5.0, $ctx['surcharge']);
@@ -296,6 +377,77 @@ class AttendancePricingServiceTest extends TestCase
         $this->assertSame(['adult'], $ctx['allowed_roles']);
         $this->assertCount(1, $ctx['options']);
         $this->assertSame('individual', $ctx['options'][0]['option_type']);
+        $this->assertSame('individual', $ctx['options'][0]['option_key']);
+    }
+
+    public function test_build_selection_context_exposes_explicit_option_keys(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 1,
+                'option_type'   => 'individual',
+                'option_key'    => 'early-bird',
+                'label'         => 'Early Bird',
+                'price'         => 90.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+            (object) [
+                'id'            => 2,
+                'option_type'   => 'couple',
+                'option_key'    => 'couple',
+                'label'         => 'Couple',
+                'price'         => 650.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows, [
+            '_event_is_free'   => '',
+            '_event_price'     => 90.0,
+            '_event_surcharge' => 0.0,
+        ]);
+
+        $ctx = (new AttendancePricingService())->build_selection_context(1, 'early-bird');
+
+        $this->assertSame('early-bird', $ctx['default_option_key']);
+        $this->assertSame('individual', $ctx['default_option_type']);
+        $this->assertCount(2, $ctx['options']);
+        $this->assertSame('early-bird', $ctx['options'][0]['option_key']);
+        $this->assertSame('couple', $ctx['options'][1]['option_key']);
+        $this->assertSame(90.0, $ctx['default_display_price']);
+    }
+
+    public function test_build_selection_context_individual_percent_surcharge(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 1,
+                'option_type'   => 'individual',
+                'label'         => 'Individual',
+                'price'         => 120.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows, [
+            '_event_is_free'        => '',
+            '_event_price'          => 120.0,
+            '_event_surcharge'      => 2.0,
+            '_event_surcharge_type' => 'percent',
+        ]);
+
+        $ctx = (new AttendancePricingService())->build_selection_context(1, 'individual');
+
+        $this->assertSame(2.4, $ctx['surcharge']);
+        $this->assertSame('percent', $ctx['surcharge_mode']);
+        $this->assertSame(2.0, $ctx['surcharge_rate']);
+        $this->assertSame(120.0, $ctx['default_display_price']);
     }
 
     public function test_build_selection_context_parent_child_is_effective_multi(): void
@@ -388,6 +540,35 @@ class AttendancePricingServiceTest extends TestCase
         $this->assertFalse($ctx['has_paid_option']);
     }
 
+    public function test_build_selection_context_free_event_reports_flat_mode_and_zero_rate(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 1,
+                'option_type'   => 'individual',
+                'label'         => 'Individual',
+                'price'         => 50.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows, [
+            '_event_is_free'        => '1',
+            '_event_price'          => 50.0,
+            '_event_surcharge'      => 2.0,
+            '_event_surcharge_type' => 'percent',
+        ]);
+
+        $ctx = (new AttendancePricingService())->build_selection_context(1, 'individual');
+
+        $this->assertTrue($ctx['is_free']);
+        $this->assertSame(0.0, $ctx['surcharge']);
+        $this->assertSame('flat', $ctx['surcharge_mode']);
+        $this->assertSame(0.0, $ctx['surcharge_rate']);
+    }
+
     public function test_build_selection_context_honours_multi_enabled_baseline(): void
     {
         $rows = [
@@ -417,6 +598,270 @@ class AttendancePricingServiceTest extends TestCase
 
         $this->assertTrue($ctx['effective_multi']);
         $this->assertSame(5, $ctx['max_attendees']);
+    }
+
+    public function test_build_selection_context_passes_description_through(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 1,
+                'option_type'   => 'individual',
+                'label'         => 'Two-Day',
+                'description'   => '<p>Two full-day sessions</p>',
+                'price'         => 120.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows, [
+            '_event_is_free'   => '',
+            '_event_price'     => 120.0,
+            '_event_surcharge' => 0.0,
+        ]);
+
+        $ctx = (new AttendancePricingService())->build_selection_context(1, 'individual');
+
+        $this->assertCount(1, $ctx['options']);
+        $this->assertSame('<p>Two full-day sessions</p>', $ctx['options'][0]['description']);
+    }
+
+    public function test_build_selection_context_row_without_description_yields_empty_string(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 1,
+                'option_type'   => 'individual',
+                'label'         => 'Individual',
+                'price'         => 120.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows, [
+            '_event_is_free'   => '',
+            '_event_price'     => 120.0,
+            '_event_surcharge' => 0.0,
+        ]);
+
+        $ctx = (new AttendancePricingService())->build_selection_context(1, 'individual');
+
+        $this->assertCount(1, $ctx['options']);
+        $this->assertArrayHasKey('description', $ctx['options'][0]);
+        $this->assertSame('', $ctx['options'][0]['description']);
+    }
+
+    public function test_resolve_all_falls_back_to_default_values_with_description(): void
+    {
+        $this->mockSelectionContextEnvironment([], [
+            '_event_default_values' => [
+                'attendance_options' => [
+                    [
+                        'option_type' => 'couple',
+                        'label'       => 'Couple',
+                        'description' => '<p>Bring your partner</p>',
+                        'price'       => 650,
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new AttendancePricingService())->resolve_all(1);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('couple', $result[0]['option_type']);
+        $this->assertSame(0, $result[0]['id']);
+        $this->assertSame('<p>Bring your partner</p>', $result[0]['description']);
+        $this->assertSame(650.0, $result[0]['base_price']);
+    }
+
+    public function test_resolve_all_falls_back_to_option_type_when_row_key_missing(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 31,
+                'option_type'   => 'couple',
+                'label'         => 'Couple',
+                'price'         => 650.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows);
+
+        $result = (new AttendancePricingService())->resolve_all(1);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('couple', $result[0]['option_key']);
+    }
+
+    public function test_resolve_configuration_matches_option_key_before_option_type(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 11,
+                'option_type'   => 'professional',
+                'option_key'    => 'early-bird',
+                'label'         => 'Early Bird',
+                'price'         => 90.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+            (object) [
+                'id'            => 12,
+                'option_type'   => 'professional',
+                'option_key'    => 'professional',
+                'label'         => 'Professional',
+                'price'         => 120.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows);
+
+        $service = new AttendancePricingService();
+
+        $early_bird = $service->resolve_configuration(1, 'early-bird');
+        $this->assertSame(11, $early_bird['id']);
+        $this->assertSame('Early Bird', $early_bird['label']);
+        $this->assertSame('early-bird', $early_bird['option_key']);
+
+        $professional = $service->resolve_configuration(1, 'professional');
+        $this->assertSame(12, $professional['id']);
+        $this->assertSame('Professional', $professional['label']);
+    }
+
+    public function test_resolve_configuration_matches_legacy_type_when_key_empty(): void
+    {
+        $rows = [
+            (object) [
+                'id'            => 21,
+                'option_type'   => 'individual',
+                'option_key'    => '',
+                'label'         => 'Individual',
+                'price'         => 120.0,
+                'price_mode'    => 'flat',
+                'pricing_rules' => null,
+                'capacity'      => null,
+            ],
+        ];
+
+        $this->mockSelectionContextEnvironment($rows);
+
+        $config = (new AttendancePricingService())->resolve_configuration(1, 'individual');
+
+        $this->assertSame(21, $config['id']);
+        $this->assertSame('Individual', $config['label']);
+        $this->assertSame('individual', $config['option_key']);
+    }
+
+    public function test_insert_attendance_option_persists_description(): void
+    {
+        $wpdb = $this->makeWpdbFake();
+        $GLOBALS['wpdb'] = $wpdb;
+
+        Functions\when('sanitize_text_field')->returnArg();
+        Functions\when('wp_kses_post')->returnArg();
+        Functions\when('wp_json_encode')->alias('json_encode');
+        Functions\when('current_time')->justReturn('2026-01-01 00:00:00');
+
+        AttendancePricingService::insert_attendance_option(5, [
+            'option_type' => 'individual',
+            'label'       => 'Two-Day',
+            'description' => '<p>Two full-day sessions</p>',
+            'price'       => 120,
+        ], 3);
+
+        $this->assertCount(1, $wpdb->inserts);
+        $this->assertSame('wp_hmwevents_event_attendance_options', $wpdb->inserts[0]['table']);
+        $this->assertSame('<p>Two full-day sessions</p>', $wpdb->inserts[0]['data']['description']);
+        $this->assertSame('two-day', $wpdb->inserts[0]['data']['option_key']);
+    }
+
+    public function test_insert_attendance_option_persists_preset_option_key(): void
+    {
+        $wpdb = $this->makeWpdbFake();
+        $GLOBALS['wpdb'] = $wpdb;
+
+        Functions\when('sanitize_text_field')->returnArg();
+        Functions\when('wp_kses_post')->returnArg();
+        Functions\when('wp_json_encode')->alias('json_encode');
+        Functions\when('current_time')->justReturn('2026-01-01 00:00:00');
+
+        AttendancePricingService::insert_attendance_option(5, [
+            'option_type' => 'individual',
+            'option_key'  => 'promo',
+            'label'       => 'Early Bird',
+            'price'       => 90,
+        ]);
+
+        $this->assertCount(1, $wpdb->inserts);
+        $this->assertSame('promo', $wpdb->inserts[0]['data']['option_key']);
+    }
+
+    public function test_generate_unique_option_key_appends_next_free_suffix(): void
+    {
+        $GLOBALS['wpdb'] = $this->makeWpdbFake(['couple', 'couple-2']);
+
+        $this->assertSame('couple-3', AttendancePricingService::generate_unique_option_key(5, 'couple'));
+    }
+
+    public function test_generate_unique_option_key_returns_base_when_no_keys_taken(): void
+    {
+        $GLOBALS['wpdb'] = $this->makeWpdbFake([]);
+
+        $this->assertSame('couple', AttendancePricingService::generate_unique_option_key(5, 'couple'));
+    }
+
+    public function test_generate_unique_option_key_returns_base_when_not_in_taken_list(): void
+    {
+        $GLOBALS['wpdb'] = $this->makeWpdbFake(['couple-2']);
+
+        $this->assertSame('couple', AttendancePricingService::generate_unique_option_key(5, 'couple'));
+    }
+
+    private function makeWpdbFake(array $taken_keys = []): object
+    {
+        return new class($taken_keys) {
+            public string $prefix = 'wp_';
+            public array $inserts = [];
+            private array $taken;
+
+            public function __construct(array $taken = [])
+            {
+                $this->taken = $taken;
+            }
+
+            public function insert($table, $data, $formats = [])
+            {
+                $this->inserts[] = ['table' => $table, 'data' => $data, 'formats' => $formats];
+
+                return 1;
+            }
+
+            public function prepare($query, ...$args)
+            {
+                return $query;
+            }
+
+            public function esc_like($text)
+            {
+                return addcslashes((string) $text, '_%\\');
+            }
+
+            public function get_col($query = null)
+            {
+                return $this->taken;
+            }
+        };
     }
 
     private function mockSelectionContextEnvironment(array $rows, array $meta = []): void

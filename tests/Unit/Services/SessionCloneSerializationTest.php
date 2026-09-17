@@ -25,6 +25,7 @@ class SessionCloneSerializationTest extends TestCase
         $GLOBALS['wpdb']->shouldReceive('prepare')->andReturnUsing(function ($query) {
             return $query;
         });
+        $GLOBALS['wpdb']->shouldReceive('get_results')->andReturn([]);
 
         Functions\when('__')->returnArg();
         Functions\when('sanitize_text_field')->returnArg();

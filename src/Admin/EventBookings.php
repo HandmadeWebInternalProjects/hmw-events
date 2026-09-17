@@ -224,7 +224,8 @@ class EventBookings
                     <input type="hidden" name="event_id" value="<?php echo (int) $post->ID; ?>">
 
                     <?php if (count($selection['options']) <= 1): ?>
-                        <input type="hidden" name="attendance_type" value="<?php echo esc_attr($selection['default_option_type']); ?>" />
+                        <input type="hidden" name="attendance_type" value="<?php echo esc_attr($selection['default_option_key'] ?? $selection['default_option_type']); ?>"
+                               data-option-type="<?php echo esc_attr($selection['default_option_type']); ?>" />
                     <?php endif; ?>
 
                     <table class="form-table">
@@ -235,7 +236,9 @@ class EventBookings
                                     <div class="hmwevents-attendance-options">
                                         <?php foreach ($selection['options'] as $option): ?>
                                             <label class="hmwevents-attendance-option">
-                                                <input type="radio" name="attendance_type" value="<?php echo esc_attr($option['option_type']); ?>" <?php checked($selection['default_option_type'], $option['option_type']); ?> />
+                                                <input type="radio" name="attendance_type" value="<?php echo esc_attr($option['option_key'] ?? $option['option_type']); ?>"
+                                                       data-option-type="<?php echo esc_attr($option['option_type']); ?>"
+                                                       <?php checked($selection['default_option_key'] ?? $selection['default_option_type'], $option['option_key'] ?? $option['option_type']); ?> />
                                                 <span class="hmwevents-attendance-option-label"><?php echo esc_html($option['label']); ?></span>
                                                 <?php if (!$selection['is_free'] && ((float) $option['display_price'] > 0 || $selection['has_paid_option'])): ?>
                                                     <span class="hmwevents-attendance-option-price">
@@ -251,6 +254,9 @@ class EventBookings
                                                         echo esc_html(sprintf(__('%d bookings remaining', 'hmw-events'), (int) $option['remaining_bookings']));
                                                         ?>
                                                     </span>
+                                                <?php endif; ?>
+                                                <?php if (trim((string) ($option['description'] ?? '')) !== ''): ?>
+                                                    <span class="hmwevents-attendance-option-description"><?php echo wp_kses_post($option['description']); ?></span>
                                                 <?php endif; ?>
                                             </label>
                                         <?php endforeach; ?>
@@ -369,8 +375,11 @@ class EventBookings
                         'eventDate'        => $manual_ctx['event_date'],
                         'options'          => $selection['options'],
                         'defaultOptionType' => $selection['default_option_type'],
+                        'defaultOptionKey'  => $selection['default_option_key'] ?? $selection['default_option_type'],
                         'basePrice'        => $selection['base_price'],
                         'surcharge'        => $selection['surcharge'],
+                        'surchargeMode'    => $selection['surcharge_mode'] ?? 'flat',
+                        'surchargeRate'    => $selection['surcharge_rate'] ?? 0,
                         'isFree'           => $selection['is_free'],
                         'requiresPayment'  => $selection['default_display_price'] > 0 || $selection['has_paid_option'],
                         'minAttendees'     => $selection['min_attendees'],

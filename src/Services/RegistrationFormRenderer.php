@@ -392,8 +392,17 @@ class RegistrationFormRenderer
 
         $is_free = $context['is_free'];
         $surcharge = $context['surcharge'];
+        $surcharge_mode = (string) ($context['surcharge_mode'] ?? 'flat');
+        $surcharge_rate = (float) ($context['surcharge_rate'] ?? 0.0);
         $price = $context['default_display_price'];
         $total = $price + $surcharge;
+
+        if ($surcharge_mode === 'percent') {
+            /* translators: %s is the surcharge percentage */
+            $surcharge_label = sprintf(__('Payment Surcharge (%s%%):', 'hmw-events'), (string) (float) $surcharge_rate);
+        } else {
+            $surcharge_label = __('Surcharge:', 'hmw-events');
+        }
 
         // Session-picker pricing lives on the individual sessions, not on the
         // parent event — the form requires payment when any bookable session
@@ -406,7 +415,19 @@ class RegistrationFormRenderer
         $requires_payment = $total > 0 || $context['has_paid_option'] || $has_priced_sessions;
 
         $attendance_options = EventHelper::get_active_attendance_options($event_id);
-        $attendance_default = $context['default_option_type'];
+        $attendance_default = (string) ($context['default_option_key'] ?? $context['default_option_type']);
+        $attendance_default_type = (string) ($context['default_option_type'] ?? 'individual');
+
+        $default_option_label = '';
+        foreach ($option_payload as $option) {
+            if (($option['option_key'] ?? $option['option_type']) === $attendance_default) {
+                $default_option_label = (string) $option['label'];
+                break;
+            }
+        }
+        if ($default_option_label === '') {
+            $default_option_label = $attendance_default_type;
+        }
 
         $capacity_service = new CapacityService();
         $event_capacity = $capacity_service->get_capacity($event_id);
@@ -485,13 +506,13 @@ class RegistrationFormRenderer
             'price'            => $price,
             'basePrice'        => $context['base_price'],
             'surcharge'        => $surcharge,
+            'surchargeMode'    => $surcharge_mode,
+            'surchargeRate'    => $surcharge_rate,
             'total'            => $total,
             'requiresPayment'  => $requires_payment,
             'currency'         => 'aud',
             'currencySymbol'   => '$',
             'priceLabel'       => '$' . number_format($total, 2),
-            'courseFeeLabel'   => __('Course fee:', 'hmw-events'),
-            'courseFeePerAttendeeLabel' => __('Course fee per attendee:', 'hmw-events'),
             'isMultiBooking'   => $effective_multi,
             'multiBookingMode' => $mb_mode,
             'minAttendees'     => max(1, (int) ($selected_composition['min_attendees'] ?? 1)),
@@ -500,6 +521,7 @@ class RegistrationFormRenderer
             'hasAgePricing'    => $has_age_pricing,
             'attendanceOptions' => $option_payload,
             'attendanceDefault' => $attendance_default,
+            'attendanceDefaultType' => $attendance_default_type,
             'eventCapacity'     => $event_capacity > 0 ? $event_capacity : null,
             'eventPlacesRemaining' => $event_capacity > 0 ? $event_places_remaining : null,
         ]);
@@ -532,33 +554,46 @@ class RegistrationFormRenderer
 
             <?php if (count($attendance_options) > 1): ?>
                 <div class="hmw-reg-section hmw-reg-section--attendance-options">
-                    <h3 class="hmw-reg-section-title"><?php esc_html_e('Attendance Option', 'hmw-events'); ?></h3>
+                    <h3 class="hmw-reg-section-title hmw-reg-section-title--options">
+                        <?php echo esc_html(apply_filters('hmwevents_registration_options_title', __('Course Options', 'hmw-events'), $event_id)); ?>
+                    </h3>
                     <div class="hmw-v3-attendance-options" role="radiogroup">
                         <?php foreach ($option_payload as $option): ?>
-                            <?php $option_price = (float) $option['display_price']; ?>
-                            <label class="hmw-v3-attendance-option" data-option-type="<?php echo esc_attr($option['option_type']); ?>">
-                                <input type="radio" name="attendance_type" value="<?php echo esc_attr($option['option_type']); ?>"
-                                       <?php checked($attendance_default, $option['option_type']); ?> />
-                                <span class="hmw-v3-attendance-option-label"><?php echo esc_html($option['label']); ?></span>
-                                <?php if (!$is_free && ($option_price > 0 || $has_paid_option)): ?>
-                                    <span class="hmw-v3-attendance-option-price">
-                                        <?php echo esc_html(($option['price_mode'] ?? 'flat') === AttendancePricingService::MODE_FLAT ? '$' . number_format($option_price, 2) : __('From', 'hmw-events') . ' $' . number_format($option_price, 2)); ?>
-                                    </span>
+                            <?php
+                            $option_price = (float) $option['display_price'];
+                            $option_value = $option['option_key'] ?? $option['option_type'];
+                            $has_description = trim((string) ($option['description'] ?? '')) !== '';
+                            ?>
+                            <div class="hmw-v3-attendance-option" data-option-type="<?php echo esc_attr($option['option_type']); ?>">
+                                <label class="hmw-v3-attendance-option-header">
+                                    <input type="radio" name="attendance_type" value="<?php echo esc_attr($option_value); ?>"
+                                           data-option-type="<?php echo esc_attr($option['option_type']); ?>"
+                                           <?php checked($attendance_default, $option_value); ?> />
+                                    <span class="hmw-v3-attendance-option-label"><?php echo esc_html($option['label']); ?></span>
+                                    <?php if (!$is_free && ($option_price > 0 || $has_paid_option)): ?>
+                                        <span class="hmw-v3-attendance-option-price">
+                                            <?php echo esc_html('– ' . (($option['price_mode'] ?? 'flat') === AttendancePricingService::MODE_FLAT ? '$' . number_format($option_price, 2) : __('From', 'hmw-events') . ' $' . number_format($option_price, 2))); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if ($option['max_bookings'] !== null): ?>
+                                        <span class="hmw-v3-attendance-option-remaining">
+                                            <?php
+                                            /* translators: %d is the number of bookings remaining for this option */
+                                            echo esc_html(sprintf(__('%d bookings remaining', 'hmw-events'), (int) $option['remaining_bookings']));
+                                            ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </label>
+                                <?php if ($has_description): ?>
+                                    <div class="hmw-v3-attendance-option-description"><?php echo wp_kses_post($option['description']); ?></div>
                                 <?php endif; ?>
-                                <?php if ($option['max_bookings'] !== null): ?>
-                                    <span class="hmw-v3-attendance-option-remaining">
-                                        <?php
-                                        /* translators: %d is the number of bookings remaining for this option */
-                                        echo esc_html(sprintf(__('%d bookings remaining', 'hmw-events'), (int) $option['remaining_bookings']));
-                                        ?>
-                                    </span>
-                                <?php endif; ?>
-                            </label>
+                            </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
             <?php else: ?>
-                <input type="hidden" name="attendance_type" value="<?php echo esc_attr($attendance_default); ?>" />
+                <input type="hidden" name="attendance_type" value="<?php echo esc_attr($attendance_default); ?>"
+                       data-option-type="<?php echo esc_attr($attendance_default_type); ?>" />
             <?php endif; ?>
 
             <?php if ($is_parent_children): ?>
@@ -631,6 +666,22 @@ class RegistrationFormRenderer
                 <?php endif; ?>
             <?php endif; ?>
 
+            <?php if ($requires_payment): ?>
+                <div class="hmw-reg-section hmw-reg-section--summary">
+                    <h3 class="hmw-reg-section-title"><?php esc_html_e('Booking Summary', 'hmw-events'); ?></h3>
+                    <div class="hmw-reg-payment-summary">
+                        <p class="hmw-v3-summary-line">
+                            <span class="hmw-v3-summary-option"><?php echo esc_html('1 x ' . $default_option_label); ?></span>
+                            <span class="hmw-v3-course-fee">$<?php echo number_format($price, 2); ?></span>
+                        </p>
+                        <?php if ($surcharge > 0): ?>
+                            <p><?php echo esc_html($surcharge_label); ?> <span class="hmw-v3-surcharge">$<?php echo number_format($surcharge, 2); ?></span></p>
+                        <?php endif; ?>
+                        <p class="hmw-v3-summary-total-row"><?php esc_html_e('Total price (inclusive of GST)', 'hmw-events'); ?> <strong id="hmw-v3-total">$<?php echo number_format($total, 2); ?></strong></p>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <div class="hmw-reg-section hmw-reg-section--coupon">
                 <h3 class="hmw-reg-section-title"><?php esc_html_e('Coupon Code', 'hmw-events'); ?></h3>
                 <div class="hmw-v3-coupon-row">
@@ -652,14 +703,6 @@ class RegistrationFormRenderer
             <?php if ($requires_payment): ?>
                 <div class="hmw-reg-section hmw-reg-section--payment">
                     <h3 class="hmw-reg-section-title"><?php esc_html_e('Payment', 'hmw-events'); ?></h3>
-                    <div class="hmw-reg-payment-summary">
-                        <p><span class="hmw-v3-course-fee-label"><?php esc_html_e('Course fee:', 'hmw-events'); ?></span> <span class="hmw-v3-course-fee">$<?php echo number_format($price, 2); ?></span></p>
-                        <p><?php esc_html_e('Attendees:', 'hmw-events'); ?> <span class="hmw-v3-attendee-count">1</span></p>
-                        <?php if ($surcharge > 0): ?>
-                            <p><?php esc_html_e('Surcharge:', 'hmw-events'); ?> <span>$<?php echo number_format($surcharge, 2); ?></span></p>
-                        <?php endif; ?>
-                        <p><?php esc_html_e('Total:', 'hmw-events'); ?> <strong id="hmw-v3-total">$<?php echo number_format($total, 2); ?></strong></p>
-                    </div>
                     <?php if ($show_net_terms): ?>
                     <div class="hmw-reg-payment-options" style="margin-bottom:12px;">
                         <label class="hmw-reg-payment-option">

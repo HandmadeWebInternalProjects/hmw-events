@@ -109,6 +109,41 @@ class EventDataService
 
     /**
      * @param int $event_id
+     * @return string Surcharge type: 'flat' or 'percent'.
+     */
+    public function get_surcharge_type(int $event_id): string
+    {
+        if (!$this->is_event($event_id)) {
+            return 'flat';
+        }
+
+        $value = get_post_meta($event_id, '_event_surcharge_type', true);
+
+        return $value === 'percent' ? 'percent' : 'flat';
+    }
+
+    /**
+     * @param int   $event_id
+     * @param float $base_amount Booking base amount before surcharge.
+     * @return float Surcharge amount for the given base amount.
+     */
+    public function calculate_surcharge(int $event_id, float $base_amount): float
+    {
+        $surcharge = $this->get_surcharge($event_id);
+
+        if ($surcharge <= 0) {
+            return 0.0;
+        }
+
+        if ($this->get_surcharge_type($event_id) === 'percent') {
+            return round($base_amount * $surcharge / 100, 2);
+        }
+
+        return $surcharge;
+    }
+
+    /**
+     * @param int $event_id
      * @return int|null Capacity, or null for non-event posts.
      */
     public function get_capacity(int $event_id): ?int
@@ -480,6 +515,7 @@ class EventDataService
             'price'                => $this->get_price($event_id),
             'deposit'              => $this->get_deposit($event_id),
             'surcharge'            => $this->get_surcharge($event_id),
+            'surcharge_type'       => $this->get_surcharge_type($event_id),
             'currency'             => $this->get_currency($event_id),
             'booking_cutoff'       => $this->get_booking_cutoff($event_id),
             'capacity'             => $this->get_capacity($event_id),

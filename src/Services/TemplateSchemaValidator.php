@@ -739,7 +739,9 @@ class TemplateSchemaValidator
 
             $clean[] = [
                 'option_type'   => $type ?: 'individual',
+                'option_key'    => sanitize_key((string) ($option['option_key'] ?? '')),
                 'label'         => $label,
+                'description'   => trim((string) ($option['description'] ?? '')),
                 'price'         => (float) ($option['price'] ?? 0),
                 'capacity'      => $capacity,
                 'composition'   => $this->normalize_composition($option['composition'] ?? [], $type),
@@ -865,6 +867,10 @@ class TemplateSchemaValidator
     {
         $keys = AcfFieldGroupRegistry::get_field_keys();
 
+        foreach ($this->get_live_event_field_keys() as $key) {
+            $keys[] = $key;
+        }
+
         $all = EventTypeRegistry::all();
         foreach ($all as $config) {
             foreach (($config['hidden_fields'] ?? []) as $field) {
@@ -894,5 +900,38 @@ class TemplateSchemaValidator
         sort($keys);
 
         return array_values($keys);
+    }
+
+    /**
+     * Mirror the template editor's field list: fields registered dynamically
+     * (e.g. taxonomy fields injected on acf/init) exist in live ACF but not
+     * in acf-json, so they must be accepted here.
+     */
+    private function get_live_event_field_keys(): array
+    {
+        if (!function_exists('acf_get_field_groups') || !function_exists('acf_get_fields')) {
+            return [];
+        }
+
+        $keys = [];
+
+        $groups = acf_get_field_groups(['post_type' => 'hmw_event']);
+        foreach ((array) $groups as $group) {
+            $group_fields = acf_get_fields($group['key']);
+            if (!is_array($group_fields)) {
+                continue;
+            }
+
+            foreach ($group_fields as $field) {
+                $name = sanitize_key((string) ($field['name'] ?? ''));
+                if ($name === '' || (!str_starts_with($name, '_event_') && !str_starts_with($name, 'event_'))) {
+                    continue;
+                }
+
+                $keys[] = str_starts_with($name, '_event_') ? substr($name, 1) : $name;
+            }
+        }
+
+        return array_values(array_unique($keys));
     }
 }

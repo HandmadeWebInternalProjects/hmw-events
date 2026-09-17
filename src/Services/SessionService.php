@@ -397,7 +397,10 @@ class SessionService
      */
     public function cascade_to_children(int $parent_id, array $changes, bool $force = false): int
     {
-        $children = $this->get_sessions($parent_id);
+        $children = array_merge(
+            $this->get_sessions($parent_id),
+            $this->get_cloned_sessions($parent_id)
+        );
         $updated = 0;
 
         foreach ($children as $child) {
@@ -410,7 +413,135 @@ class SessionService
             $updated++;
         }
 
+        $this->cascade_attendance_options($parent_id, $children);
+
         return $updated;
+    }
+
+    /**
+     * Custom-dates recurring parents produce standalone clone posts linked by
+     * the _cloned_from meta instead of post_parent children.
+     */
+    public function get_cloned_sessions(int $parent_id): array
+    {
+        return get_posts([
+            'post_type'      => 'hmw_event',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'meta_query'     => [
+                [
+                    'key'   => '_cloned_from',
+                    'value' => (string) $parent_id,
+                ],
+            ],
+        ]) ?: [];
+    }
+
+    /**
+     * Mirror the parent's attendance option rows onto child sessions.
+     *
+     * Matching is by option_key (falling back to option_type for legacy rows
+     * without a key): existing child rows are updated in place so booking
+     * references survive, missing rows are inserted, and child rows the
+     * parent no longer has are deactivated (never deleted, so booking
+     * history keeps its option references).
+     */
+    private function cascade_attendance_options(int $parent_id, array $children): void
+    {
+        global $wpdb;
+        $table = DatabaseService::get_table_name('event_attendance_options');
+
+        $parent_rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT option_type, option_key, label, description, price, price_mode, pricing_rules, capacity, sort_order, is_active
+            FROM {$table} WHERE event_post_id = %d ORDER BY sort_order ASC, id ASC",
+            $parent_id
+        ));
+
+        if (!is_array($parent_rows) || $parent_rows === []) {
+            return;
+        }
+
+        $parent_keys = [];
+        foreach ($parent_rows as $parent_row) {
+            $parent_keys[] = (string) ($parent_row->option_key ?? '') ?: (string) $parent_row->option_type;
+        }
+
+        foreach ($children as $child) {
+            $child_rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, option_key, option_type FROM {$table} WHERE event_post_id = %d",
+                $child->ID
+            ));
+
+            $by_key = [];
+            foreach ((array) $child_rows as $row) {
+                $key = (string) ($row->option_key ?? '');
+                if ($key === '') {
+                    $key = (string) ($row->option_type ?? '');
+                }
+                if ($key !== '') {
+                    $by_key[$key] = $row;
+                }
+            }
+
+            foreach ($parent_rows as $index => $parent_row) {
+                $key = $parent_keys[$index];
+
+                $values = [
+                    'option_type'   => (string) $parent_row->option_type,
+                    'label'         => (string) $parent_row->label,
+                    'description'   => (string) ($parent_row->description ?? ''),
+                    'price'         => (float) $parent_row->price,
+                    'price_mode'    => (string) $parent_row->price_mode,
+                    'pricing_rules' => $parent_row->pricing_rules,
+                    'capacity'      => $parent_row->capacity !== null ? (int) $parent_row->capacity : null,
+                    'sort_order'    => (int) $parent_row->sort_order,
+                    'is_active'     => (int) $parent_row->is_active,
+                    'updated_at'    => current_time('mysql'),
+                ];
+
+                if (isset($by_key[$key])) {
+                    $wpdb->update(
+                        $table,
+                        $values,
+                        ['id' => (int) $by_key[$key]->id],
+                        ['%s', '%s', '%s', '%f', '%s', '%s', '%d', '%d', '%d', '%s'],
+                        ['%d']
+                    );
+                } else {
+                    $wpdb->insert(
+                        $table,
+                        array_merge($values, [
+                            'event_post_id' => (int) $child->ID,
+                            'option_key'    => $key,
+                            'created_at'    => current_time('mysql'),
+                        ]),
+                        ['%s', '%s', '%s', '%f', '%s', '%s', '%d', '%d', '%d', '%s', '%d', '%s', '%s']
+                    );
+                }
+            }
+
+            foreach ($by_key as $key => $row) {
+                if (in_array($key, $parent_keys, true)) {
+                    continue;
+                }
+
+                $wpdb->update(
+                    $table,
+                    ['is_active' => 0, 'updated_at' => current_time('mysql')],
+                    ['id' => (int) $row->id, 'is_active' => 1],
+                    ['%d', '%s'],
+                    ['%d', '%d']
+                );
+            }
+        }
+    }
+
+    /**
+     * Sync the parent's attendance option rows onto a single session.
+     */
+    public function sync_attendance_options_to(int $parent_id, int $session_id): void
+    {
+        $this->cascade_attendance_options($parent_id, [(object) ['ID' => $session_id]]);
     }
 
     // ================================================================
@@ -976,6 +1107,8 @@ class SessionService
             update_post_meta($child_id, '_event_template_override', $template_override);
             update_post_meta($child_id, '_event_template_override_apply_to_children', $apply_to_children);
         }
+
+        $this->sync_attendance_options_to($parent->ID, $child_id);
 
         do_action('hmwevents_session_created', $child_id, $parent->ID);
 

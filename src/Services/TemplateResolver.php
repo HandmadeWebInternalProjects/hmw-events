@@ -238,7 +238,9 @@ class TemplateResolver
 
             $clean[] = [
                 'option_type'   => $type,
+                'option_key'    => sanitize_key((string) ($option['option_key'] ?? '')),
                 'label'         => sanitize_text_field($option['label'] ?? 'Individual'),
+                'description'   => (string) ($option['description'] ?? ''),
                 'price'         => (float) ($option['price'] ?? 0),
                 'capacity'      => $capacity,
                 'composition'   => AttendancePricingService::default_composition($type, $multi_max),

@@ -551,8 +551,9 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
    * Calculate booking amount.
    *
    * When an attendance type is provided and resolves to an active attendance
-   * option, the option price replaces the event-level full price. Deposit and
-   * surcharge handling remain unchanged.
+   * option, the option price replaces the event-level full price. The
+   * surcharge is a flat fee or a percentage of the base amount, depending on
+   * the event's surcharge type.
    *
    * @param int    $event_id        Event ID.
    * @param bool   $is_deposit      Whether this is a deposit payment.
@@ -564,7 +565,6 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
     $eds           = $this->event_data_service();
     $course_cost   = $eds->get_price($event_id);
     $deposit_cost  = $eds->get_deposit($event_id);
-    $surcharge     = $eds->get_surcharge($event_id);
     $currency      = $eds->get_currency($event_id);
 
     $resolved_option = false;
@@ -583,6 +583,7 @@ abstract class AbstractPaymentGateway implements PaymentGatewayInterface
 
     $is_deposit = $is_deposit && !empty($deposit_cost);
     $base_amount = $is_deposit ? floatval($deposit_cost) : floatval($course_cost);
+    $surcharge = $eds->calculate_surcharge((int) $event_id, (float) $base_amount);
     $amount = $base_amount + $surcharge;
     $payment_type = $is_deposit ? 'deposit' : 'full';
 

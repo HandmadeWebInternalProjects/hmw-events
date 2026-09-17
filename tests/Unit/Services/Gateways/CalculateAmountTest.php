@@ -23,9 +23,10 @@ class CalculateAmountTest extends TestCase
         }
 
         $this->fieldValues = [
-            '_event_price'     => null,
-            '_event_deposit'   => null,
-            '_event_surcharge' => null,
+            '_event_price'         => null,
+            '_event_deposit'       => null,
+            '_event_surcharge'     => null,
+            '_event_surcharge_type' => null,
         ];
 
         $test = $this;
@@ -93,6 +94,64 @@ class CalculateAmountTest extends TestCase
         $this->assertSame(100.0, $result['amount']);
         $this->assertSame(100.0, $result['base_amount']);
         $this->assertSame(0.0, $result['surcharge']);
+    }
+
+    public function test_percent_surcharge_applied_to_full_payment(): void
+    {
+        $this->fieldValues['_event_price']         = 100;
+        $this->fieldValues['_event_surcharge']     = 2;
+        $this->fieldValues['_event_surcharge_type'] = 'percent';
+
+        $result = $this->gateway->calculateAmount(123);
+
+        $this->assertIsArray($result);
+        $this->assertSame(102.0, $result['amount']);
+        $this->assertSame(100.0, $result['base_amount']);
+        $this->assertSame(2.0, $result['surcharge']);
+        $this->assertSame('full', $result['payment_type']);
+    }
+
+    public function test_percent_surcharge_calculated_on_deposit_amount(): void
+    {
+        $this->fieldValues['_event_price']         = 100;
+        $this->fieldValues['_event_deposit']       = 50;
+        $this->fieldValues['_event_surcharge']     = 2;
+        $this->fieldValues['_event_surcharge_type'] = 'percent';
+
+        $result = $this->gateway->calculateAmount(123, true);
+
+        $this->assertIsArray($result);
+        $this->assertSame(51.0, $result['amount']);
+        $this->assertSame(50.0, $result['base_amount']);
+        $this->assertSame(1.0, $result['surcharge']);
+        $this->assertSame('deposit', $result['payment_type']);
+    }
+
+    public function test_percent_surcharge_rounds_to_two_decimals(): void
+    {
+        $this->fieldValues['_event_price']         = 33.33;
+        $this->fieldValues['_event_surcharge']     = 3;
+        $this->fieldValues['_event_surcharge_type'] = 'percent';
+
+        $result = $this->gateway->calculateAmount(123);
+
+        $this->assertIsArray($result);
+        $this->assertSame(1.0, $result['surcharge']);
+        $this->assertSame(34.33, $result['amount']);
+        $this->assertSame(33.33, $result['base_amount']);
+    }
+
+    public function test_surcharge_type_null_behaves_as_flat(): void
+    {
+        $this->fieldValues['_event_price']     = 100;
+        $this->fieldValues['_event_surcharge'] = 5;
+
+        $result = $this->gateway->calculateAmount(123);
+
+        $this->assertIsArray($result);
+        $this->assertSame(105.0, $result['amount']);
+        $this->assertSame(100.0, $result['base_amount']);
+        $this->assertSame(5.0, $result['surcharge']);
     }
 
     public function test_surcharge_with_no_deposit_available(): void

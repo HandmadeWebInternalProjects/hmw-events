@@ -217,6 +217,7 @@ class FormSubmissionServiceTest extends TestCase
         Patchwork\replace('HMWEvents\Services\EventDataService::get_surcharge', function ($event_id) {
             return 5.0;
         });
+        Patchwork\replace('HMWEvents\Services\EventDataService::get_surcharge_type', fn () => 'flat');
         Patchwork\replace('HMWEvents\Services\EventDataService::get_session_booking_mode', function ($event_id) {
             return 'individual';
         });

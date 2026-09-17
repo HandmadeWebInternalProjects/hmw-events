@@ -343,6 +343,147 @@ class EventDataServiceTest extends TestCase
         $this->assertSame(0.0, $this->service->get_surcharge(self::EVENT_ID));
     }
 
+    // ---------------------------------------------------------------
+    // get_surcharge_type
+    // ---------------------------------------------------------------
+
+    public function test_get_surcharge_type_defaults_to_flat_when_meta_empty()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge_type') {
+                return '';
+            }
+            return '';
+        });
+
+        $this->assertSame('flat', $this->service->get_surcharge_type(self::EVENT_ID));
+    }
+
+    public function test_get_surcharge_type_returns_percent_when_meta_is_percent()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge_type') {
+                return 'percent';
+            }
+            return '';
+        });
+
+        $this->assertSame('percent', $this->service->get_surcharge_type(self::EVENT_ID));
+    }
+
+    public function test_get_surcharge_type_returns_flat_for_unknown_value()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge_type') {
+                return 'bogus';
+            }
+            return '';
+        });
+
+        $this->assertSame('flat', $this->service->get_surcharge_type(self::EVENT_ID));
+    }
+
+    public function test_get_surcharge_type_returns_flat_for_non_event()
+    {
+        $this->stub_non_event_post();
+        $this->assertSame('flat', $this->service->get_surcharge_type(self::NON_EVENT_ID));
+    }
+
+    // ---------------------------------------------------------------
+    // calculate_surcharge
+    // ---------------------------------------------------------------
+
+    public function test_calculate_surcharge_returns_zero_when_surcharge_missing()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            return '';
+        });
+
+        $this->assertSame(0.0, $this->service->calculate_surcharge(self::EVENT_ID, 250.0));
+    }
+
+    public function test_calculate_surcharge_returns_flat_value_ignoring_base()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge') {
+                return '5';
+            }
+            return '';
+        });
+
+        $this->assertSame(5.0, $this->service->calculate_surcharge(self::EVENT_ID, 250.0));
+        $this->assertSame(5.0, $this->service->calculate_surcharge(self::EVENT_ID, 1000.0));
+    }
+
+    public function test_calculate_surcharge_percent_computes_percentage_of_base()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge') {
+                return '2.0';
+            }
+            if ($key === '_event_surcharge_type') {
+                return 'percent';
+            }
+            return '';
+        });
+
+        $this->assertSame(5.0, $this->service->calculate_surcharge(self::EVENT_ID, 250.0));
+    }
+
+    public function test_calculate_surcharge_percent_rounds_to_two_decimals()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge') {
+                return '2.5';
+            }
+            if ($key === '_event_surcharge_type') {
+                return 'percent';
+            }
+            return '';
+        });
+
+        $this->assertSame(2.5, $this->service->calculate_surcharge(self::EVENT_ID, 100.0));
+    }
+
+    public function test_calculate_surcharge_percent_rounds_sub_cent_result()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge') {
+                return '3.0';
+            }
+            if ($key === '_event_surcharge_type') {
+                return 'percent';
+            }
+            return '';
+        });
+
+        $this->assertSame(1.0, $this->service->calculate_surcharge(self::EVENT_ID, 33.33));
+    }
+
+    public function test_calculate_surcharge_returns_zero_for_zero_base()
+    {
+        $this->stub_event_post();
+        Functions\when('get_post_meta')->alias(function ($post_id, $key, $single) {
+            if ($key === '_event_surcharge') {
+                return '2.0';
+            }
+            if ($key === '_event_surcharge_type') {
+                return 'percent';
+            }
+            return '';
+        });
+
+        $this->assertSame(0.0, $this->service->calculate_surcharge(self::EVENT_ID, 0.0));
+    }
+
     public function test_get_capacity_normalizes_numeric_string()
     {
         $this->stub_event_post();
@@ -942,6 +1083,7 @@ class EventDataServiceTest extends TestCase
         $this->assertSame(150.0, $details['price']);
         $this->assertSame(50.0, $details['deposit']);
         $this->assertSame(5.0, $details['surcharge']);
+        $this->assertSame('flat', $details['surcharge_type']);
         $this->assertSame('USD', $details['currency']);
         $this->assertSame('2026-08-15', $details['booking_cutoff']);
         $this->assertSame(25, $details['capacity']);

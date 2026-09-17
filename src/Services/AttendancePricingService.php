@@ -133,13 +133,25 @@ class AttendancePricingService
             : max(0, (int) $raw_capacity);
 
         $type  = sanitize_key($preset['option_type'] ?? 'individual') ?: 'individual';
+        $label = sanitize_text_field($preset['label'] ?? 'Individual');
         $rules = $preset['pricing_rules'] ?? [];
         $mode  = self::normalize_mode((string) ($preset['price_mode'] ?? ''), $rules);
+
+        $key = sanitize_key((string) ($preset['option_key'] ?? ''));
+        if ($key === '') {
+            $key = sanitize_key(str_replace(' ', '-', $label));
+        }
+        if ($key === '') {
+            $key = $type;
+        }
+        $key = self::generate_unique_option_key($event_post_id, $key);
 
         $wpdb->insert($table, [
             'event_post_id' => $event_post_id,
             'option_type'   => $type,
-            'label'         => sanitize_text_field($preset['label'] ?? 'Individual'),
+            'option_key'    => $key,
+            'label'         => $label,
+            'description'   => wp_kses_post((string) ($preset['description'] ?? '')),
             'price'         => (float) ($preset['price'] ?? 0),
             'price_mode'    => $mode,
             'pricing_rules' => self::encode_rules($rules),
@@ -148,7 +160,40 @@ class AttendancePricingService
             'is_active'     => 1,
             'created_at'    => current_time('mysql'),
             'updated_at'    => current_time('mysql'),
-        ], ['%d', '%s', '%s', '%f', '%s', '%s', '%d', '%d', '%d', '%s', '%s']);
+        ], ['%d', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%d', '%d', '%d', '%s', '%s']);
+    }
+
+    /**
+     * Return a selection key unique among the event's attendance options,
+     * appending a numeric suffix when the base key is taken.
+     */
+    public static function generate_unique_option_key(int $event_post_id, string $key): string
+    {
+        global $wpdb;
+        $table = DatabaseService::get_table_name('event_attendance_options');
+
+        $base = sanitize_key($key) ?: 'individual';
+
+        $taken = $wpdb->get_col($wpdb->prepare(
+            "SELECT option_key FROM {$table} WHERE event_post_id = %d AND option_key LIKE %s",
+            $event_post_id,
+            $wpdb->esc_like($base) . '%'
+        ));
+
+        if (empty($taken) || !in_array($base, $taken, true)) {
+            return $base;
+        }
+
+        $taken = array_flip($taken);
+
+        for ($i = 2; $i < 100; $i++) {
+            $candidate = $base . '-' . $i;
+            if (!isset($taken[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        return $base . '-' . substr((string) time(), -6);
     }
 
     public function resolve_all(int $event_id): array
@@ -169,7 +214,9 @@ class AttendancePricingService
             $result[] = [
                 'id'            => (int) ($row->id ?? 0),
                 'option_type'   => $type,
+                'option_key'    => sanitize_key((string) ($row->option_key ?? '')) ?: $type,
                 'label'         => sanitize_text_field($row->label ?? ''),
+                'description'   => (string) ($row->description ?? ''),
                 'base_price'    => (float) ($row->price ?? 0),
                 'capacity'      => $row->capacity !== null && $row->capacity !== '' ? max(0, (int) $row->capacity) : null,
                 'composition'   => $default['composition'] ?? self::default_composition($type, $multi_max),
@@ -185,7 +232,9 @@ class AttendancePricingService
                 $result[] = [
                     'id'            => 0,
                     'option_type'   => $type,
+                    'option_key'    => sanitize_key((string) ($default['option_key'] ?? '')) ?: $type,
                     'label'         => sanitize_text_field($default['label'] ?? ''),
+                    'description'   => (string) ($default['description'] ?? ''),
                     'base_price'    => (float) ($default['price'] ?? 0),
                     'capacity'      => isset($default['capacity']) && $default['capacity'] !== '' && $default['capacity'] !== null
                         ? max(0, (int) $default['capacity'])
@@ -200,29 +249,45 @@ class AttendancePricingService
         return $result;
     }
 
-    public function resolve_configuration(int $event_id, string $option_type): array
+    public function resolve_configuration(int $event_id, string $option_key): array
     {
-        $type = sanitize_key($option_type) ?: 'individual';
+        $requested = sanitize_key($option_key) ?: 'individual';
+        $options = $this->resolve_all($event_id);
 
-        foreach ($this->resolve_all($event_id) as $option) {
-            if ($option['option_type'] === $type) {
+        foreach ($options as $option) {
+            if ((string) ($option['option_key'] ?? '') !== '' && $option['option_key'] === $requested) {
+                return $option;
+            }
+        }
+
+        foreach ($options as $option) {
+            if ((string) ($option['option_type'] ?? '') === $requested) {
                 return $option;
             }
         }
 
         return [
             'id'            => 0,
-            'option_type'   => $type,
-            'label'         => $type,
+            'option_type'   => $requested,
+            'option_key'    => $requested,
+            'label'         => $requested,
+            'description'   => '',
             'base_price'    => $this->event_data()->get_price($event_id) ?? 0.0,
             'capacity'      => null,
-            'composition'   => self::default_composition($type, $this->multi_booking_max($event_id)),
+            'composition'   => self::default_composition($requested, $this->multi_booking_max($event_id)),
             'price_mode'    => self::MODE_FLAT,
             'pricing_rules' => [],
         ];
     }
 
-    public static function resolve_default_option_type(array $option_rows, string $requested): string
+    /**
+     * Resolve the default selection key for a set of raw option rows.
+     *
+     * Returns the requested value when it matches a row's option_key (or its
+     * option_type for legacy rows without a key); otherwise the first row's
+     * key, falling back to its type.
+     */
+    public static function resolve_default_option_key(array $option_rows, string $requested): string
     {
         $requested = sanitize_key($requested);
 
@@ -231,8 +296,23 @@ class AttendancePricingService
         }
 
         foreach ($option_rows as $row) {
-            if (($row->option_type ?? '') === $requested) {
+            $key = sanitize_key((string) ($row->option_key ?? ''));
+            if ($key !== '' && $key === $requested) {
                 return $requested;
+            }
+        }
+
+        foreach ($option_rows as $row) {
+            $type = sanitize_key((string) ($row->option_type ?? ''));
+            if ($type !== '' && $type === $requested) {
+                return $requested;
+            }
+        }
+
+        foreach ($option_rows as $row) {
+            $key = sanitize_key((string) ($row->option_key ?? ''));
+            if ($key !== '') {
+                return $key;
             }
         }
 
@@ -250,8 +330,11 @@ class AttendancePricingService
      * @return array{
      *   options: array<int, array>,
      *   default_option_type: string,
+     *   default_option_key: string,
      *   base_price: float,
      *   surcharge: float,
+     *   surcharge_mode: string,
+     *   surcharge_rate: float,
      *   is_free: bool,
      *   default_display_price: float,
      *   has_paid_option: bool,
@@ -268,10 +351,9 @@ class AttendancePricingService
         $multi_booking = $multi_booking ?? [];
         $is_free = $this->event_data()->get_is_free($event_id);
         $base_price = $is_free ? 0.0 : (float) $this->event_data()->get_price($event_id);
-        $surcharge = $is_free ? 0.0 : $this->event_data()->get_surcharge($event_id);
 
         $option_rows = EventHelper::get_active_attendance_options($event_id);
-        $default_option_type = self::resolve_default_option_type($option_rows, $requested_default);
+        $default_option_key = self::resolve_default_option_key($option_rows, $requested_default);
 
         $config = $this->resolve_all($event_id);
         $capacity_service = new CapacityService();
@@ -281,12 +363,14 @@ class AttendancePricingService
         $has_age_pricing = false;
         $effective_multi = $multi_enabled;
         $max_attendees = max(1, (int) ($multi_booking['max'] ?? 10));
-        $selected_composition = self::default_composition($default_option_type);
+        $selected_composition = self::default_composition('individual');
+        $default_option_type = '';
 
         foreach ($config as $option) {
             $mode = (string) ($option['price_mode'] ?? self::MODE_FLAT);
             $option_price = $is_free ? 0.0 : (float) $option['base_price'];
             $display_price = $is_free ? 0.0 : $this->representative_price($option);
+            $option_key = (string) ($option['option_key'] ?? '') ?: (string) $option['option_type'];
 
             if (!$is_free && $this->has_positive_price($option)) {
                 $has_paid_option = true;
@@ -298,8 +382,9 @@ class AttendancePricingService
 
             $composition = $option['composition'];
 
-            if ($option['option_type'] === $default_option_type) {
+            if ($option_key === $default_option_key) {
                 $selected_composition = $composition;
+                $default_option_type = (string) $option['option_type'];
             }
 
             if ((int) ($composition['min_attendees'] ?? 1) > 1) {
@@ -313,7 +398,9 @@ class AttendancePricingService
             $payload[] = [
                 'id'                 => (int) ($option['id']),
                 'option_type'        => $option['option_type'],
+                'option_key'         => $option_key,
                 'label'              => $option['label'],
+                'description'        => (string) ($option['description'] ?? ''),
                 'price'              => $option_price,
                 'display_price'      => $display_price,
                 'price_mode'         => $mode,
@@ -324,13 +411,21 @@ class AttendancePricingService
             ];
         }
 
+        if ($default_option_type === '') {
+            $default_option_type = sanitize_key($default_option_key) ?: 'individual';
+        }
+
         $default_display_price = $base_price;
         foreach ($payload as $option) {
-            if ($option['option_type'] === $default_option_type) {
+            if ($option['option_key'] === $default_option_key) {
                 $default_display_price = $is_free ? 0.0 : (float) $option['display_price'];
                 break;
             }
         }
+
+        $surcharge = $is_free ? 0.0 : $this->event_data()->calculate_surcharge($event_id, $default_display_price);
+        $surcharge_mode = $is_free ? 'flat' : $this->event_data()->get_surcharge_type($event_id);
+        $surcharge_rate = $is_free ? 0.0 : $this->event_data()->get_surcharge($event_id);
 
         $allowed_roles = array_values(array_intersect(
             [self::ROLE_ADULT, self::ROLE_CHILD],
@@ -343,8 +438,11 @@ class AttendancePricingService
         return [
             'options'               => $payload,
             'default_option_type'   => $default_option_type,
+            'default_option_key'    => $default_option_key,
             'base_price'            => $base_price,
             'surcharge'             => $surcharge,
+            'surcharge_mode'        => $surcharge_mode,
+            'surcharge_rate'        => $surcharge_rate,
             'is_free'               => $is_free,
             'default_display_price' => $default_display_price,
             'has_paid_option'       => $has_paid_option,
@@ -445,7 +543,6 @@ class AttendancePricingService
         }
 
         $is_free = $this->event_data()->get_is_free($event_id);
-        $surcharge = $is_free ? 0.0 : $this->event_data()->get_surcharge($event_id);
 
         if ($is_free) {
             return [
@@ -459,14 +556,15 @@ class AttendancePricingService
         }
 
         if ($mode === self::MODE_PER_ATTENDEE) {
-            return $this->calculate_per_attendee($rules, $attendees, $currency, $surcharge);
+            return $this->calculate_per_attendee($rules, $attendees, $currency, $event_id);
         }
 
         if ($mode === self::MODE_AGE_BAND) {
-            return $this->calculate_age_band($event_id, $rules, $attendees, $currency, $surcharge);
+            return $this->calculate_age_band($event_id, $rules, $attendees, $currency);
         }
 
         $base = (float) $config['base_price'];
+        $surcharge = $this->event_data()->calculate_surcharge($event_id, $base);
 
         return [
             'total'        => $base + $surcharge,
@@ -622,7 +720,7 @@ class AttendancePricingService
         return count($attendees);
     }
 
-    private function calculate_per_attendee(array $rules, array $attendees, string $currency, float $surcharge): array|\WP_Error
+    private function calculate_per_attendee(array $rules, array $attendees, string $currency, int $event_id): array|\WP_Error
     {
         $base = 0.0;
         $per_attendee = [];
@@ -647,6 +745,8 @@ class AttendancePricingService
             ];
         }
 
+        $surcharge = $this->event_data()->calculate_surcharge($event_id, $base);
+
         return [
             'total'        => $base + $surcharge,
             'base_amount'  => $base,
@@ -657,7 +757,7 @@ class AttendancePricingService
         ];
     }
 
-    private function calculate_age_band(int $event_id, array $rules, array $attendees, string $currency, float $surcharge): array|\WP_Error
+    private function calculate_age_band(int $event_id, array $rules, array $attendees, string $currency): array|\WP_Error
     {
         $event_date = $this->event_data()->get_start_date($event_id);
         if (empty($event_date)) {
@@ -707,6 +807,8 @@ class AttendancePricingService
                 'price' => $price,
             ];
         }
+
+        $surcharge = $this->event_data()->calculate_surcharge($event_id, $base);
 
         return [
             'total'        => $base + $surcharge,

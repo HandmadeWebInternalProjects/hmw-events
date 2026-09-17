@@ -88,7 +88,9 @@ function hmwevents_get_schema(): array
             id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
             event_post_id bigint UNSIGNED NOT NULL COMMENT 'hmw_event CPT post ID',
             option_type ENUM('parent', 'parent_child', 'professional', 'couple', 'individual') NOT NULL DEFAULT 'individual',
+            option_key varchar(191) NOT NULL DEFAULT '' COMMENT 'Freeform selection key within the event. Falls back to option_type when empty.',
             label varchar(255) NOT NULL,
+            description mediumtext NULL COMMENT 'Rich text description shown under the option label',
             price decimal(10,2) NOT NULL DEFAULT 0.00,
             price_mode varchar(20) NOT NULL DEFAULT 'flat' COMMENT 'flat, per_attendee, age_band',
             pricing_rules JSON DEFAULT NULL COMMENT 'JSON rules for per_attendee/age_band pricing',
@@ -99,6 +101,7 @@ function hmwevents_get_schema(): array
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY idx_event (event_post_id),
+            KEY idx_event_key (event_post_id, option_key),
             KEY idx_active (is_active)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

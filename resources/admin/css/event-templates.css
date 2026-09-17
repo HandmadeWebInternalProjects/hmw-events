@@ -209,3 +209,27 @@
 .hmwevents-remove-attendance-option:hover {
   color: #d63638;
 }
+
+.hmwevents-attendance-description {
+  display: block;
+  grid-column: 2;
+  margin-top: 8px;
+}
+
+.hmwevents-attendance-option-hint {
+  grid-column: 2;
+  margin: 2px 0 0;
+  color: #646970;
+  font-size: 12px;
+}
+
+.hmwevents-attendance-description span {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.hmwevents-attendance-description textarea {
+  width: 100%;
+  min-height: 64px;
+}

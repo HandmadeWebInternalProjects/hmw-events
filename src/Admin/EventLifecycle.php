@@ -138,7 +138,7 @@ class EventLifecycle
 
         $meta_keys = [
             '_event_start_date', '_event_end_date', '_event_price', '_event_deposit',
-            '_event_capacity', '_event_is_free', '_event_surcharge',
+            '_event_capacity', '_event_is_free', '_event_surcharge', '_event_surcharge_type',
             '_event_max_per_registrant', '_event_allow_net_terms',
             '_event_is_recurring', '_event_venue',
             '_event_webinar_url', '_event_booking_notes', '_organizer_id',

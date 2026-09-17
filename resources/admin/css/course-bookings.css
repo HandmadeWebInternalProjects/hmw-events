@@ -548,6 +548,12 @@
 	font-size: 12px;
 }
 
+#hmwevents-add-booking-modal .hmwevents-attendance-option-description {
+	flex-basis: 100%;
+	color: #50575e;
+	font-size: 12px;
+}
+
 #hmwevents-add-booking-modal .hmwevents-attendees-section {
 	margin-top: 16px;
 	padding-top: 12px;

@@ -61,7 +61,26 @@
             "step": "0.01",
             "default_value": 0,
             "prepend": "$",
-            "instructions": "Flat fee added to every booking for this event."
+            "instructions": "Added to every booking for this event. A flat fee, or a percentage of the booking price depending on the surcharge type.",
+            "wrapper": {
+                "width": "50"
+            }
+        },
+        {
+            "key": "field_event_surcharge_type",
+            "label": "Surcharge Type",
+            "name": "_event_surcharge_type",
+            "type": "select",
+            "required": 0,
+            "choices": {
+                "flat": "Flat fee",
+                "percent": "Percentage of price"
+            },
+            "default_value": "flat",
+            "return_format": "value",
+            "wrapper": {
+                "width": "50"
+            }
         },
         {
             "key": "field_event_max_per_registrant",
